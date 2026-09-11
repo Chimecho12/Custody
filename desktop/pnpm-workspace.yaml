@@ -1,0 +1,5 @@
+allowBuilds:
+  esbuild: true
+storeDir: ../.build/pnpm-store
+confirmModulesPurge: false
+verifyDepsBeforeRun: false

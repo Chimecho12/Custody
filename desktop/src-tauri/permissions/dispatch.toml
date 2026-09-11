@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-dispatch"
+description = "Allow the bundled main window to use validated Agent operations."
+commands.allow = ["dispatch"]
