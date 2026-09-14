@@ -41,7 +41,7 @@ def _verdict_signature(v: dict[str, Any], ignore_equations: tuple[str, ...] = ()
         status = "passed_excluding_private"
     elif ignore_equations and status == "insufficient_evidence" and all(
         eqs.get(k) == "pass" for k in public_required
-    ) and not codes:
+    ):
         status = "passed_excluding_private"
     return {
         "verification_status": status,
@@ -77,6 +77,7 @@ def replay_audit(
     private_by_sub: dict[str, dict[str, Any]],
     expected_parties_by_sub: dict[str, list[str]],
     reference_model_hashes: dict[str, str],
+    private_by_hash: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     entries = [_Entry(e["index"], e["registered_at"], SignedStatement.from_dict(e["statement"])) for e in export["entries"]]
     ts_pub = bytes.fromhex(export["ts_public_key"])
@@ -138,30 +139,37 @@ def replay_audit(
                      "kid": e.statement.kid, "problem": bad})
                 continue
             t_verdicts.append(e)
-        priv = private_by_sub.get(sub)
-        ignore = () if priv else _PRIVATE_ONLY_EQUATIONS
-        compared_without.update(ignore)
-        # Reproduce what was registered when the verdict was issued. Evidence arriving
-        # afterwards may change the conclusion; that is not a past checker error.
-        cutoff = t_verdicts[-1].index if t_verdicts else len(entries)
-        snapshot = [e for e in evidence_entries if e.index < cutoff]
-        verdict_time = t_verdicts[-1].statement.issued_at if t_verdicts else head["time"]
-        ev = engine.gather(sub, snapshot, PrivateEvidence.from_dict(priv) if priv else None, now=verdict_time)
         expected = expected_parties_by_sub.get(sub, ["U", "R", "M"])
-        mine = engine.reconcile(ev, expected)
-        record = {"sub": sub, "recomputed": _verdict_signature(mine, ignore), "t_verdict": None, "match": None,
-                  "compared_without": list(ignore), "evidence_cutoff_index": cutoff,
-                  "evidence_after_verdict": sum(e.index > cutoff for e in evidence_entries)}
-        if t_verdicts:
-            last = t_verdicts[-1].statement.payload
-            record["t_verdict"] = _verdict_signature(last, ignore)
-            record["match"] = record["t_verdict"] == record["recomputed"]
-            record["t_verdict_count"] = len(t_verdicts)
-            if not record["match"]:
-                mismatches.append(record)
-        else:
-            record["match"] = False
+        comparisons = []
+        for verdict_entry in t_verdicts or [None]:
+            last = verdict_entry.statement.payload if verdict_entry else None
+            priv = private_by_sub.get(sub)
+            if last and last.get("private_evidence_hash"):
+                from itx.crypto import content_hash_hex
+                expected_hash = last["private_evidence_hash"]
+                candidate = (private_by_hash or {}).get(expected_hash, priv)
+                priv = candidate if candidate and content_hash_hex(canonical_json(candidate)) == expected_hash else None
+            ignore = () if priv else _PRIVATE_ONLY_EQUATIONS
+            compared_without.update(ignore)
+            cutoff = verdict_entry.index if verdict_entry else len(entries)
+            snapshot = [e for e in evidence_entries if e.index < cutoff]
+            verdict_time = verdict_entry.statement.issued_at if verdict_entry else head["time"]
+            ev = engine.gather(sub, snapshot, PrivateEvidence.from_dict(priv) if priv else None, now=verdict_time)
+            mine = engine.reconcile(ev, expected)
+            item = {"log_index": verdict_entry.index if verdict_entry else None,
+                    "recomputed": _verdict_signature(mine, ignore),
+                    "t_verdict": _verdict_signature(last, ignore) if last else None,
+                    "compared_without": list(ignore), "evidence_cutoff_index": cutoff,
+                    "evidence_after_verdict": sum(e.index > cutoff for e in evidence_entries)}
+            item["match"] = last is not None and item["t_verdict"] == item["recomputed"]
+            comparisons.append(item)
+        # Keep one result per request for existing report consumers, but fail if ANY
+        # authenticated historical verdict was wrong, even when a later one is correct.
+        record = {"sub": sub, **comparisons[-1], "t_verdict_count": len(t_verdicts),
+                  "historical_verdicts": comparisons, "match": all(v["match"] for v in comparisons)}
+        if not t_verdicts:
             record["note"] = "T 가 이 요청에 대한 (인증되는) 판정을 등록하지 않음"
+        if not record["match"]:
             mismatches.append(record)
         checked.append(record)
 
@@ -179,5 +187,7 @@ def replay_audit(
         "verdict_mismatches": mismatches,
         "unauthenticated_verdicts": unauthenticated_verdicts,
         "auditor_checker_version": CHECKER_VERSION,
+        "audit_scope": "all_authenticated_verdicts",
+        "verdict_count": sum(r["t_verdict_count"] for r in checked),
         "note": "감사자는 T 의 코드를 믿지 않고 같은 검사기 버전으로 재계산했다. 사용자 비공개 증거는 권한 있는 감사자에게만 제공된다.",
     }

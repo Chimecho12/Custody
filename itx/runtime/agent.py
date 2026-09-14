@@ -12,7 +12,7 @@ from itx.statements.schemas import contract_payload, observation_payload
 from itx.enforce import UserGate
 from itx.ts import TransparencyLog, RegistrationReceipt, verify_receipt
 from itx.audit import replay_audit
-from .common import (Store, ISS, MAX_PROMPT, MAX_RESPONSE, authenticate, load_config, key_for,
+from .common import (Store, ProcessLock, ISS, MAX_PROMPT, MAX_RESPONSE, authenticate, load_config, key_for,
                      now_ms, signed, digest, policy_for)
 from .transport import Peer
 
@@ -24,6 +24,7 @@ class Agent:
             raise ValueError("사용자 U의 연결 설정을 선택하세요.")
         self.key = key_for(self.config)
         self.peer = Peer(self.config, self.key)
+        self.process_lock = ProcessLock(Path(self.config["directory"]) / "agent.lock")
         self.store = Store(self.config["directory"])
         # A crash cannot establish whether a remote execution completed. Never retry it.
         for key, record in self.store.items("request:"):
@@ -68,13 +69,72 @@ class Agent:
         return SignedStatement(ISS["T"], "urn:itx:policy:" + self.config["log_id"], CT_POLICY,
                                i["kid"], self.config["created_at"], policy_for(self.config)).statement_hash
 
+    def trust(self):
+        from .auditing import trust_from_config
+        return trust_from_config(self.config)
+
+    def remember_private(self, private):
+        self.store.put("private-version:" + content_hash_hex(canonical_json(private)), private)
+
+    def private_evidence(self):
+        return ({r["sub"]: r["private"] for _, r in self.store.items("request:") if r.get("private")},
+                {k.split(":", 1)[1]: v for k, v in self.store.items("private-version:")})
+
+    def audit_export(self):
+        from .auditing import fetch_export
+        return fetch_export(self.peer, self.trust())
+
     def status(self):
         return {"source": "network_lab" if self.config["lab"] else "connected_evaluation",
                 "transport": "TLS", "model_kind": self.config["model_kind"],
                 "governance": self.config["governance"], "model_id": self.config["model_id"],
                 "policy_expires_at": self.config["policy_expires_at"], "pending_evidence": len(self.store.pending()),
                 "endpoints": self.config["endpoints"], "identities": self.config["identities"],
-                "policy_hash": self.policy_hash(), "config_path": self.config["config_path"]}
+                "policy_hash": self.policy_hash(), "config_path": self.config["config_path"],
+                "epoch": self.config.get("epoch"), "deployment_hash": self.config.get("deployment_hash"),
+                "deployment_history": self.config.get("deployment_history", []),
+                "witness_configured": "W" in self.config["identities"]}
+
+    def preflight(self):
+        from itx.crypto import verify
+        results = {}
+        for role in self.config["endpoints"]:
+            challenge = secrets.token_hex(16)
+            start = time.monotonic_ns()
+            try:
+                response = self.peer.call(role, "health", {"challenge": challenge}, timeout=2)
+                body = response["body"]
+                if (body["challenge"] != challenge or body["role"] != role or body["log_id"] != self.config["log_id"]
+                        or not verify(bytes.fromhex(self.config["identities"][role]["public_key"]),
+                                      canonical_json(body), bytes.fromhex(response["signature"]))):
+                    raise ValueError("authenticated service identity mismatch")
+                results[role] = {**body, "ok": body.get("accepting_requests") is True,
+                                 "elapsed_ms": (time.monotonic_ns() - start) // 1000000}
+            except Exception as exc:
+                results[role] = {"ok": False, "error": type(exc).__name__ + ": " + str(exc)[:500]}
+        return {"services": results, "ok": all(v["ok"] for v in results.values()), "model_execution_verified": False}
+
+    def witness(self):
+        from .witness import verify_witness_receipt
+        from .auditing import fingerprint
+        if "W" not in self.config["identities"]:
+            raise ValueError("별도 목격자 W가 등록된 배포를 먼저 연결하세요.")
+        head = self.peer.call("T", "audit_head", {}, timeout=3)["head"]
+        receipt = self.peer.call("W", "witness", {"head": head}, timeout=5)
+        verify_witness_receipt(receipt, self.trust())
+        b = receipt["body"]
+        if any(b["head"][k] != head[k] for k in ("log_id", "tree_size", "root_hash")):
+            raise ValueError("witness receipt refers to a different checkpoint")
+        rows = self.store.items("witness:")
+        if rows:
+            previous = rows[0][1]
+            old_seq = previous["body"]["sequence"]
+            if b["sequence"] < old_seq or (b["sequence"] == old_seq and fingerprint(receipt) != fingerprint(previous)):
+                raise ValueError("witness receipt rollback or equivocation")
+            if b["sequence"] == old_seq + 1 and b["previous_receipt_hash"] != fingerprint(previous):
+                raise ValueError("witness receipt chain conflict")
+        self.store.put(f"witness:{b['sequence']:012d}", receipt)
+        return {"receipt": receipt, "anchor_digest": fingerprint(receipt), "on_chain": False}
 
     def request(self, prompt, mode, scenario="normal", cancel=None, token=""):
         if not self.request_lock.acquire(False):
@@ -85,6 +145,8 @@ class Agent:
             self.request_lock.release()
 
     def _request(self, prompt, mode, scenario, cancel, token):
+        from .enrollment import assert_active
+        assert_active(self.config)
         if not isinstance(prompt, str) or not prompt.strip() or len(prompt) > MAX_PROMPT:
             raise ValueError("1~16,000자의 요청을 입력하세요.")
         if mode not in ("observe", "protect", "strict"):
@@ -93,6 +155,8 @@ class Agent:
             raise ValueError("연결 모드에서는 공격을 주입할 수 없습니다.")
         if now_ms() >= self.config["policy_expires_at"]:
             raise ValueError("정책과 신뢰 설정이 만료되었습니다. 새 설정을 등록하세요.")
+        if self.store.count("request:") >= self.config.get("max_requests", 10000):
+            raise ValueError("요청 보관 한도에 도달했습니다. 감사 자료 보관 후 새 배포 세대로 전환하세요.")
         if len(self.store.pending()) > self.config.get("queue_capacity", 256) - 5:
             raise RuntimeError("증거를 보관할 공간이 부족합니다. T 연결을 복구하세요.")
         start_ns, start = time.monotonic_ns(), now_ms()
@@ -119,6 +183,7 @@ class Agent:
             self.store.put("request:" + sub, record)
             event("U", "계약 서명 · 전송 전 기록")
             self.store.enqueue({"statement": contract.to_dict()})
+            self.remember_private(private)
             self.store.enqueue({"sub": sub, "private": private})
             if cancel.is_set():
                 raise InterruptedError("취소됨: 전송하지 않았습니다.")
@@ -160,6 +225,7 @@ class Agent:
                 inline_receipt_hash=m.statement_hash if m else None, inline_relay_hash=r.statement_hash if r else None,
                 presented_receipt=m.to_dict() if m else None))
             private["response_hash"] = content_hash_hex(canonical_json(response))
+            self.remember_private(private)
             record["observation"] = observation.to_dict()
             self.store.put("request:" + sub, record)
             self.store.enqueue({"statement": observation.to_dict()})
@@ -184,6 +250,7 @@ class Agent:
                     verdict_status = None
             if cancel.is_set():
                 raise InterruptedError("취소됨: 응답을 공개하지 않았습니다. 원격 실행 여부와 별개입니다.")
+            assert_active(self.config)
             if now_ms() > contract.payload["expires_at"] or now_ms() >= self.config["policy_expires_at"]:
                 checks["not_expired"] = {"result": "fail", "reason": "수용 결정 전에 계약 또는 정책이 만료됨"}
             decision = gate.decide(checks, received_at, now_ms(), verdict_status, deadline_hit=True).to_dict()
@@ -228,19 +295,13 @@ class Agent:
         return self.public(record)
 
     def audit(self):
-        export = self.peer.call("T", "audit", {}, timeout=3)
-        t = self.config["identities"]["T"]
-        if (export["ts_public_key"] != t["public_key"] or export["ts_kid"] != t["kid"]
-                or export["ts_iss"] != t["iss"] or export["log_id"] != self.config["log_id"]
-                or export["policy_hash"] != self.policy_hash()):
-            raise ValueError("감사 자료가 사전에 고정한 T 신원·정책과 다릅니다.")
+        from .auditing import verify_export
+        export = self.audit_export()
         head = export["head"]
-        if not TransparencyLog.verify_tree_head(head, bytes.fromhex(t["public_key"])):
-            raise ValueError("invalid checkpoint signature")
         old = self.store.get("checkpoint")
         anchors = [] if old is None else [{"tree_size": old["tree_size"], "root_hash": old["root_hash"], "anchored_at": old["time"]}]
-        private = {r["sub"]: r["private"] for _, r in self.store.items("request:")}
-        report = replay_audit(export, anchors, private, {}, self.config["model_hashes"])
+        private, versions = self.private_evidence()
+        report = verify_export(export, self.trust(), anchors=anchors, private=private, private_by_hash=versions)
         report.update(pinned_identity=True, previous_checkpoint=old, current_checkpoint=head,
                       witness_scope="사용자 PC 보관 · 별도 운영 목격자 아님")
         if report["ok"]:
@@ -260,3 +321,4 @@ class Agent:
         self.stopped.set()
         self.worker.join(timeout=2)
         self.store.close()
+        self.process_lock.close()

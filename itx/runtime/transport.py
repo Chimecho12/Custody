@@ -12,16 +12,19 @@ from .common import MAX_WIRE, now_ms, json_loads
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
+        fp.close()
         raise ValueError("redirects are not permitted")
 
 
 class Peer:
     def __init__(self, config, key):
         self.config, self.key = config, key
-        self.context = ssl.create_default_context(cafile=config["ca_file"])
-        self.context.minimum_version = ssl.TLSVersion.TLSv1_2
-        self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect(),
-                                                 urllib.request.HTTPSHandler(context=self.context))
+        self.openers = {}
+        for role in config["endpoints"]:
+            context = ssl.create_default_context(cafile=config.get("ca_files", {}).get(role, config["ca_file"]))
+            context.minimum_version = ssl.TLSVersion.TLSv1_2
+            self.openers[role] = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect(),
+                                                             urllib.request.HTTPSHandler(context=context))
 
     def call(self, target, operation, payload, timeout=3):
         endpoint = self.config["endpoints"][target]
@@ -34,7 +37,7 @@ class Peer:
         req = urllib.request.Request(endpoint.rstrip("/") + "/rpc", data=canonical_json(rpc),
                                      headers={"Content-Type": "application/json"})
         try:
-            with self.opener.open(req, timeout=max(0.05, timeout)) as response:
+            with self.openers[target].open(req, timeout=max(0.05, timeout)) as response:
                 raw = response.read(MAX_WIRE + 1)
             if len(raw) > MAX_WIRE:
                 raise ValueError("response too large")
@@ -59,8 +62,10 @@ def verify_rpc(config, rpc):
     if not verify(bytes.fromhex(config["identities"][actor]["public_key"]),
                   canonical_json(body), bytes.fromhex(rpc["signature"])):
         raise ValueError("invalid RPC signature")
-    allowed = {"T": {"U": {"submit", "verdict", "audit"}, "R": {"submit"}, "M": {"submit"}},
-               "R": {"U": {"infer"}}, "M": {"R": {"infer"}}}
+    allowed = {"T": {"U": {"submit", "verdict", "audit", "audit_head", "audit_page", "consistency", "health"},
+                     "R": {"submit"}, "M": {"submit"}, "W": {"audit_head", "consistency"}},
+               "R": {"U": {"infer", "health"}}, "M": {"R": {"infer"}, "U": {"health"}},
+               "W": {"U": {"witness", "witness_status", "health"}}}
     if rpc["operation"] not in allowed[config["role"]].get(actor, set()):
         raise ValueError("RPC operation not authorized")
     return actor, rpc["operation"], rpc["payload"]
