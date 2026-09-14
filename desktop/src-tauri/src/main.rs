@@ -11,7 +11,7 @@ struct Bridge { child: Mutex<Option<CommandChild>>, pending: Pending, next: Atom
 
 #[tauri::command]
 async fn dispatch(operation: String, args: Value, state: tauri::State<'_, Bridge>) -> Result<Value, String> {
-    const OPS: &[&str] = &["status", "request", "cancel", "history", "refresh", "audit", "simulation", "export", "connect", "lab", "stop_t", "start_t",
+    const OPS: &[&str] = &["status", "request", "cancel", "history", "refresh", "audit", "simulation", "simulation_matrix", "export", "connect", "lab", "stop_t", "start_t",
         "export_evidence", "export_trust", "export_checkpoint", "preflight", "witness", "retention_preview", "retention_apply",
         "enroll_prepare", "enroll_propose", "enroll_endorse", "enroll_assemble", "enroll_inspect", "enroll_activate", "recipient_create", "audit_verify"];
     if !OPS.contains(&operation.as_str()) || !args.is_object() { return Err("Unsupported Agent operation".into()); }

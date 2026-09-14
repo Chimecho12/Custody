@@ -108,8 +108,9 @@ class Desktop:
                     raise ValueError("invalid request token")
                 cancellation = threading.Event()
                 self.active[token] = cancellation
-            elif op not in ("refresh", "audit", "simulation", "export", "export_evidence", "export_trust", "preflight",
-                            "witness", "export_checkpoint", "retention_preview", "retention_apply"):
+            elif op not in ("refresh", "audit", "simulation", "simulation_matrix", "export", "export_evidence",
+                            "export_trust", "preflight", "witness", "export_checkpoint", "retention_preview",
+                            "retention_apply"):
                 raise ValueError("허용되지 않은 명령입니다.")
         if op == "request":
             try:
@@ -163,6 +164,27 @@ class Desktop:
             result = run_scenario(scenario_by_id(args["scenario"]), args["mode"])
             result.pop("log_export", None)
             return result
+        if op == "simulation_matrix":
+            # Compact form of run_all(): full runs exceed the IPC frame, the UI fetches one run at a time.
+            from itx import __version__, CHECKER_VERSION
+            from itx.crypto import BACKEND
+            from itx.sim.runner import run_scenario, run_q1_matrix, aggregate, MODES
+            from itx.sim.scenarios import SCENARIOS
+            results = [run_scenario(sc, mode) for sc in SCENARIOS for mode in MODES]
+            rows = []
+            for r in results:
+                last = r["attempts"][-1]
+                fv = last["final_verdict"]
+                rows.append({"scenario_id": r["run"]["scenario_id"], "mode": r["run"]["mode"],
+                             "verification_status": fv["verification_status"], "completeness": fv["completeness"],
+                             "codes": [d["code"] for d in fv["discrepancies"]], "gate_action": last["gate"]["action"],
+                             "attack_present": last["metrics"]["attack_present"], "attempts": len(r["attempts"]),
+                             "audit_ok": r["audit"]["ok"], "verdict_mismatches": len(r["audit"]["verdict_mismatches"]),
+                             "anchors_ok": all(a["ok"] for a in r["audit"]["anchors"])})
+            return {"generated_with": {"itx_version": __version__, "checker_version": CHECKER_VERSION, "seed": 42,
+                                       "crypto_backend": BACKEND, "claim_status": "mock_result"},
+                    "scenarios": [s.to_dict() for s in SCENARIOS], "rows": rows,
+                    "q1_matrix": run_q1_matrix(), "summary": aggregate(results)}
         if op == "export":
             # Export only public UI records, never raw prompts, quarantine bodies, keys or salts.
             target = self.directory / "exports"
