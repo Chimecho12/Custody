@@ -16,7 +16,7 @@ let activeToken = '';
 let busy = false;
 let view = 'request';
 const native = '__TAURI_INTERNALS__' in window;
-const titles: Record<string, string> = {request: '요청과 보호', history: '사건 기록', audit: '제3자 검증', simulation: '참조 시나리오', settings: '연결 설정'};
+const titles: Record<string, string> = {request: '요청과 보호', history: '사건 기록', audit: '제3자 검증', simulation: '참조 시나리오', settings: '연결 설정', deployment:'배포와 키', evidence:'감사 자료'};
 const stateNames: Record<string, string> = {accept: '검증 후 수용', accept_unverified: '미검증 수용', quarantine: '응답 격리', reject: '수용 거부', reject_timeout: 'T 판정 기한 초과', cancelled: '취소 · 미공개', interrupted: '종료로 중단 · 미공개', pending: '진행 중', error: '요청 오류'};
 const checkNames: Record<string, string> = {M_authority: 'M 발행자·역할 인증', R_authority: 'R 발행자·역할 인증', not_expired: '계약 유효기간', receipt_present: '모델 영수증', receipt_signature: '영수증 서명', nonce_match: 'nonce 결합', request_binding: '승인된 요청 결합', response_binding: '종단 응답 결합', attempt_match: '시도 ID 결합', model_hash_reference: '등록 기준 해시', route_allowed: '허용 모델 경로', tool_policy: '도구 실행 정책'};
 async function call<T = Data>(operation: string, args: Data = {}): Promise<T> {
@@ -57,6 +57,7 @@ function renderConnection(data: Data) {
   const isLab = data.source === 'network_lab';
   get('source').textContent = isLab ? 'TLS 실험실 · 단일 운영자' : '연결 모드 · evaluation';
   get('agent-status').textContent = 'U Agent 연결됨';
+  get<HTMLButtonElement>('run-witness').disabled = !data.witness_configured;
   get('policy-state').textContent = Date.now() < data.policy_expires_at ? '로컬 정책 유효' : '정책 만료';
   get('policy-state').className = 'badge ' + (Date.now() < data.policy_expires_at ? 'green' : 'red');
   const scenario = get<HTMLSelectElement>('scenario'); scenario.disabled = !isLab;
@@ -80,7 +81,10 @@ function renderConnection(data: Data) {
   const rows: [string, string][] = [['환경', data.source], ['모델', data.model_id + ' / ' + data.model_kind], ['운영 주체', data.governance], ['대기 증거', String(data.pending_evidence) + '건'], ['정책 만료', new Date(data.policy_expires_at).toLocaleString('ko-KR')], ['정책 해시', data.policy_hash], ['설정 파일', data.config_path]];
   for (const r of ['R','M','T']) rows.push([r + ' TLS 주소', data.endpoints[r]]);
   for (const r of ['U','R','M','T']) rows.push([r + ' 고정 공개키', data.identities[r].public_key]);
+  if (data.witness_configured) rows.push(['W 고정 공개키', data.identities.W.public_key], ['W TLS 주소', data.endpoints.W]);
+  if (data.deployment_hash) rows.push(['배포 지문', data.deployment_hash], ['정책 세대', String(data.epoch)]);
   for (const [key, value] of rows) { const row = el('div', 'detail-row'); row.append(el('span','',key), el('code','',value)); target.append(row); }
+  if (data.deployment_history?.length) target.append(details('서명으로 연결된 배포·체크포인트 이력', data.deployment_history));
   setBusy(busy);
 }
 async function updateStatus() { try {renderConnection(await call('status'));} catch (e) {fail(e);} }
@@ -100,7 +104,8 @@ function renderResult(record: Data) {
   const result = get('result'); result.replaceChildren();
   const heading = el('div','result-head'); heading.append(el('h3','',stateNames[record.state] || record.state), el('span','muted',`${record.elapsed_ms ?? '—'} ms · 실측`)); result.append(heading);
   get('request-state').className = 'badge ' + color(record.state); get('request-state').textContent = stateNames[record.state] || record.state;
-  if (record.response != null) result.append(el('div','response-box',record.response));
+  if (record.content_pruned_at) result.append(el('div','empty','보관 정책에 따라 본문이 삭제됐습니다. 당시의 집행 결과와 서명 증거는 유지됩니다.'));
+  else if (record.response != null) result.append(el('div','response-box',record.response));
   else result.append(el('div','blocked-box',record.error || '응답이 공개되지 않았습니다. 원문을 화면·업무 소비자에 전달하지 않습니다.'));
   if (record.gate?.reasons) result.append(el('p','field-help',record.gate.reasons.join(' · ')));
   result.append(checksTable(record.checks || {}));
@@ -152,9 +157,9 @@ get('run-audit').onclick = async () => {
   const b = get<HTMLButtonElement>('run-audit'); b.disabled = true;
   try {
     const a = await call('audit'), target = get('audit-content'); target.replaceChildren();
-    target.append(badge(a.ok ? '감사 일치' : '불일치 또는 미완료 증거 발견',a.ok ? 'green' : 'red'));
+    target.append(badge(a.ok ? (a.private_scope === 'partial' ? '공개 검사 일치 · 비공개 일부 미검증' : '모든 과거 판정 감사 일치') : '불일치 또는 미완료 증거 발견',a.ok ? 'green' : 'red'));
     const stats = el('div','stat-row');
-    for (const [label,value] of [['T 신원·정책','고정 기준 확인'],['재실행 요청',String(a.subs_checked) + '건'],['판정 불일치',String(a.verdict_mismatches.length) + '건']]) {const d = el('div');d.append(el('small','',label),el('strong','',value));stats.append(d);} target.append(stats);
+    for (const [label,value] of [['T 신원·정책','고정 기준 확인'],['과거 판정 전수 검사',String(a.verdict_count) + '건'],['불일치 요청',String(a.verdict_mismatches.length) + '건']]) {const d = el('div');d.append(el('small','',label),el('strong','',value));stats.append(d);} target.append(stats);
     target.append(el('p','field-help',a.previous_checkpoint ? '이전에 사용자 PC에 보관한 체크포인트와 비교했습니다.' : '첫 체크포인트입니다. 다음 감사부터 이전 이력과 비교합니다.'));
     target.append(details('트리·앵커·판정 검증 상세',a));
   } catch (e) {fail(e);} finally {b.disabled = false;}
@@ -177,3 +182,46 @@ async function boot() {
   await updateStatus();
 }
 boot().catch(fail);
+
+const input = (id:string) => get<HTMLInputElement>(id).value.trim();
+const lines = (id:string) => input(id).split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+function action(id:string, operation:string, args:()=>Data = ()=>({}), target='evidence-output', after?:(result:Data)=>void) {
+  get(id).onclick = async () => {
+    if (busy) {notice('진행 요청이 끝난 뒤 실행하세요.'); return;}
+    const b=get<HTMLButtonElement>(id); b.disabled=true;
+    try {
+      const result=await call(operation,args());
+      const output=get(target); output.replaceChildren();
+      if ('ok' in result) output.append(badge(result.ok ? (result.private_scope === 'partial' ? '공개 검사 일치 · 비공개 미검증' : '검사 일치') : '불일치 또는 미완료',result.ok?'green':'red'));
+      if (result.path) output.append(el('p','','저장 경로: '+result.path));
+      if (result.fingerprint) output.append(el('p','','SHA-256 지문: '+result.fingerprint));
+      output.append(pretty(result));
+      after?.(result);
+      notice('작업 결과와 저장 경로를 확인하세요.');
+    } catch(e) {fail(e);} finally {b.disabled=id==='retention-apply' && !retentionToken;}
+  };
+}
+action('prepare-operator','enroll_prepare',()=>({role:input('operator-role'),endpoint:input('operator-endpoint')}),'deployment-output',r=>{
+  get<HTMLInputElement>('endorse-operator').value=r.directory; get<HTMLInputElement>('activate-operator').value=r.directory;
+});
+action('propose-deployment','enroll_propose',()=>({card_paths:lines('deployment-cards'),previous_bundle:input('deployment-previous'),checkpoint:input('deployment-checkpoint'),model_kind:input('deployment-model-kind'),model_id:input('deployment-model-id'),model_hash:input('deployment-model-hash'),model_name:input('deployment-model-name'),pre_exec:get<HTMLInputElement>('deployment-pre-exec').checked}),'deployment-output',r=>{
+  get<HTMLInputElement>('endorse-proposal').value=r.path; get<HTMLInputElement>('assemble-proposal').value=r.path;
+});
+action('endorse-deployment','enroll_endorse',()=>({operator_directory:input('endorse-operator'),proposal:input('endorse-proposal'),fingerprint:input('endorse-fingerprint'),previous_config:input('endorse-previous')}),'deployment-output');
+action('assemble-deployment','enroll_assemble',()=>({proposal:input('assemble-proposal'),endorsement_paths:lines('assemble-endorsements'),previous_bundle:input('assemble-previous')}),'deployment-output',r=>{get<HTMLInputElement>('activate-bundle').value=r.path;});
+action('inspect-deployment','enroll_inspect',()=>({bundle:input('activate-bundle')}),'deployment-output');
+action('activate-deployment','enroll_activate',()=>({operator_directory:input('activate-operator'),bundle:input('activate-bundle'),fingerprint:input('activate-fingerprint'),bind:input('activate-bind'),model_endpoint:input('activate-model-endpoint'),previous_config:input('activate-previous')}),'deployment-output',r=>{get<HTMLInputElement>('config-path').value=r.config_path;});
+action('preflight','preflight');
+action('run-witness','witness');
+action('export-checkpoint','export_checkpoint');
+action('export-trust','export_trust');
+action('export-public','export_evidence');
+action('create-recipient','recipient_create');
+action('export-encrypted','export_evidence',()=>{if(!input('recipient-path')||!input('recipient-fingerprint')) throw new Error('감사자 공개키 파일과 별도 확인한 지문이 필요합니다.'); return {recipient_path:input('recipient-path'),recipient_fingerprint:input('recipient-fingerprint')};});
+action('verify-evidence','audit_verify',()=>({package:input('verify-package'),trust:input('verify-trust'),fingerprint:input('verify-fingerprint'),recipient_directory:input('verify-recipient')}));
+let retentionToken='';
+action('retention-preview','retention_preview',()=>({}),'evidence-output',r=>{
+  retentionToken=r.token; get('retention-description').textContent=`${r.retention_days}일 경과 ${r.count}건 · 제출 대기로 제외 ${r.withheld_pending}건. ${r.effect}`;
+  get<HTMLButtonElement>('retention-apply').disabled=!r.count;
+});
+action('retention-apply','retention_apply',()=>({token:retentionToken}),'evidence-output',()=>{retentionToken='';get('retention-description').textContent='정리를 적용했습니다. 추가 정리 전 미리보기를 다시 실행하세요.';});
