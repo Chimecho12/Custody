@@ -6,6 +6,12 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8765", "--directory", "artifacts"],
       "port": 8765
+    },
+    {
+      "name": "desktop",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
+      "runtimeArgs": ["desktop/node_modules/vite/bin/vite.js", "desktop", "--host", "127.0.0.1", "--port", "1420", "--strictPort"],
+      "port": 1420
     }
   ]
 }
