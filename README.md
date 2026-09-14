@@ -15,9 +15,9 @@
 > 결정적 모형이며, 한 PC의 단일 운영자 실험이다. 독립 사업자나 실제 LLM 검증 결과가 아니다.
 > COSE/SCITT/AIR 표준 적합성을 주장하지 않으며 자체 JSON 프로파일을 쓴다. 한계는 [docs/limits.md](docs/limits.md).
 
-## Windows 설치 앱 — v0.2
+## Windows 설치 앱 — v0.3
 
-설치 파일: `desktop/src-tauri/target/release/bundle/nsis/itx_0.2.0_x64-setup.exe`.
+설치 파일: `desktop/src-tauri/target/release/bundle/nsis/itx_0.3.0_x64-setup.exe`.
 설치 후 **itx**를 실행하면 동봉 Agent와 로컬 TLS 실험실이 시작된다. 사용자에게 Python·Node·Rust 설치를 요구하지 않는다.
 
 - 앱 내부 AI 요청에서 observe/protect/strict 적용, 응답 공개 전 검증·격리
@@ -25,9 +25,12 @@
 - Windows DPAPI 보호 저장, SQLite 로그·증거 큐, 재시작 복구
 - 고정된 T 신원·정책 및 이전 체크포인트를 사용한 감사
 - 사건 기록·E1~E12 근거·기존 17개 참조 시나리오 실행
+- 역할별 키·TLS CA 생성, 전원 서명 배포, 이전/새 키 승인 교체와 이전 세대 폐기
+- 별도 목격자 W, 모든 과거 판정 검사, 정책 이력·암호화 오프라인 감사
+- 외부 앱 Python SDK, U 본문 보관 정리, 3모드 반복 TLS 평가
 
-[설치·개발·통신 프로파일과 한계](docs/desktop-runtime.md)를 먼저 읽는다.
-개발 계획의 원격 호스트 재현·별도 운영자 키 교환·실제 LLM 시험·외부 배포 서명은 후속 검증 항목이다.
+[v0.3 설치·검증 결과와 한계](docs/desktop-runtime-v0.3.md), [운영자 배포·키 교체·SDK·외부 감사](docs/operator-deployment.md)를 제공한다.
+원격 호스트·실제 독립 운영자·실제 LLM·새 PC 설치·외부 배포 서명은 별도 환경 검증 항목이다. 실제 체인 게시 기능은 포함하지 않는다.
 
 ## 기존 시뮬레이션 실행
 

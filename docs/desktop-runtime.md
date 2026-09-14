@@ -1,5 +1,8 @@
 # itx Desktop v0.2 — 설치와 구현 범위
 
+> v0.2 구현 당시의 기록이다. 현재 설치 파일과 구현 범위는 [v0.3 안내](desktop-runtime-v0.3.md),
+> 운영자별 배포·키 교체·감사·SDK 절차는 [운영 안내](operator-deployment.md)를 따른다.
+
 작성: 2026-09-11. 기준: `desktop-product-plan-2026-09-11.md`의 P0~P3 핵심 경로.
 
 이 버전은 설치 가능한 **Windows 평가용 앱**이다. UI만 표시하는 보고서에서 실제 U Agent가
