@@ -29,27 +29,39 @@ _FONTS = (
 
 _STYLE = r"""<style>
 :root{
-  --bg:#F2F4F7;--card:#FFFFFF;--fg:#16191F;--muted:#5C6470;--line:#D9DEE6;--chip:#E9EDF3;
+  --bg:#F2F4F7;--sunken:#F7F8FA;--card:#FFFFFF;--raised:#FFFFFF;
+  --fg:#16191F;--muted:#5C6470;--line:#D9DEE6;--line-soft:#E6EAF0;--chip:#E9EDF3;
   --accent:#2F4C8A;--accent-soft:#E3EAF7;
   --pass:#1E7A4C;--fail:#B3261E;--warn:#9A6700;--na:#7A8290;
   --mark-consume:rgba(179,38,30,.10);--mark-decide:rgba(30,122,76,.12);
   --fail-soft:rgba(179,38,30,.07);
+  --shadow-1:0 1px 2px rgba(16,24,40,.05),0 1px 1px rgba(16,24,40,.03);
+  --shadow-2:0 4px 14px rgba(16,24,40,.10),0 1px 3px rgba(16,24,40,.06);
+  /* 모션: 인과를 보이는 데만 쓴다. 길이는 세 단계로 고정한다. */
+  --dur-1:110ms;--dur-2:200ms;--dur-3:320ms;
+  --ease-out:cubic-bezier(.22,.61,.36,1);--ease-in-out:cubic-bezier(.4,0,.2,1);
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#12151B;--card:#1A1E26;--fg:#E6E8EC;--muted:#98A0AC;--line:#2C323C;--chip:#232934;
+    --bg:#12151B;--sunken:#161A21;--card:#1A1E26;--raised:#1E232C;
+    --fg:#E6E8EC;--muted:#98A0AC;--line:#2C323C;--line-soft:#242A33;--chip:#232934;
     --accent:#8DB0F5;--accent-soft:#1F2A40;
     --pass:#4CC38A;--fail:#F0716A;--warn:#E0B341;--na:#8B939F;
     --mark-consume:rgba(240,113,106,.14);--mark-decide:rgba(76,195,138,.14);
     --fail-soft:rgba(240,113,106,.12);
+    --shadow-1:0 1px 2px rgba(0,0,0,.34);
+    --shadow-2:0 6px 18px rgba(0,0,0,.44),0 1px 3px rgba(0,0,0,.30);
   }
 }
 :root[data-theme="dark"]{
-  --bg:#12151B;--card:#1A1E26;--fg:#E6E8EC;--muted:#98A0AC;--line:#2C323C;--chip:#232934;
+  --bg:#12151B;--sunken:#161A21;--card:#1A1E26;--raised:#1E232C;
+  --fg:#E6E8EC;--muted:#98A0AC;--line:#2C323C;--line-soft:#242A33;--chip:#232934;
   --accent:#8DB0F5;--accent-soft:#1F2A40;
   --pass:#4CC38A;--fail:#F0716A;--warn:#E0B341;--na:#8B939F;
   --mark-consume:rgba(240,113,106,.14);--mark-decide:rgba(76,195,138,.14);
   --fail-soft:rgba(240,113,106,.12);
+  --shadow-1:0 1px 2px rgba(0,0,0,.34);
+  --shadow-2:0 6px 18px rgba(0,0,0,.44),0 1px 3px rgba(0,0,0,.30);
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);
@@ -66,12 +78,15 @@ main.itx{padding:8px 28px 64px;max-width:1400px}
 table{border-collapse:collapse;width:100%;font-size:13px;background:var(--card);font-variant-numeric:tabular-nums}
 th,td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top}
 th{background:var(--chip);font-weight:600}
+tbody tr:hover td{background:var(--sunken)}
 tbody tr.clickable{cursor:pointer}
 tbody tr.clickable:hover td{background:var(--accent-soft)}
 tbody tr.clickable:focus-visible td{outline:2px solid var(--accent);outline-offset:-2px}
-tr.sel td{box-shadow:inset 3px 0 0 var(--accent)}
+tr.sel td{box-shadow:inset 3px 0 0 var(--accent);transition:box-shadow var(--dur-2) var(--ease-out)}
 .pass{color:var(--pass);font-weight:600}.fail{color:var(--fail);font-weight:600}.na{color:var(--na)}.warn{color:var(--warn);font-weight:600}
-.card{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:14px 16px;margin:10px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:14px 16px;margin:10px 0;box-shadow:var(--shadow-1)}
+/* 카드 안의 카드는 한 단계 내려앉는다 — 계층은 색이 아니라 명도와 그림자로만 낸다. */
+.card .card{background:var(--sunken);border-color:var(--line-soft);box-shadow:none}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:12px}
 .mono{font-family:"IBM Plex Mono",ui-monospace,Consolas,monospace;font-size:12px;word-break:break-all}
 .muted{color:var(--muted)}
@@ -84,7 +99,8 @@ svg text{font-size:12px;fill:var(--fg);font-family:inherit}
 ul.tight{margin:4px 0;padding-left:18px}
 ul.tight li{margin:2px 0}
 code{background:var(--chip);padding:1px 4px;border-radius:3px;font-family:"IBM Plex Mono",ui-monospace,monospace}
-.scroll{max-height:380px;overflow:auto}
+.scroll{max-height:380px;overflow:auto;border-radius:4px}
+.scroll thead th{position:sticky;top:0;z-index:1;box-shadow:inset 0 -1px 0 var(--line)}
 
 /* --- 사건 상세 컨트롤 (경로검증 콘솔 1a) --- */
 .controls{display:flex;flex-direction:column;gap:10px;align-items:stretch}
@@ -92,40 +108,101 @@ code{background:var(--chip);padding:1px 4px;border-radius:3px;font-family:"IBM P
 .tabrow-label{font-size:11px;color:var(--muted);letter-spacing:.02em;flex:none}
 .tabs{display:flex;flex-wrap:wrap;gap:6px}
 .pill{font:600 11.5px "IBM Plex Mono",monospace;padding:4px 10px;border-radius:5px;cursor:pointer;
-  border:1px solid var(--line);background:var(--card);color:var(--fg);line-height:1.3}
+  border:1px solid var(--line);background:var(--card);color:var(--fg);line-height:1.3;
+  transition:background var(--dur-1) var(--ease-out),border-color var(--dur-1) var(--ease-out),color var(--dur-1) var(--ease-out)}
+.pill:hover{background:var(--accent-soft)}
 .pill.on{border-color:var(--accent);background:var(--accent);color:#fff}
 .pill:focus-visible,.itx-btn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .itx-btn{font:600 12px "IBM Plex Sans KR",system-ui;padding:5px 14px;border-radius:5px;
-  border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer}
-.itx-btn-accent{border-color:var(--accent);background:var(--accent);color:#fff}
-.playctl{display:flex;align-items:center;gap:8px;margin-left:auto}
-.tlabel{font-family:"IBM Plex Mono",monospace;color:var(--muted);min-width:98px;text-align:right;display:inline-block}
+  border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer;
+  transition:background var(--dur-1) var(--ease-out),border-color var(--dur-1) var(--ease-out),opacity var(--dur-1) var(--ease-out),transform var(--dur-1) var(--ease-out)}
+.itx-btn:hover{background:var(--accent-soft);border-color:var(--accent)}
+.itx-btn:active{transform:translateY(1px)}
+.itx-btn-accent{border-color:var(--accent);background:var(--accent);color:#fff;min-width:92px}
+.itx-btn-accent:hover{background:var(--accent);color:#fff;opacity:.88}
+.itx-btn-step{font-family:"IBM Plex Mono",monospace;padding:5px 9px;letter-spacing:-.04em}
+.itx-btn-speed{font-family:"IBM Plex Mono",monospace;padding:5px 9px;min-width:42px}
+.playctl{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.tabrow>.playctl{margin-left:auto}
+.playctl:focus{outline:none}
+.tlabel{font-family:"IBM Plex Mono",monospace;color:var(--muted);min-width:98px;text-align:right;display:inline-block;font-variant-numeric:tabular-nums}
 
 /* --- 홉 지도 --- */
 .hopwrap{position:relative;width:100%}
 .hopwrap svg{width:100%;height:auto;display:block}
-.hoplabel{position:absolute;white-space:nowrap;pointer-events:none;font-family:"IBM Plex Mono",monospace}
+.hopwrap svg line,.hopwrap svg path{transition:stroke var(--dur-2) var(--ease-out)}
+/* 패킷: 위치는 프레임마다 계산하고(전이 없음), 색만 부드럽게 넘긴다. 변조 시점의 색 전이가 사건 그 자체다. */
+.packet{transition:fill var(--dur-2) var(--ease-out)}
+.packettrail{transition:opacity var(--dur-2) var(--ease-out),stroke var(--dur-2) var(--ease-out);pointer-events:none}
+/* 노드 도달 펄스: 1회성 fade. 판정 색이 아니라 흐름 색만 쓰고 잔상을 남기지 않는다. */
+.nodehalo{opacity:0;pointer-events:none;transform-box:fill-box;transform-origin:center}
+.nodehalo.pulse{animation:itx-node-pulse 620ms var(--ease-out)}
+@keyframes itx-node-pulse{0%{opacity:.7;transform:scale(1)}100%{opacity:0;transform:scale(1.08)}}
+.evline{transition:stroke var(--dur-3) var(--ease-out)}
+/* 증거 제출 경로는 업무 데이터 경로와 다르다는 것을 흐르는 점선으로 보인다.
+   재생 중이고 이미 등록된 선만 흐르며, 결손(na) 선은 어떤 경우에도 정지해 있다. */
+.evline.flowing{animation:itx-evflow 1.8s linear infinite}
+@keyframes itx-evflow{to{stroke-dashoffset:-16}}
+.hoplabel{position:absolute;white-space:nowrap;font-family:"IBM Plex Mono",monospace;border-radius:3px;padding:0 3px;
+  transition:background var(--dur-1) var(--ease-out),box-shadow var(--dur-1) var(--ease-out)}
+.hoplabel.eq-hi{background:var(--accent-soft);box-shadow:0 0 0 1px var(--accent)}
+/* 재생 중에만 나타나는 현재 구간 이름. 정지·완료 상태에서는 지운다. */
+.packetlabel{position:absolute;white-space:nowrap;pointer-events:none;font:600 10.5px "IBM Plex Mono",monospace;color:var(--accent);
+  background:var(--raised);border:1px solid var(--line);border-radius:4px;padding:1px 6px;box-shadow:var(--shadow-1)}
+.packetlabel[hidden]{display:none}
+/* 등식 라벨 <-> 표 양방향 연동 하이라이트. 판정 색을 바꾸지 않고 배경/테두리만 쓴다. */
+tr.eq-hi td{background:var(--accent-soft)}
+.eqchip.eq-hi{box-shadow:0 0 0 1px var(--accent)}
+/* 해시는 눌러서 전체 값을 복사한다. */
+.hashchip{position:relative;cursor:pointer;border-radius:3px;padding:0 2px;border-bottom:1px dotted var(--line);
+  transition:background var(--dur-1) var(--ease-out),border-color var(--dur-1) var(--ease-out)}
+.hashchip:hover{background:var(--chip);border-bottom-color:var(--accent)}
+.hashchip:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.hashchip.copied::after{content:attr(data-flash);position:absolute;left:50%;bottom:calc(100% + 5px);transform:translateX(-50%);
+  background:var(--fg);color:var(--bg);font:600 10px "IBM Plex Mono",monospace;padding:2px 7px;border-radius:4px;white-space:nowrap;z-index:40;
+  box-shadow:var(--shadow-2);animation:itx-tip-in var(--dur-2) var(--ease-out)}
+@keyframes itx-tip-in{from{opacity:0;transform:translate(-50%,3px)}to{opacity:1;transform:translate(-50%,0)}}
 .legend-row{display:flex;gap:16px;font-size:11px;color:var(--muted);margin:2px 0 14px}
 
 /* --- 증거 패널 --- */
-.evrow{display:flex;align-items:center;gap:9px;padding:6px 9px;border-radius:5px;border:1px solid var(--line)}
-.evdot{width:8px;height:8px;border-radius:50%;flex:none}
+.evrow{display:flex;align-items:center;gap:9px;padding:6px 9px;border-radius:5px;border:1px solid var(--line);background:var(--chip);
+  transition:background var(--dur-3) var(--ease-out),border-color var(--dur-3) var(--ease-out)}
+.evrow.arrived{background:var(--card)}
+/* 등록은 '팝' 하고 튀지 않고 제자리로 안착한다. 이미 끝난 사건을 불러올 때는 붙지 않는 클래스다. */
+.evrow.settling{animation:itx-ev-settle var(--dur-3) var(--ease-out)}
+@keyframes itx-ev-settle{from{transform:translateX(3px)}to{transform:none}}
+/* 결손 행은 어떤 상태 변화도 없다. 부재가 사건처럼 보이면 안 된다. */
+.evrow.absent-row{background:var(--bg);border-style:dashed;border-color:var(--na);transition:none}
+.evdot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--line);transition:background var(--dur-3) var(--ease-out)}
+.evrow.arrived .evdot{background:var(--pass)}
+.evrow.absent-row .evdot{background:transparent;border:1px dashed var(--na);transition:none}
 .evname{font:600 11.5px "IBM Plex Sans KR",system-ui;min-width:104px;flex:none}
 .evdetail{font:400 10.5px "IBM Plex Mono",monospace;color:var(--muted);flex:1}
-.evstate{font:500 10.5px "IBM Plex Mono",monospace;white-space:nowrap}
+.evstate{font:500 10.5px "IBM Plex Mono",monospace;white-space:nowrap;color:var(--na);transition:color var(--dur-3) var(--ease-out)}
+.evrow.arrived .evstate{color:var(--pass)}
+.evrow.absent-row .evstate{transition:none}
 
 /* --- 결론 코드 목록 --- */
 .codebox{border-left:3px solid var(--line);padding:3px 0 3px 8px;margin:6px 0}
 
 /* --- 시점 타임라인 --- */
-.timebox{position:relative;height:94px;border:1px solid var(--line);border-radius:6px;background:var(--chip);overflow:hidden}
+.timebox{position:relative;height:94px;border:1px solid var(--line);border-radius:6px;background:var(--chip);overflow:hidden;
+  cursor:ew-resize;touch-action:none;transition:border-color var(--dur-2) var(--ease-out)}
+.timebox:hover{border-color:var(--accent)}
+.timebox:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .timeaxis{position:absolute;left:0;right:0;top:37px;height:1px;background:var(--line)}
 .timegap{position:absolute;top:28px;width:4%;height:19px;background:var(--chip);
   border-left:1px dashed var(--na);border-right:1px dashed var(--na)}
 .timegaplabel{position:absolute;top:50px;transform:translateX(-50%);font:400 9.5px "IBM Plex Mono",monospace;
   color:var(--na);white-space:nowrap}
-.harmbar{position:absolute;top:37px;height:3px;background:var(--fail)}
+/* 피해 노출 구간: 단색 면이 아니라 해칭 + 라벨로 '무엇이 그 사이에 실행되었는가' 를 묻게 한다. */
+.harmbar{position:absolute;top:35px;height:6px;border-top:1px solid var(--fail);border-bottom:1px solid var(--fail);
+  background:repeating-linear-gradient(135deg,var(--fail) 0 2px,transparent 2px 5px)}
+.harmlabel{position:absolute;left:0;top:-13px;font:600 9.5px "IBM Plex Mono",monospace;color:var(--fail);white-space:nowrap}
+.harmbar.empty .harmlabel{display:none}
 .playhead{position:absolute;top:2px;bottom:2px;width:2px;background:var(--accent);opacity:.55}
+.playknob{position:absolute;top:-1px;left:50%;width:9px;height:9px;border-radius:50%;background:var(--accent);transform:translateX(-50%);box-shadow:var(--shadow-1)}
+.timebox:hover .playhead,.timebox:focus-visible .playhead{opacity:.9}
 .markline{width:1px;height:14px;background:var(--muted);margin:0 auto}
 .marklabel{font:600 10px "IBM Plex Mono",monospace;white-space:nowrap;text-align:center}
 .markat{font:400 9.5px "IBM Plex Mono",monospace;color:var(--na);text-align:center}
@@ -155,6 +232,9 @@ code{background:var(--chip);padding:1px 4px;border-radius:3px;font-family:"IBM P
 /* --- 1e 애니메이션 메모 --- */
 .animnote{border-left:3px solid var(--accent);padding:2px 0 2px 10px;margin:8px 0}
 .animstatus{font:600 10px "IBM Plex Mono",monospace;padding:1px 6px;border-radius:3px;margin-left:6px;white-space:nowrap}
+
+/* 축소 모션: 전이/재생 애니메이션을 모두 끈다. 재생 버튼은 최종 상태로 즉시 점프한다. */
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 </style>"""
 
 _BODY = r"""<header class="itx">
@@ -173,17 +253,20 @@ _BODY = r"""<header class="itx">
 <div id="matrix" class="tablewrap"></div>
 
 <h2>3. 사건 상세 — 경로 지도와 재생</h2>
-<p class="small muted">경로(실선)는 업무 데이터, T 로 가는 점선은 증거·통제 경로다. 재생은 이 시도의 실제 타임라인 이벤트(요청 전송·홉 지연·추론·게이트 결정·T 판정 등록)로 구간을 나눈 것이며 임의의 데모 수치가 아니다. 기본 화면은 이미 완결된 결과를 보여 주고, 재생은 그 과정을 되짚어보는 보조 기능이다.</p>
+<p class="small muted">경로(실선)는 업무 데이터, T 로 가는 점선은 증거·통제 경로다. 재생은 이 시도의 실제 타임라인 이벤트(요청 전송·홉 지연·추론·게이트 결정·T 판정 등록)로 구간을 나눈 것이며 임의의 데모 수치가 아니다. 기본 화면은 이미 완결된 결과를 보여 주고, 재생은 그 과정을 되짚어보는 보조 기능이다. 시점 타임라인은 끌어서 임의의 t 로 옮길 수 있고, |◀ ▶| 는 홉 경계 단위로 이동한다.</p>
 <div class="card controls">
   <div class="tabrow"><span class="tabrow-label">사건</span><div id="scenarioTabs" class="tabs"></div></div>
   <div class="tabrow"><span class="tabrow-label">정책 모드</span><div id="modeTabs" class="tabs"></div>
-    <div class="tabrow" id="attemptRow" style="display:none"><span class="tabrow-label">시도</span><div id="attemptTabs" class="tabs"></div></div>
-    <div class="playctl">
-      <button type="button" id="playBtn" class="itx-btn itx-btn-accent">재생</button>
-      <button type="button" id="resetBtn" class="itx-btn">처음으로</button>
+    <div class="playctl" tabindex="-1">
+      <button type="button" id="stepBackBtn" class="itx-btn itx-btn-step" title="이전 홉 (←)" aria-label="이전 홉">|◀</button>
+      <button type="button" id="playBtn" class="itx-btn itx-btn-accent" title="재생·정지 (Space)">▶ 재생</button>
+      <button type="button" id="stepFwdBtn" class="itx-btn itx-btn-step" title="다음 홉 (→)" aria-label="다음 홉">▶|</button>
+      <button type="button" id="resetBtn" class="itx-btn" title="처음으로 (R · Home)">처음으로</button>
+      <button type="button" id="speedBtn" class="itx-btn itx-btn-speed" title="재생 속도" aria-label="재생 속도">×1</button>
       <span id="tLabel" class="tlabel">t = 0 ms</span>
     </div>
   </div>
+  <div class="tabrow" id="attemptRow" style="display:none"><span class="tabrow-label">시도</span><div id="attemptTabs" class="tabs"></div></div>
 </div>
 <div id="detail"></div>
 
@@ -223,7 +306,8 @@ const $ = (s)=>document.querySelector(s);
 const esc = (s)=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const cls = (r)=>r==='pass'?'pass':r==='fail'?'fail':'na';
 const st = (s)=>s==='passed'?'pass':s==='failed'?'fail':'warn';
-const short = (h)=>h?String(h).slice(0,12)+'…':'<span class="absent">없음</span>';
+// 해시·커밋은 앞 12자만 보이고, 누르면 전체 값을 클립보드로 복사한다.
+const short = (h)=>h?`<span class="hashchip" data-copy="${esc(h)}" role="button" tabindex="0" title="클릭하면 전체 값을 복사합니다">${esc(String(h).slice(0,12))}…</span>`:'<span class="absent">없음</span>';
 const absent = (v)=>(v===null||v===undefined)?'<span class="absent">null</span>':esc(v);
 // 색은 CSS 토큰과 같은 값을 SVG stroke 등 속성 컨텍스트에도 그대로 써야 하므로 여기서도 고정한다
 // (var(--x) 는 attribute 컨텍스트에서 계산된 값으로 안전하게 쓰인다).
@@ -304,30 +388,77 @@ const HOP_MS = 20, PROC_MS = 5, SIGN_MS = 2;
 // 표시용으로만 복제했다 — 실제 실행 성능이 아니라 재생 애니메이션의 구간 비율을 정하는 데만 쓴다.
 const MODEL_LATENCY_MS = {'model-A':200,'model-A-small':80,'model-B':150};
 
+// 구간은 꺾은선(pts)으로 둔다. 노드를 드나드는 수직 구간이 있어야 패킷이 선 위를 실제로 타고 도는 것처럼 보인다.
 function computeLegs(a, c, rl, m){
   const modelId = (m && m.model_id) || (rl && rl.upstream_model) || c.requested_model;
   const lat = MODEL_LATENCY_MS[modelId] ?? 200;
   const raw = []; let t = 0;
-  const push=(dt,x0,x1,y,label)=>{ raw.push({t0:t,t1:t+dt,x0,x1,y,label}); t+=dt; };
-  push(HOP_MS, 120,430,100,'요청 전송');
-  push(PROC_MS,430,430,100,'중개자 처리');
-  push(HOP_MS, 430,700,100,'요청 전달');
-  push(lat,    700,700,144,'추론');
-  push(SIGN_MS,700,700,144,'영수증 서명');
-  push(HOP_MS, 700,430,196,'응답 전달');
-  push(SIGN_MS,430,430,196,'중계 진술 서명');
-  push(HOP_MS, 430,120,196,'응답 전송');
+  const push=(dt,pts,label,work,arrive)=>{ raw.push({t0:t,t1:t+dt,pts,label,work,arrive}); t+=dt; };
+  push(HOP_MS,  [[120,118],[120,100],[430,100]], '요청 전송 U→R', false, 'R');
+  push(PROC_MS, [[430,100]],                     'R 중개자 처리',  true);
+  push(HOP_MS,  [[430,100],[700,100]],           '요청 전달 R→M',  false, 'M');
+  push(lat,     [[700,100],[700,118]],           'M 추론',         true);
+  push(SIGN_MS, [[700,118]],                     'M 영수증 서명',  true);
+  push(HOP_MS,  [[700,118],[700,196],[430,196]], '응답 전달 M→R',  false, 'R');
+  push(SIGN_MS, [[430,196]],                     'R 중계 진술 서명', true);
+  push(HOP_MS,  [[430,196],[120,196],[120,170]], '응답 전송 R→U',  false, 'U');
   const rawEnd = t;
   const real0 = a.sent_at, real1 = a.received_at;
   const scale = (rawEnd>0 && real1>real0) ? (real1-real0)/rawEnd : 1;
-  return raw.map(L=>({t0:real0+L.t0*scale, t1:real0+L.t1*scale, x0:L.x0, x1:L.x1, y:L.y, label:L.label}));
+  return raw.map(L=>({...L, t0:real0+L.t0*scale, t1:real0+L.t1*scale}));
 }
+const segLen = (a,b)=>Math.hypot(b[0]-a[0], b[1]-a[1]);
+function cumulative(pts){ const c=[0]; for(let i=1;i<pts.length;i++) c.push(c[i-1]+segLen(pts[i-1],pts[i])); return c; }
+function atDist(pts, c, d){
+  const total = c[c.length-1];
+  if (total<=0) return [pts[0][0], pts[0][1]];
+  const x = Math.max(0, Math.min(total, d));
+  for (let i=1;i<pts.length;i++){
+    if (x<=c[i] || i===pts.length-1){
+      const len=c[i]-c[i-1], f=len>0?(x-c[i-1])/len:0;
+      return [pts[i-1][0]+(pts[i][0]-pts[i-1][0])*f, pts[i-1][1]+(pts[i][1]-pts[i-1][1])*f];
+    }
+  }
+  return [pts[pts.length-1][0], pts[pts.length-1][1]];
+}
+// 이동 구간은 정지에서 출발해 정지로 끝나므로 가감속을 준다. 노드 안 구간은 앞부분에서 자리를 잡고 머문다.
+const easeInOut = (f)=> f<.5 ? 2*f*f : 1-Math.pow(-2*f+2,2)/2;
+const settle = (f)=> 1-Math.pow(1-Math.min(1,f/0.28),3);
 function packetPos(t, legs){
-  if (t<=legs[0].t0) return {x:legs[0].x0, y:legs[0].y, leg:legs[0]};
-  let leg = legs[legs.length-1];
-  for (const L of legs) if (t>=L.t0) leg=L;
-  const f = Math.max(0, Math.min(1, (t-leg.t0)/Math.max(1,leg.t1-leg.t0)));
-  return {x:leg.x0+(leg.x1-leg.x0)*f, y:leg.y, leg};
+  if (t<=legs[0].t0){ const p=legs[0].pts[0]; return {x:p[0], y:p[1], leg:legs[0], index:0, f:0}; }
+  let index = 0;
+  for (let i=0;i<legs.length;i++) if (t>=legs[i].t0) index=i;
+  const L = legs[index];
+  const raw = Math.max(0, Math.min(1, (t-L.t0)/Math.max(1,L.t1-L.t0)));
+  const f = L.work ? settle(raw) : easeInOut(raw);
+  const c = cumulative(L.pts), p = atDist(L.pts, c, f*c[c.length-1]);
+  return {x:p[0], y:p[1], leg:L, index, f};
+}
+// 노드에 머무는 구간에서는 잔상이 구간 앞 30% 안에 0 으로 줄어든다 — 도착해서 멈췄다는 사실을 남긴다.
+function trailLength(t, legs, base){
+  const L = packetPos(t, legs).leg;
+  if (!L.work) return base;
+  const decay = Math.max(1, (L.t1-L.t0)*0.3);
+  return base*Math.max(0, 1-(t-L.t0)/decay);
+}
+// 진행 방향 뒤쪽으로 maxLen 만큼의 잔상 좌표를 되짚는다. 꺾이는 지점과 구간 경계를 그대로 따라간다.
+function trailPoints(t, legs, maxLen){
+  const cur = packetPos(t, legs);
+  const out = [[cur.x, cur.y]];
+  if (maxLen<=0.5) return out;
+  let remain = maxLen, i = cur.index, f = cur.f;
+  while (remain>0.5 && i>=0){
+    const pts = legs[i].pts, c = cumulative(pts);
+    let pos = f*c[c.length-1];
+    for (let k=pts.length-1; k>=0 && remain>0.5; k--){
+      if (c[k]>=pos) continue;
+      const step = pos-c[k];
+      if (step>=remain){ out.push(atDist(pts, c, pos-remain)); remain=0; break; }
+      out.push([pts[k][0], pts[k][1]]); remain-=step; pos=c[k];
+    }
+    i--; f=1;
+  }
+  return out;
 }
 
 // ---------- 재생 엔진 ------------------------------------------------------------
@@ -336,26 +467,79 @@ let playing = false, rafId = null, lastTs = null;
 let reducedMotion = false;
 try { reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch(e) {}
 
-function stopPlayback(){ playing=false; if(rafId) cancelAnimationFrame(rafId); rafId=null; lastTs=null; updatePlayBtn(); }
-function updatePlayBtn(){ const b=$('#playBtn'); if(b) b.textContent = playing?'일시정지':'재생'; }
-function setT(v){ if(!PB) return; PB.t = Math.max(0, Math.min(PB.tEnd, v)); updatePacket(); }
+const SPEEDS = [0.5, 1, 2];
+let speed = 1;
+function stopPlayback(){ playing=false; if(rafId) cancelAnimationFrame(rafId); rafId=null; lastTs=null; if(PB) PB.prev=null; updatePlayBtn(); }
+function updatePlayBtn(){
+  const b=$('#playBtn'); if(b) b.textContent = playing?'⏸ 일시정지':'▶ 재생';
+  const sp=$('#speedBtn'); if(sp) sp.textContent = '×'+speed;
+}
+function setT(v){
+  if(!PB) return;
+  const next = Math.max(0, Math.min(PB.tEnd, v));
+  // 뒤로 가면 그 이후의 도달 펄스를 다시 낼 수 있게 되돌린다.
+  if (next < PB.t) for (const i of [...PB.fired]) if (PB.legs[i].t1 > next) PB.fired.delete(i);
+  PB.t = next; updatePacket();
+}
+// 홉 경계(구간 시작·끝)로만 이동한다. 어떤 구간에서 무엇이 바뀌는지 한 걸음씩 확인하는 용도다.
+function stepHop(dir){
+  if(!PB) return;
+  const marks = [...new Set([0, ...PB.legs.map(l=>l.t0), ...PB.legs.map(l=>l.t1), PB.tEnd])]
+    .filter(v=>v>=0 && v<=PB.tEnd).sort((a,b)=>a-b);
+  const next = dir>0 ? marks.find(v=>v>PB.t+0.5) : [...marks].reverse().find(v=>v<PB.t-0.5);
+  setT(next ?? (dir>0 ? PB.tEnd : 0));
+}
 function stepPlayback(ts){
   if (!playing) return;
   const dt = lastTs!=null ? Math.min(64, ts-lastTs) : 16; lastTs = ts;
-  let nt = PB.t + dt*2.2;
+  const base = Math.max(0.05, PB.tEnd/3200); // 실측 길이와 무관하게 ×1 재생은 약 3초, 구간 비율은 실제 값 그대로
+  let nt = PB.t + dt*base*speed;
   if (nt >= PB.tEnd) { nt = PB.tEnd; playing = false; }
   setT(nt);
   if (playing) rafId = requestAnimationFrame(stepPlayback); else updatePlayBtn();
 }
-$('#playBtn').addEventListener('click', ()=>{
+function togglePlay(){
   if (!PB) return;
   if (reducedMotion){ setT(PB.tEnd); return; } // 축소 모션: 최종 상태로 즉시 점프, 재생하지 않는다
   if (playing) { stopPlayback(); return; }
-  if (PB.t >= PB.tEnd) PB.t = 0;
+  if (PB.t >= PB.tEnd) setT(0);
   playing = true; lastTs = null; updatePlayBtn();
   rafId = requestAnimationFrame(stepPlayback);
-});
+}
+$('#playBtn').addEventListener('click', togglePlay);
 $('#resetBtn').addEventListener('click', ()=>{ stopPlayback(); setT(0); });
+$('#stepBackBtn').addEventListener('click', ()=>{ stopPlayback(); stepHop(-1); });
+$('#stepFwdBtn').addEventListener('click', ()=>{ stopPlayback(); stepHop(1); });
+$('#speedBtn').addEventListener('click', ()=>{ speed = SPEEDS[(SPEEDS.indexOf(speed)+1)%SPEEDS.length]; updatePlayBtn(); });
+
+// 시점 타임라인 스크러버: 누른 자리로 바로 이동하고 드래그로 따라간다.
+let scrubbing = null;
+function seekAt(box, clientX){
+  if (!PB) return;
+  const r = box.getBoundingClientRect();
+  if (r.width<=0) return;
+  setT(PB.span.inv(((clientX-r.left)/r.width)*100));
+}
+document.addEventListener('pointerdown', e=>{
+  const box = e.target.closest && e.target.closest('[data-scrub]');
+  if (!box || !PB) return;
+  e.preventDefault(); stopPlayback(); scrubbing = box; box.setPointerCapture(e.pointerId); box.focus();
+  seekAt(box, e.clientX);
+});
+document.addEventListener('pointermove', e=>{ if (scrubbing) seekAt(scrubbing, e.clientX); });
+const endScrub = (e)=>{ if(!scrubbing) return; try{ scrubbing.releasePointerCapture(e.pointerId); }catch(err){} scrubbing=null; };
+document.addEventListener('pointerup', endScrub);
+document.addEventListener('pointercancel', endScrub);
+// 키보드: 스크러버나 재생 컨트롤에 초점이 있을 때만 받는다.
+document.addEventListener('keydown', e=>{
+  const t = e.target;
+  if (!t.closest || (!t.closest('[data-scrub]') && !t.closest('.playctl'))) return;
+  if (e.key===' '||e.key==='Spacebar'){ if (t.closest('button')) return; e.preventDefault(); togglePlay(); }
+  else if (e.key==='ArrowLeft'){ e.preventDefault(); stopPlayback(); stepHop(-1); }
+  else if (e.key==='ArrowRight'){ e.preventDefault(); stopPlayback(); stepHop(1); }
+  else if (e.key==='Home'||e.key==='r'||e.key==='R'){ e.preventDefault(); stopPlayback(); setT(0); }
+  else if (e.key==='End' && PB){ e.preventDefault(); stopPlayback(); setT(PB.tEnd); }
+});
 
 // ---------- 홉 지도 (정적 부분: 등식 색·라벨. 좌표는 경로검증 콘솔.dc.html 1a 를 그대로 옮김) ------
 const EQ_POS = [
@@ -374,7 +558,7 @@ function hopMapSvg(eq){
     const e = eq[id]||{result:'not_evaluable'};
     const tx = anchor==='mid'?'translate(-50%,-50%)':anchor==='end'?'translate(-100%,-50%)':'translate(0,-50%)';
     const weight = id==='E10' ? 600 : 400, size = id==='E10' ? 12 : (id==='E2'||id==='E3'||id==='E6'||id==='E7') ? 11.5 : 11;
-    return `<div class="hoplabel" style="left:${(x/820*100).toFixed(2)}%;top:${(y/360*100).toFixed(2)}%;transform:${tx};font:${weight} ${size}px 'IBM Plex Mono',monospace;color:${col(id)}">${eqGlyph(e.result)} ${id} ${esc(tail)}</div>`;
+    return `<div class="hoplabel" data-eq="${id}" style="left:${(x/820*100).toFixed(2)}%;top:${(y/360*100).toFixed(2)}%;transform:${tx};font:${weight} ${size}px 'IBM Plex Mono',monospace;color:${col(id)}">${eqGlyph(e.result)} ${id} ${esc(tail)}</div>`;
   }).join('');
   return { labels, colOf: col };
 }
@@ -406,8 +590,16 @@ function renderDetail(){
   const candidates = [a.sent_at, a.received_at, g.decided_at, consumedAt||0, verdictAt||0];
   const tEnd = Math.max(breakpoint+40, ...candidates) * 1.08;
   const span = (ms)=>{ const v=Math.min(Math.max(ms,0),tEnd); return v<=breakpoint ? 4+(v/breakpoint)*60 : 72+((v-breakpoint)/Math.max(1,tEnd-breakpoint))*24; };
+  // 스크러버가 쓰는 역함수. 축 생략 구간(64~72%)은 breakpoint 로, 오른쪽 여백은 끝 시점으로 모은다.
+  span.inv = (pct)=>{
+    const q = Math.min(Math.max(pct,0),100);
+    const ms = q<=4 ? 0 : q<=64 ? ((q-4)/60)*breakpoint : q<72 ? breakpoint
+      : breakpoint + ((q-72)/24)*Math.max(1, tEnd-breakpoint);
+    return Math.min(Math.max(ms,0), tEnd);
+  };
   PB = { legs, tEnd, breakpoint, span, eq, consumedAt, verdictAt, harmExposed, detectable, attack,
-         receivedAt:a.received_at, hasError: !!a.error, t: tEnd };
+         receivedAt:a.received_at, hasError: !!a.error, t: tEnd,
+         fired: new Set(legs.map((_,i)=>i)), evFired: new Set(), primed: false, prev: null, fill: '' };
   $('#tLabel').textContent = `t = ${Math.round(tEnd)} ms`;
 
   // ---- 홉 지도 (정적) -----------------------------------------------------------
@@ -429,13 +621,18 @@ function renderDetail(){
     <rect x="640" y="118" width="120" height="52" rx="6" fill="${CV('chip')}" stroke="${CV('line')}"/>
     <text x="700" y="140" text-anchor="middle" font-size="13" font-weight="700">M</text>
     <text x="700" y="157" text-anchor="middle" font-size="11" fill="${CV('muted')}">모델 운영자</text>
+    <rect class="nodehalo" id="itxHaloU" x="60" y="118" width="120" height="52" rx="6" fill="none" stroke="${CV('accent')}" stroke-width="2"/>
+    <rect class="nodehalo" id="itxHaloR" x="370" y="118" width="120" height="52" rx="6" fill="none" stroke="${CV('accent')}" stroke-width="2"/>
+    <rect class="nodehalo" id="itxHaloM" x="640" y="118" width="120" height="52" rx="6" fill="none" stroke="${CV('accent')}" stroke-width="2"/>
     <rect x="330" y="306" width="160" height="44" rx="6" fill="${CV('card')}" stroke="${CV('accent')}" stroke-dasharray="5 3"/>
     <text x="410" y="324" text-anchor="middle" font-size="12" font-weight="700" fill="${CV('accent')}">T — 독립 제3자</text>
     <text x="410" y="339" text-anchor="middle" font-size="10.5" fill="${CV('muted')}">대조 · 정책 · 추가 전용 로그</text>
-    <line id="itxEvU" x1="120" y1="170" x2="340" y2="306" stroke="${CV('line')}" stroke-width="1.5" stroke-dasharray="4 4"/>
-    <line id="itxEvR" x1="430" y1="170" x2="410" y2="306" stroke="${CV('line')}" stroke-width="1.5" stroke-dasharray="4 4"/>
-    <line id="itxEvM" x1="700" y1="170" x2="480" y2="306" stroke="${CV('line')}" stroke-width="1.5" stroke-dasharray="4 4"/>
-    <circle id="itxPacket" cx="120" cy="196" r="8" fill="${CV('accent')}"/>
+    <rect class="nodehalo" id="itxHaloT" x="330" y="306" width="160" height="44" rx="6" fill="none" stroke="${CV('accent')}" stroke-width="2"/>
+    <line id="itxEvU" class="evline" x1="120" y1="170" x2="340" y2="306" stroke="${CV('line')}" stroke-width="1.5" stroke-dasharray="4 4"/>
+    <line id="itxEvR" class="evline" x1="430" y1="170" x2="410" y2="306" stroke="${CV('line')}" stroke-width="1.5" stroke-dasharray="4 4"/>
+    <line id="itxEvM" class="evline" x1="700" y1="170" x2="480" y2="306" stroke="${CV('line')}" stroke-width="1.5" stroke-dasharray="4 4"/>
+    ${[1,2,3].map(i=>`<polyline id="itxTrail${i}" class="packettrail" points="" fill="none" stroke="${CV('accent')}" stroke-width="${9-i}" stroke-linecap="round" stroke-linejoin="round" opacity="0"/>`).join('')}
+    <circle id="itxPacket" class="packet" cx="120" cy="118" r="8" fill="${CV('accent')}"/>
   </svg>`;
   const evidenceRegs = { U: regContract, R: regRelay, M: regReceipt };
 
@@ -453,7 +650,7 @@ function renderDetail(){
   marks.sort((x,y)=>x.pos-y.pos);
   let lastPos=-999, row=0;
   for (const mk of marks){ row = (mk.pos-lastPos<7) ? (row===0?1:0) : 0; mk.row=row; lastPos=mk.pos; }
-  const marksHtml = marks.map(mk=>`<div style="position:absolute;top:${mk.row?41:2}px;left:${mk.pos}%;transform:translateX(-50%)">
+  const marksHtml = marks.map(mk=>`<div style="position:absolute;top:${mk.row?41:2}px;left:${mk.pos}%;transform:translateX(-50%);pointer-events:none">
     <div class="markline"></div><div class="marklabel" style="color:${CV(mk.color)}">${esc(mk.label)}</div><div class="markat">${esc(mk.at)}</div></div>`).join('');
   const harmNote = (attack && !detectable)
     ? '탐지 불가로 분류된 사건이다. 탐지율 분모에서 제외하고 그 수를 따로 적는다 — 통과 배지로 표시하지 않는다.'
@@ -472,14 +669,14 @@ function renderDetail(){
   };
   const evRow = (key, reg)=>{
     const [name, detail] = EV_META[key];
-    if (!reg) return `<div class="evrow" style="background:${CV('bg')};border-style:dashed;border-color:${CV('na')}">
-      <span class="evdot" style="border:1px dashed ${CV('na')}"></span>
+    if (!reg) return `<div class="evrow absent-row" data-ev-key="${key}">
+      <span class="evdot"></span>
       <span class="evname">${name}</span><span class="evdetail">${detail}</span>
-      <span class="evstate" style="color:${CV('na')}">결손</span></div>`;
+      <span class="evstate">결손</span></div>`;
     return `<div class="evrow" data-ev-reg="${reg.registered_at}" data-ev-key="${key}">
-      <span class="evdot" style="background:${CV('line')}"></span>
+      <span class="evdot"></span>
       <span class="evname">${name}</span><span class="evdetail">${detail}</span>
-      <span class="evstate" style="color:${CV('na')}">대기</span></div>`;
+      <span class="evstate">대기</span></div>`;
   };
   const evidence = evRow('U',regContract) + evRow('R',regRelay) + evRow('M',regReceipt) + evRow('O',regObs);
 
@@ -497,7 +694,7 @@ function renderDetail(){
     const c2 = v.result==='fail'?`background:${CV('card')};border:1px solid ${CV('fail')};color:${CV('fail')}`
       : v.result==='not_evaluable'?`background:${CV('card')};border:1px dashed ${CV('na')};color:${CV('na')}`
       : `background:${CV('chip')};border:1px solid ${CV('line')};color:${CV('muted')}`;
-    return `<span class="mono" style="padding:2px 6px;border-radius:4px;${c2}" title="${esc(v.reason)}">${esc(k)}</span>`;
+    return `<span class="mono eqchip" data-eq="${esc(k)}" style="padding:2px 6px;border-radius:4px;${c2}" title="${esc(v.reason)}">${esc(k)}</span>`;
   }).join(' ');
 
   // ---- 비교: bad-cell 표시는 실제 등식 결과에서 도출한다 (수기 지정 색인 없음) ------
@@ -542,7 +739,7 @@ function renderDetail(){
     <div class="small muted" style="margin-top:7px">커밋은 <span class="mono">commit(x) = H(salt ‖ H(canonical(x)))</span> 의 앞 12자다. 솔트는 로그에 올리지 않으므로 공개 원장만으로는 사전 대입이 불가능하다. 빨간 셀은 실패한 등식이 가리키는 값이며 두 칸이 다르다는 사실 자체가 가해자 확정은 아니다.</div>`;
 
   // ---- 등식 표 / 등록 진술 표 (기존 세부 자료, 유지) --------------------------------
-  const eqRows = Object.entries(eq).map(([k,e])=>`<tr><td><b>${k}</b> ${esc(e.title)}<div class="small muted">${esc(e.hop)}</div></td><td class="${cls(e.result)}">${e.result}</td><td>${esc(e.reason)}</td><td class="small">${(e.compared||[]).map(esc).join('<br>')}</td><td class="small muted">${esc(e.trust_grade)}</td></tr>`).join('');
+  const eqRows = Object.entries(eq).map(([k,e])=>`<tr data-eq="${k}"><td><b>${k}</b> ${esc(e.title)}<div class="small muted">${esc(e.hop)}</div></td><td class="${cls(e.result)}">${e.result}</td><td>${esc(e.reason)}</td><td class="small">${(e.compared||[]).map(esc).join('<br>')}</td><td class="small muted">${esc(e.trust_grade)}</td></tr>`).join('');
   const regs = (a.registered||[]).map(x=>`<tr><td>${x.index}</td><td class="small">${esc(x.content_type.replace('application/vnd.itx.','').replace('+json',''))}</td><td class="small">${esc(x.iss.replace('urn:itx:party:',''))}</td><td>≤ ${x.registered_at} ms</td><td class="mono">${short(x.statement_hash)}</td></tr>`).join('') || '<tr><td colspan="5" class="absent">등록된 진술 없음</td></tr>';
 
   // ---- 시뮬레이터 사실 (증거 아님) --------------------------------------------------
@@ -575,16 +772,17 @@ function renderDetail(){
   </div>
 
   <div class="card"><h3>경로 — 업무 데이터 경로(실선)와 T 의 증거·통제 경로(점선)</h3>
-    <div class="hopwrap">${svg}${hop.labels}</div>
+    <div class="hopwrap">${svg}${hop.labels}<div class="packetlabel" id="itxPacketLabel" hidden></div></div>
     <div class="legend-row"><span class="pass">✓ pass</span><span class="fail">✗ fail</span><span class="na">– not_evaluable (사유는 등식 표에)</span></div>
 
     <h3>시점 — 검증 전에 무엇이 소비되었는가</h3>
-    <div class="timebox">
+    <div class="timebox" id="itxTimebox" data-scrub tabindex="0" role="slider" aria-label="재생 시점 탐색 — 드래그·방향키"
+         aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" title="클릭·드래그로 시점 이동 · ←/→ 홉 이동 · Space 재생">
       <div class="timeaxis"></div>
       <div class="timegap" style="left:66%"></div><div class="timegaplabel" style="left:68%">축 생략</div>
-      <div id="itxHarmBar" class="harmbar" style="left:0;width:0"></div>
+      <div id="itxHarmBar" class="harmbar empty" style="left:0;width:0"><span class="harmlabel">피해 노출 — 사용 이후 T 판정 전</span></div>
       ${marksHtml}
-      <div id="itxPlayhead" class="playhead" style="left:0"></div>
+      <div id="itxPlayhead" class="playhead" style="left:0"><span class="playknob"></span></div>
     </div>
     <p class="small muted" style="margin-top:6px">${harmNote}</p>
 
@@ -642,39 +840,99 @@ function renderDetail(){
   updatePacket();
 }
 
-// ---------- 재생 프레임: 패킷 위치·색, 증거 도달선, 재생 헤드/피해 막대만 갱신 -----------
+// ---------- 재생 프레임: 패킷 위치·잔상·색, 도달 펄스, 증거 도달선, 재생 헤드/피해 막대만 갱신 -----------
+function pulseNode(node){
+  const el = $('#itxHalo'+node);
+  if (!el) return;
+  el.classList.remove('pulse'); void el.getBoundingClientRect(); el.classList.add('pulse');
+}
 function updatePacket(){
   if (!PB) return;
-  const t = PB.t;
+  const t = PB.t, lastLeg = PB.legs[PB.legs.length-1];
   $('#tLabel').textContent = `t = ${Math.round(t)} ms`;
   const pos = packetPos(t, PB.legs);
   const respTampered = (PB.eq.E10||{}).result==='fail';
   const reqTampered = (PB.eq.E4||{}).result==='fail';
   let fill = 'accent';
-  if (t >= PB.legs[PB.legs.length-1].t1) fill = 'muted';
+  if (t >= lastLeg.t1) fill = 'muted';
   if (reqTampered && t>=PB.legs[1].t0 && t<PB.legs[4].t0) fill = 'fail';
   if (respTampered && t>=PB.legs[6].t0) fill = 'fail';
+  const changed = fill !== PB.fill; PB.fill = fill;
   const dot = $('#itxPacket');
-  if (dot){ dot.setAttribute('cx', pos.x.toFixed(1)); dot.setAttribute('cy', pos.y.toFixed(1)); dot.setAttribute('fill', CV(fill)); }
+  if (dot){ dot.setAttribute('cx', pos.x.toFixed(1)); dot.setAttribute('cy', pos.y.toFixed(1)); if (changed) dot.setAttribute('fill', CV(fill)); }
 
-  const evLine = (id, reg)=>{ const el=$(id); if(!el) return; el.setAttribute('stroke', !reg ? CV('na') : (t>=reg.registered_at ? CV('pass') : CV('line'))); };
-  document.querySelectorAll('.evrow[data-ev-key]').forEach(row=>{
-    const reg = +row.dataset.evReg; const arrived = t>=reg;
-    row.querySelector('.evdot').style.background = arrived ? CV('pass') : CV('line');
-    row.style.background = arrived ? CV('card') : CV('chip');
-    const state = row.querySelector('.evstate'); state.textContent = arrived ? `등록 ≤ ${reg} ms` : '대기'; state.style.color = arrived?CV('pass'):CV('na');
+  const moving = t > PB.legs[0].t0 && t < lastLeg.t1;
+  // 홉 구간은 추론 구간보다 10배 짧아 한 프레임에 크게 건너뛴다. 재생 중에는 그 간격만큼 꼬리를 늘려
+  // 이동이 끊겨 보이지 않게 한다 — 속도를 그대로 드러내는 것이고 판정과는 무관하다.
+  const jump = PB.prev ? Math.hypot(pos.x-PB.prev.x, pos.y-PB.prev.y) : 0;
+  PB.prev = {x:pos.x, y:pos.y};
+  const base = playing ? Math.max(22, Math.min(44, jump*1.6)) : 22;
+  const full = (moving && !reducedMotion) ? trailLength(t, PB.legs, base) : 0;
+  // 꼬리는 길이·두께·농도가 다른 세 겹으로 그린다. 방향이 꺾여도 그러데이션처럼 잦아든다.
+  for (const [i, share, alpha] of [[1,1,.10],[2,.6,.16],[3,.3,.24]]){
+    const layer = $('#itxTrail'+i);
+    if (!layer) continue;
+    const pts = full>0.5 ? trailPoints(t, PB.legs, full*share) : [];
+    layer.setAttribute('points', pts.map(q=>`${q[0].toFixed(1)},${q[1].toFixed(1)}`).join(' '));
+    if (changed) layer.setAttribute('stroke', CV(fill));
+    layer.style.opacity = pts.length>1 ? String(alpha) : '0';
+  }
+  const plabel = $('#itxPacketLabel');
+  if (plabel){
+    plabel.hidden = !moving;
+    if (moving){
+      plabel.textContent = pos.leg.label;
+      plabel.style.left = (pos.x/820*100).toFixed(2)+'%';
+      plabel.style.top = (pos.y/360*100).toFixed(2)+'%';
+      plabel.style.transform = pos.y<150 ? 'translate(-50%,-180%)' : 'translate(-50%,80%)';
+    }
+  }
+  if (!reducedMotion) for (let i=0;i<PB.legs.length;i++){
+    const L = PB.legs[i];
+    if (L.arrive && !PB.fired.has(i) && t>=L.t1){ PB.fired.add(i); pulseNode(L.arrive); }
+  }
+
+  // 결손 증거의 점선은 회색으로 고정한다 — 등록을 기다리는 상태(line)와 구분한다.
+  for (const k of ['U','R','M']){
+    const el = $('#itxEv'+k); if (!el) continue;
+    const row = document.querySelector(`.evrow[data-ev-key="${k}"]`);
+    const reg = row ? row.dataset.evReg : undefined;
+    const missing = !row || row.classList.contains('absent-row');
+    const registered = !missing && reg !== undefined && t >= +reg;
+    const want = missing ? CV('na') : registered ? CV('pass') : CV('line');
+    if (el.getAttribute('stroke') !== want) el.setAttribute('stroke', want);
+    // 증거 제출 경로임을 업무 데이터 경로와 구분해 보인다: 재생 중이고 이미 등록된 선만 흐른다.
+    el.classList.toggle('flowing', registered && playing && !reducedMotion);
+    if (registered && !PB.evFired.has(k)){ PB.evFired.add(k); if (PB.primed && !reducedMotion) pulseNode('T'); }
+    if (!registered) PB.evFired.delete(k);
+  }
+  // 등록 여부는 클래스만 바꾸고 색 전이는 CSS 가 맡는다 (프레임마다 인라인 색을 쓰면 전이가 끊긴다).
+  document.querySelectorAll('.evrow[data-ev-reg]').forEach(row=>{
+    const reg = +row.dataset.evReg, arrived = t>=reg;
+    if (row.classList.contains('arrived') === arrived) return;
+    row.classList.toggle('arrived', arrived);
+    // 이미 끝난 사건을 불러올 때(primed 이전)는 안착 애니메이션을 내지 않는다 — 방금 등록된 것이 아니다.
+    row.classList.toggle('settling', arrived && PB.primed && !reducedMotion);
+    row.querySelector('.evstate').textContent = arrived ? `등록 ≤ ${reg} ms` : '대기';
   });
-  evLine('#itxEvU', {registered_at: +(document.querySelector('.evrow[data-ev-key="U"]')?.dataset.evReg ?? -1)});
-  evLine('#itxEvR', document.querySelector('.evrow[data-ev-key="R"]') ? {registered_at:+document.querySelector('.evrow[data-ev-key="R"]').dataset.evReg} : null);
-  evLine('#itxEvM', document.querySelector('.evrow[data-ev-key="M"]') ? {registered_at:+document.querySelector('.evrow[data-ev-key="M"]').dataset.evReg} : null);
+  PB.primed = true;
+  const box = $('#itxTimebox');
+  if (box){
+    box.setAttribute('aria-valuemax', String(Math.round(PB.tEnd)));
+    box.setAttribute('aria-valuenow', String(Math.round(t)));
+    box.setAttribute('aria-valuetext', `t = ${Math.round(t)} ms · ${pos.leg.label}`);
+  }
 
   const ph = $('#itxPlayhead'); if (ph) ph.style.left = PB.span(t) + '%';
   const hb = $('#itxHarmBar');
   if (hb){
+    let w = 0;
     if (PB.harmExposed && PB.detectable && PB.consumedAt!=null && PB.verdictAt!=null){
       const left = PB.span(PB.consumedAt), right = PB.span(Math.min(t, PB.verdictAt));
-      hb.style.left = left+'%'; hb.style.width = Math.max(0, right-left)+'%';
+      w = Math.max(0, right-left);
+      hb.style.left = left+'%'; hb.style.width = w+'%';
     } else { hb.style.width = '0'; }
+    hb.classList.toggle('empty', w <= 1); // 라벨을 띄울 자리가 없으면 막대만 남긴다
   }
 }
 
@@ -811,9 +1069,19 @@ function renderUncertainty(){
   const IMPL = 'background:var(--chip);color:var(--pass)', PLANNED = 'background:var(--chip);color:var(--na)';
   const items = [
     {title:'요청의 이동과 진술 발행', spec:'섹션 3 재생 · 실제 홉 지연 비례', impl:true,
-     body:'U→R→M→R→U 를 점 하나가 지난다. 구간 경계는 임의 데모 수치가 아니라 이 시도의 실제 sent_at/received_at 과 시뮬레이션 지연 상수(홉 20ms·중개 처리 5ms·서명 2ms)에서 역산한 것이다.'},
+     body:'U→R→M→R→U 를 점 하나가 지난다. 구간 경계는 임의 데모 수치가 아니라 이 시도의 실제 sent_at/received_at 과 시뮬레이션 지연 상수(홉 20ms·중개 처리 5ms·서명 2ms)에서 역산한 것이다. 이동 구간은 정지에서 출발해 정지로 끝나므로 가감속을 주고, 노드를 드나드는 수직 구간을 넣어 꺾은선 위를 실제로 타고 돈다.'},
+    {title:'진행 방향 잔상', spec:'섹션 3 재생 · 18px 꼬리', impl:true,
+     body:'점 뒤로 지나온 경로를 22px 만큼 되짚은 반투명 꼬리를 길이·두께·농도가 다른 세 겹으로 그린다. 꼬리는 경로의 꺾임과 구간 경계를 그대로 따라가며, 노드에 도착해 머무는 동안에는 길이가 0 으로 줄어든다. 홉 구간은 추론 구간보다 10배 짧아 한 프레임에 크게 건너뛰므로 재생 중에는 그 간격만큼 꼬리를 늘린다 — 속도를 읽게 할 뿐 어떤 판정도 나타내지 않는다.'},
+    {title:'노드 도달 펄스', spec:'섹션 3 재생 · 1회성 fade', impl:true,
+     body:'패킷이 U/R/M 상자에 닿는 순간 그 상자에만 1회성 테두리 fade 를 낸다 (620ms, 흐름 색). 반복·점멸하지 않고 잔상도 남기지 않는다. 뒤로 이동하면 다시 낼 수 있게 초기화되고, 선택을 바꿔 최종 상태로 들어올 때는 내지 않는다 — 방금 일어난 일이 아니기 때문이다.'},
     {title:'변조의 순간', spec:'섹션 3 재생 · 색 전이만', impl:true,
-     body:'요청 변조(E4 실패)는 R→M 구간에서, 응답 변조(E10 실패)는 M→R 구간부터 점의 색이 파랑에서 빨강으로 바뀐다. 폭발·흔들림 없이 색과 라벨만 바꾼다. 실제로 실패한 등식에서 색을 가져오므로 시나리오마다 자동으로 맞다.'},
+     body:'요청 변조(E4 실패)는 R→M 구간에서, 응답 변조(E10 실패)는 M→R 구간부터 점과 꼬리의 색이 파랑에서 빨강으로 바뀐다. 폭발·흔들림 없이 색과 라벨만 바꾼다. 실제로 실패한 등식에서 색을 가져오므로 시나리오마다 자동으로 맞다.'},
+    {title:'증거 제출 경로의 흐름', spec:'섹션 3 T 점선 · 대시 오프셋', impl:true,
+     body:'T 로 가는 점선은 업무 데이터 경로(실선)와 다른 성격이므로, 재생 중이면서 이미 등록된 선만 대시 오프셋이 천천히 흐른다. 등록 전이거나 결손인 선은 정지해 있고, 정지·완료 상태에서는 전부 멈춘다. 증거가 T 에 닿는 순간 T 상자에 1회성 펄스를 낸다.'},
+    {title:'증거 등록의 도달', spec:'섹션 3 증거 패널 · 320ms 페이드 + 안착', impl:true,
+     body:'재생 시점이 각 진술의 등록 시각(상한)을 지나면 그 행과 T 로 가는 점선이 대기색에서 pass 색으로 넘어가고 3px 만큼 제자리로 안착한다. 프레임마다 인라인 색을 쓰지 않고 상태 클래스만 바꿔 전이가 끊기지 않게 했다. 결손 행은 전이 대상에서 제외한다 — 부재는 어떤 경우에도 움직이지 않는다.'},
+    {title:'임의 시점 탐색', spec:'섹션 3 시점 타임라인 · 스크러버', impl:true,
+     body:'타임라인을 누르거나 끌면 그 시점으로 바로 간다. |◀ ▶| 는 홉 경계 단위로 한 걸음씩 옮기고, 속도는 ×0.5/×1/×2 로 바꾼다. 초점이 타임라인이나 재생 컨트롤에 있을 때 Space 는 재생·정지, ←/→ 는 홉 이동, Home/End 는 처음·끝이다.'},
     {title:'탐지와 소비의 간격', spec:'섹션 3 시점 타임라인 + 스윔레인(1b) 하단', impl:true,
      body:'소비 지점에서 T 판정 등록 지점까지 붉은 막대가 실제 시간 비율대로 자란다. 막대가 길수록 나쁜 것이 아니라 "무엇이 그 사이에 실행되었는가" 를 묻게 만드는 장치다.'},
     {title:'증거가 늘며 바뀌는 판정', spec:'섹션 5 (1d) · 탭 전환', impl:true,
@@ -835,6 +1103,47 @@ function renderUncertainty(){
   const rows = D.q1_matrix; const coops = ['U','U+M','U+R','U+R+M']; const sids = [...new Set(rows.map(r=>r.scenario_id))];
   const cell = (r)=>r?`<div class="${st(r.verification_status)}">${r.verification_status}</div><div class="small">${r.codes.length?r.codes.map(esc).join('<br>'):'<span class="absent">코드 없음</span>'}</div><div class="small muted">완전성 ${r.completeness} · 게이트 ${esc(r.gate_action)}</div>`:'-';
   $('#q1').innerHTML = `<table><thead><tr><th>위반 시나리오</th>${coops.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${sids.map(s=>{const t=rows.find(r=>r.scenario_id===s).title;return `<tr><td><b>${s}</b><div class="small">${esc(t)}</div></td>${coops.map(c=>`<td>${cell(rows.find(r=>r.scenario_id===s&&r.cooperation===c))}</td>`).join('')}</tr>`;}).join('')}</tbody></table>`;
+})();
+
+// ---------- 등식 라벨 <-> 등식표·집행 칩 양방향 연동, 해시 복사 ----------
+(function(){
+  let current = null;
+  const mark = (id, on)=>{ if(!id) return; document.querySelectorAll(`[data-eq="${CSS.escape(id)}"]`).forEach(n=>n.classList.toggle('eq-hi', on)); };
+  const point = (e)=>{
+    const n = e.target && e.target.closest ? e.target.closest('[data-eq]') : null;
+    const id = n ? n.dataset.eq : null;
+    if (id === current) return;
+    mark(current, false); current = id; mark(current, true);
+  };
+  document.addEventListener('mouseover', point);
+  document.addEventListener('focusin', point);
+
+  async function copyText(text){
+    if (!text) return false;
+    try { await navigator.clipboard.writeText(text); return true; } catch(e) {}
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly',''); ta.style.position='fixed'; ta.style.opacity='0';
+      document.body.appendChild(ta); ta.select();
+      const ok = document.execCommand('copy'); ta.remove(); return ok;
+    } catch(e) { return false; }
+  }
+  const flash = (n, message)=>{
+    n.dataset.flash = message; n.classList.add('copied');
+    setTimeout(()=>{ n.classList.remove('copied'); delete n.dataset.flash; }, 1200);
+  };
+  document.addEventListener('click', e=>{
+    const n = e.target && e.target.closest ? e.target.closest('[data-copy]') : null;
+    if (!n) return;
+    e.preventDefault();
+    copyText(n.dataset.copy||'').then(ok=>flash(n, ok?'복사됨':'복사 실패'));
+  });
+  document.addEventListener('keydown', e=>{
+    if (e.key!=='Enter' && e.key!==' ') return;
+    const n = e.target && e.target.closest ? e.target.closest('[data-copy][tabindex]') : null;
+    if (!n) return;
+    e.preventDefault(); n.click();
+  });
 })();
 
 onSelectionChanged();
