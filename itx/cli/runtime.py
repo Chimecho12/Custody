@@ -91,6 +91,15 @@ SPEC: list[tuple[str, str, list[tuple[str, dict]]]] = [
     ("benchmark", "세 모드를 반복 실행해 지연을 실측한다", [
         ("--output", _REQ),
         ("--repeats", {"type": int, "default": 5})]),
+    ("proxy", "OpenAI 호환 루프백 게이트웨이를 U Agent 앞에 띄운다 (스트리밍 미지원)", [
+        ("--data-dir", _REQ),
+        ("--config", {"help": "고정된 U config.json. --lab 일 때만 생략"}),
+        ("--lab", {"action": "store_true", "help": "고정 설정 대신 로컬 TLS 실험실에 붙는다"}),
+        ("--host", {"default": "127.0.0.1"}),
+        ("--port", {"type": int, "default": 8080}),
+        ("--mode", {"choices": ["protect", "strict", "observe"], "default": "protect"}),
+        ("--api-key", {"help": "로컬 클라이언트에게 Authorization: Bearer <key> 를 요구한다"}),
+        ("--api-key-file", {"help": "공유 비밀을 명령줄 대신 파일에서 읽는다"})]),
 
     # --- 표준 적합성과 키 보관 ------------------------------------------------
     ("conformance", "CBOR·COSE·Merkle 적합성 벡터를 실행한다 (설정 불필요)", [
@@ -119,7 +128,7 @@ def main(argv: list[str] | None = None) -> int:
 
     use_utf8()
     args = build_parser().parse_args(argv)
-    # 오래 사는 세 명령은 자기 루프를 돌고, 나머지는 결과 JSON 을 한 번 내고 끝난다.
+    # 오래 사는 네 명령(desktop·service·init·proxy)은 자기 루프를 돌고, 나머지는 결과 JSON 을 한 번 내고 끝난다.
     if args.command == "desktop":
         from itx.runtime.desktop import stdio
         stdio(args.data_dir)
@@ -131,6 +140,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "init":
         from itx.runtime.lab import create_deployment
         print(create_deployment(args.directory, lab=not args.connected))
+        return 0
+    if args.command == "proxy":
+        from pathlib import Path
+
+        from itx.runtime.proxy import serve as serve_proxy
+        # 명령줄에 남는 비밀보다 파일 쪽을 권한다. 둘 다 주면 파일이 이긴다.
+        key = Path(args.api_key_file).read_text(encoding="utf-8").strip() if args.api_key_file else args.api_key
+        serve_proxy(args.data_dir, args.config, host=args.host, port=args.port, mode=args.mode, api_key=key or None, lab=args.lab)
         return 0
 
     from itx.runtime.commands import execute
