@@ -150,6 +150,17 @@ scripts/build-desktop.ps1 -Python .venv\Scripts\python.exe
 통신 런타임은 `cryptography`가 없으면 시작하지 않는다. PyInstaller는 변환 해시 재현용 `itx/reconcile/transforms.py`도 포함한다.
 빌드 도구 준비는 `scripts/bootstrap-windows.ps1`에 있다.
 
+수정 사항을 실시간으로 보려면 `scripts/dev-desktop.ps1`을 쓴다. 기본은 `tauri dev`(앱 창, 프런트 HMR, Rust 자동 재컴파일)이고
+`-UiOnly`는 vite만 띄워 브라우저(http://127.0.0.1:1420)에서 표본 데이터로 화면만 본다. Python Agent는 사이드카 exe로
+실행되므로 `itx/`를 고친 뒤에는 `-RebuildAgent`를 붙여 다시 패키징해야 앱에 반영된다. pnpm이 PATH에 없으면 이미 설치된
+`node_modules`로 `npm run dev`를 대신 쓴다(`desktop/tauri.dev.conf.json`).
+
+```powershell
+scripts\dev-desktop.ps1                 # 앱 창 + 실시간 반영
+scripts\dev-desktop.ps1 -RebuildAgent   # itx/ 수정 후
+scripts\dev-desktop.ps1 -UiOnly         # 브라우저 미리보기만 (python scripts\make-preview-fixtures.py 로 표본 생성)
+```
+
 서명 인프라가 준비되면 빌드에 `-SigningConfig <Tauri 추가 JSON>`과 `-AgentSignScript <서명용 .ps1>`를 함께 지정한다.
 서명 스크립트는 첫 인수인 Agent 파일을 서명하고 실패 시 예외를 발생시킨다. 키·인증서를 자동 검색하거나 생성하지 않는다.
 Agent 서명 확인 후 NSIS에 포함하며 Tauri 설정으로 앱/설치 파일도 서명하고 Authenticode 상태를 검사한다.
