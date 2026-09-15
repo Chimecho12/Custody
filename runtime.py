@@ -75,6 +75,15 @@ def main():
     req.add_argument("--config", required=True)
     req.add_argument("--prompt", required=True)
     req.add_argument("--mode", choices=["protect", "strict", "observe"], default="protect")
+    px = sub.add_parser("proxy", help="OpenAI-compatible loopback gateway in front of the U Agent")
+    px.add_argument("--data-dir", required=True)
+    px.add_argument("--config", help="pinned U config.json; omit only with --lab")
+    px.add_argument("--lab", action="store_true", help="run against the local TLS lab instead of a pinned config")
+    px.add_argument("--host", default="127.0.0.1")
+    px.add_argument("--port", type=int, default=8080)
+    px.add_argument("--mode", choices=["protect", "strict", "observe"], default="protect")
+    px.add_argument("--api-key", help="require Authorization: Bearer <key> from local clients")
+    px.add_argument("--api-key-file", help="read the shared secret from a file instead of the command line")
     bench = sub.add_parser("benchmark")
     bench.add_argument("--output", required=True)
     bench.add_argument("--repeats", type=int, default=5)
@@ -88,6 +97,12 @@ def main():
     elif a.command == "init":
         from itx.runtime.lab import create_deployment
         print(create_deployment(a.directory, lab=not a.connected))
+    elif a.command == "proxy":
+        from pathlib import Path
+        from itx.runtime.proxy import serve as serve_proxy
+        # 명령줄에 남는 비밀보다 파일 쪽을 권한다. 둘 다 주면 파일이 이긴다.
+        key = Path(a.api_key_file).read_text(encoding="utf-8").strip() if a.api_key_file else a.api_key
+        serve_proxy(a.data_dir, a.config, host=a.host, port=a.port, mode=a.mode, api_key=key or None, lab=a.lab)
     else:
         from itx.runtime.commands import execute
         result = execute(a)
