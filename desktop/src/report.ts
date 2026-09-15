@@ -25,11 +25,19 @@ const KIND_LABEL: Record<string, string> = {
 
 const ANIM_NOTES = [
   {title: '요청의 이동과 진술 발행', spec: '사건 상세 재생 · 실제 홉 지연 비례', impl: true,
-   body: 'U→R→M→R→U 를 점 하나가 지난다. 구간 경계는 임의 데모 수치가 아니라 이 시도의 실제 sent_at/received_at 과 시뮬레이션 지연 상수(홉 20ms·중개 처리 5ms·서명 2ms)에서 역산한 것이다.'},
+   body: 'U→R→M→R→U 를 점 하나가 지난다. 구간 경계는 임의 데모 수치가 아니라 이 시도의 실제 sent_at/received_at 과 시뮬레이션 지연 상수(홉 20ms·중개 처리 5ms·서명 2ms)에서 역산한 것이다. 이동 구간은 정지에서 출발해 정지로 끝나므로 가감속을 주고, 노드를 드나드는 수직 구간을 넣어 꺾은선 위를 실제로 타고 돈다.'},
+  {title: '진행 방향 잔상', spec: '사건 상세 재생 · 18px 꼬리', impl: true,
+   body: '점 뒤로 지나온 경로를 18px 만큼 되짚은 반투명 꼬리를 그린다 (Hubble 의 흐름 표시와 같은 목적). 꼬리는 경로의 꺾임과 구간 경계를 그대로 따라가며, 노드에 도착해 머무는 동안에는 길이가 0 으로 줄어든다. 속도를 읽게 할 뿐 어떤 판정도 나타내지 않는다.'},
+  {title: '노드 도달 펄스', spec: '사건 상세 재생 · 1회성 fade', impl: true,
+   body: '패킷이 U/R/M 상자에 닿는 순간 그 상자에만 1회성 테두리 fade 를 낸다 (620ms, 흐름 색). 반복·점멸하지 않고 잔상도 남기지 않는다. 뒤로 이동하면 다시 낼 수 있게 초기화되고, 선택을 바꿔 최종 상태로 들어올 때는 내지 않는다 — 방금 일어난 일이 아니기 때문이다.'},
   {title: '변조의 순간', spec: '사건 상세 재생 · 색 전이만', impl: true,
-   body: '요청 변조(E4 실패)는 R→M 구간에서, 응답 변조(E10 실패)는 M→R 구간부터 점의 색이 파랑에서 빨강으로 바뀐다. 폭발·흔들림 없이 색과 라벨만 바꾼다. 실제로 실패한 등식에서 색을 가져오므로 시나리오마다 자동으로 맞다.'},
+   body: '요청 변조(E4 실패)는 R→M 구간에서, 응답 변조(E10 실패)는 M→R 구간부터 점과 꼬리의 색이 파랑에서 빨강으로 바뀐다. 폭발·흔들림 없이 색과 라벨만 바꾼다. 실제로 실패한 등식에서 색을 가져오므로 시나리오마다 자동으로 맞다.'},
+  {title: '증거 등록의 도달', spec: '증거 패널 · 200~320ms 페이드', impl: true,
+   body: '재생 시점이 각 진술의 등록 시각(상한)을 지나면 그 행과 T 로 가는 점선이 대기색에서 pass 색으로 넘어간다. 프레임마다 인라인 색을 쓰지 않고 상태 클래스만 바꿔 전이가 끊기지 않게 했다. 결손 행은 전이 대상에서 제외한다 — 부재는 어떤 경우에도 움직이지 않는다.'},
   {title: '탐지와 소비의 간격', spec: '시점 타임라인 + 스윔레인(1b) 하단', impl: true,
    body: '소비 지점에서 T 판정 등록 지점까지 붉은 막대가 실제 시간 비율대로 자란다. 막대가 길수록 나쁜 것이 아니라 "무엇이 그 사이에 실행되었는가" 를 묻게 만드는 장치다.'},
+  {title: '임의 시점 탐색', spec: '시점 타임라인 · 스크러버', impl: true,
+   body: '타임라인을 누르거나 끌면 그 시점으로 바로 간다 (OpenTelemetry 추적 뷰의 시간 축 탐색과 같은 조작). |◀ ▶| 는 홉 경계 단위로 한 걸음씩 옮기고, 속도는 ×0.5/×1/×2 로 바꾼다. 초점이 타임라인이나 재생 컨트롤에 있을 때 Space 는 재생·정지, ←/→ 는 홉 이동, Home/End 는 처음·끝이다.'},
   {title: '증거가 늘며 바뀌는 판정', spec: '5절 (1d) · 탭 전환', impl: true,
    body: '협조 집합 탭을 U → U+M/U+R → U+R+M 으로 늘리면 같은 사건의 배지·사다리가 실제 Q1 매트릭스 값으로 바뀐다. 탭을 누를 때만 바뀌고 나머지는 정지한다 — 별도 애니메이션은 넣지 않았다.'},
   {title: '해시 체인과 외부 앵커', spec: '원장형(1c) · S14 로 이동', impl: false,
@@ -68,7 +76,7 @@ export class ReportView {
     if (force) this.runs.clear();
     this.loading = true;
     const status = this.$('rpt-status'); status.hidden = false;
-    status.innerHTML = `<div class="empty-glyph">⊞</div><h3>17개 시나리오 × 3개 정책을 실행하는 중</h3><p>결정적 모형 모델과 시뮬레이션 시계로 51회 실행과 Q1 매트릭스 20회를 계산합니다.</p>`;
+    status.innerHTML = `<div class="busybar"></div><div class="empty-glyph">⊞</div><h3>17개 시나리오 × 3개 정책을 실행하는 중</h3><p>결정적 모형 모델과 시뮬레이션 시계로 51회 실행과 Q1 매트릭스 20회를 계산합니다.</p>`;
     const button = this.$<HTMLButtonElement>('rpt-run'); button.disabled = true;
     try {
       this.matrix = await this.call('simulation_matrix');
@@ -134,7 +142,7 @@ export class ReportView {
     const M = this.matrix!;
     const ticket = ++this.selection;
     this.$('rpt-matrix').querySelectorAll<HTMLTableRowElement>('tr[data-sid]').forEach(tr => tr.classList.toggle('sel', tr.dataset.sid === this.cur.sid));
-    pills(this.$('rpt-scenario-tabs'), M.scenarios.map(sc => ({v: sc.id, label: sc.id})), v => v === this.cur.sid, v => { this.cur = {sid: v, mode: this.cur.mode, attempt: 0}; this.onSelectionChanged(); });
+    pills(this.$('rpt-scenario-tabs'), M.scenarios.map(sc => ({v: sc.id, label: sc.id, title: sc.title})), v => v === this.cur.sid, v => { this.cur = {sid: v, mode: this.cur.mode, attempt: 0}; this.onSelectionChanged(); });
     pills(this.$('rpt-mode-tabs'), MODES.map(m => ({v: m, label: m})), v => v === this.cur.mode, v => { this.cur.mode = v; this.onSelectionChanged(); });
     this.play.stop();
     const attempts = this.row(this.cur.sid, this.cur.mode).attempts;

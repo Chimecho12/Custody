@@ -92,7 +92,7 @@ export function routeCard(record: Data, status: Data | null, mode: MapMode): Rou
     ${legendRowHtml(toggle)}
     <div class="grid" style="margin:4px 0 12px">
       <div><h3>증거 — 응답에 동봉되어 U 가 확인한 진술</h3>${evidence}<p class="small muted" style="margin:6px 0 0">등록 시각은 T 의 원장에만 있다. 제출 대기 ${status ? status.pending_evidence : '—'}건 · 사후 판정은 '제3자 검증'에서 갱신한다.</p></div>
-      <div>${timeHtml}${ctx ? `<div style="margin-top:8px">${playControlsHtml()}</div><p class="small muted" style="margin-top:4px">U 가 실측한 것은 전송·수신·결정·공개 시각뿐이다. R·M 내부 구간은 홉·추론 비율 추정으로만 나눈다.</p>` : ''}</div>
+      <div>${timeHtml}${ctx ? `<div style="margin-top:8px">${playControlsHtml()}</div><p class="small muted" style="margin-top:4px">U 가 실측한 것은 전송·수신·결정·공개 시각뿐이다. R·M 내부 구간은 홉·추론 비율 추정으로만 나눈다. 시간선을 끌면 그 시점으로 이동하고, ←/→ 는 홉 단위로 옮긴다.</p>` : ''}</div>
     </div>
     ${stripGridHtml([
       {k: '정책 해시', v: status ? short(status.policy_hash) : '—'}, {k: '모델', v: esc(record.model_kind || '—')},

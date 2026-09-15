@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import './style.css';
-import { Data, esc, Playback } from './console';
+import { Data, esc, Playback, installConsoleInteractions } from './console';
 import { ReportView } from './report';
 import { previewCall } from './preview';
 import { STATE_NAMES, MapMode, routeCard, idleRouteHtml, resultHtml, timelineHtml } from './runtime-view';
@@ -26,10 +26,14 @@ async function call<T = Data>(operation: string, args: Data = {}): Promise<T> {
   return native ? invoke<T>('dispatch', {operation, args}) : previewCall(operation, args);
 }
 function notice(message: string, error = false) {
-  const target = get('notice'); target.hidden = false; target.classList.toggle('error', error); target.textContent = message;
+  const target = get('notice');
+  target.hidden = false; target.classList.toggle('error', error);
+  get('notice-text').textContent = message;
 }
 get('notice').title = '클릭하면 닫힙니다';
 get('notice').onclick = () => { get('notice').hidden = true; };
+// 등식 ↔ 표 연동 하이라이트와 해시 복사는 문서 전역에서 한 번만 건다.
+installConsoleInteractions();
 function fail(error: unknown) { notice(String(error instanceof Error ? error.message : error), true); }
 function badge(text: string, tone = '') { return el('span', 'badge ' + tone, text); }
 function color(state: string) { return state === 'accept' ? 'green' : ['quarantine', 'reject', 'reject_timeout', 'error'].includes(state) ? 'red' : 'amber'; }
@@ -115,7 +119,12 @@ function renderConnection(data: Data) {
   for (const r of ['U', 'R', 'M', 'T']) rows.push([r + ' 고정 공개키', data.identities[r].public_key]);
   if (data.witness_configured) rows.push(['W 고정 공개키', data.identities.W.public_key], ['W TLS 주소', data.endpoints.W]);
   if (data.deployment_hash) rows.push(['배포 지문', data.deployment_hash], ['정책 세대', String(data.epoch)]);
-  for (const [key, value] of rows) { const row = el('div', 'detail-row'); row.append(el('span', '', key), el('code', '', value)); target.append(row); }
+  for (const [key, value] of rows) {
+    const row = el('div', 'detail-row'), code = el('code', 'copyable', value) as HTMLElement;
+    // 공개키·해시·경로는 눈으로 옮겨 적는 값이 아니다. 누르면 전체 값이 복사된다.
+    code.dataset.copy = value; code.tabIndex = 0; code.title = '클릭하면 전체 값을 복사합니다';
+    row.append(el('span', '', key), code); target.append(row);
+  }
   if (data.deployment_history?.length) target.append(details('서명으로 연결된 배포·체크포인트 이력', data.deployment_history));
   renderRoute();
   setBusy(busy);
@@ -141,7 +150,7 @@ get<HTMLFormElement>('request-form').onsubmit = async event => {
   if (busy) return;
   activeToken = crypto.randomUUID();
   setBusy(true); get('notice').hidden = true; liveEvents = []; renderTimeline(null);
-  get('result').innerHTML = `<div class="empty"><div class="empty-glyph">…</div><h3>응답을 보류하고 검증합니다</h3><p>서명·요청·응답 결합을 확인하기 전에는 원문을 공개하지 않습니다.</p></div>`;
+  get('result').innerHTML = `<div class="busybar"></div><div class="empty"><div class="empty-glyph">◇</div><h3>응답을 보류하고 검증합니다</h3><p>서명·요청·응답 결합을 확인하기 전에는 원문을 공개하지 않습니다.</p></div>`;
   get('request-state').textContent = '진행 중'; get('request-state').className = 'badge amber';
   try {
     const record = await call('request', {token: activeToken, prompt: get<HTMLTextAreaElement>('prompt').value, mode: get<HTMLSelectElement>('mode').value, scenario: get<HTMLSelectElement>('scenario').value});
@@ -152,6 +161,12 @@ get<HTMLFormElement>('request-form').onsubmit = async event => {
   } catch (e) { fail(e); get('result').innerHTML = '<div class="blocked-box">요청을 완료하지 못했습니다. Agent 상태를 확인하세요.</div>'; }
   finally { activeToken = ''; setBusy(false); await updateStatus(); }
 };
+// 요청 내용은 여러 줄이므로 Enter 는 줄바꿈으로 두고, 실행은 Ctrl/⌘+Enter 로 받는다.
+get<HTMLTextAreaElement>('prompt').addEventListener('keydown', event => {
+  if (event.key !== 'Enter' || !(event.ctrlKey || event.metaKey)) return;
+  event.preventDefault();
+  if (!busy && connection) get<HTMLFormElement>('request-form').requestSubmit();
+});
 get('cancel').onclick = async () => { try { await call('cancel', {token: activeToken}); notice('취소를 요청했습니다. 원격 호출의 완료 여부와 별개로, 취소가 처리되면 응답을 공개하지 않습니다.'); } catch (e) { fail(e); } };
 
 // ---------- 사건 기록 ----------
