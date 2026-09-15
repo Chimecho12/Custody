@@ -8,6 +8,7 @@ T 의 코드를 신뢰하지 않는다. 같은 검사기 버전·정책 해시�
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from itx import CHECKER_VERSION
@@ -78,7 +79,16 @@ def replay_audit(
     expected_parties_by_sub: dict[str, list[str]],
     reference_model_hashes: dict[str, str],
     private_by_hash: dict[str, dict[str, Any]] | None = None,
+    *,
+    tsa_ca_file: Path | str | None = None,
+    tsa_token_dir: Path | str | None = None,
+    tsa_openssl: str = "openssl",
 ) -> dict[str, Any]:
+    """TSA 앵커가 있으면 감사자가 제공한 tsa_ca_file과 tsa_token_dir로 재검증한다.
+
+    해당 입력이 없거나 토큰 검증에 실패하면 TSA 앵커를 통과시키지 않는다.
+    기존 파일 목격자 기록은 별도의 TSA 설정 없이 계속 검증할 수 있다.
+    """
     entries = [_Entry(e["index"], e["registered_at"], SignedStatement.from_dict(e["statement"])) for e in export["entries"]]
     ts_pub = bytes.fromhex(export["ts_public_key"])
 
@@ -111,7 +121,8 @@ def replay_audit(
             problems.append("내보내기의 policy_hash 가 0번 진술 해시와 다름")
 
     # 3. 앵커 --------------------------------------------------------------------
-    anchors = CheckpointAnchor.verify_tree(tree, anchor_records)
+    anchors = CheckpointAnchor.verify_tree(tree, anchor_records, tsa_ca_file=tsa_ca_file,
+                                          tsa_token_dir=tsa_token_dir, tsa_openssl=tsa_openssl)
 
     # 4. 판정 재실행 -------------------------------------------------------------
     issuer_content_types: dict[str, tuple[str, ...]] = {}
