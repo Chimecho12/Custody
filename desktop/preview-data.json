@@ -1,0 +1,5 @@
+{
+  "_": "브라우저 미리보기 전용 데이터 경로. desktop/ 기준 상대 경로이며, vite 개발 서버(vite.config.ts)와 UI 점검(scripts/check-ui.cjs)이 같은 표를 읽는다. 배포 빌드에는 포함되지 않는다.",
+  "/preview-data/results.json": "../artifacts/results.json",
+  "/preview-data/fixtures.json": "preview/fixtures.json"
+}

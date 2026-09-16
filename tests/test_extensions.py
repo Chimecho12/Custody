@@ -1,7 +1,6 @@
 import copy
 import json
 import os
-from pathlib import Path
 import queue
 import socket
 import subprocess
@@ -10,14 +9,17 @@ import tempfile
 import threading
 import time
 import unittest
+from pathlib import Path
+from urllib.error import URLError
+
+from cryptography.exceptions import InvalidTag
 
 from itx.crypto import HAS_CRYPTOGRAPHY, canonical_json
-from itx.runtime.agent import Agent
-from itx.runtime.common import load_config, key_for, Store
-from itx.runtime.auditing import fingerprint, verify_export, trust_from_config
 from itx.runtime import enrollment
-from itx.runtime.packages import (read_document, write_document, create_recipient, build_package,
-                                  encrypt_package, verify_package)
+from itx.runtime.agent import Agent
+from itx.runtime.auditing import fingerprint, verify_export
+from itx.runtime.common import key_for, load_config
+from itx.runtime.packages import build_package, create_recipient, encrypt_package, read_document, verify_package, write_document
 
 
 def ports(count):
@@ -32,7 +34,7 @@ def ports(count):
 
 
 def provision(root, previous=None, old_configs=None, checkpoint=None, pre_exec=False):
-    addresses = dict(zip("RMTW", ports(4)))
+    addresses = dict(zip("RMTW", ports(4), strict=True))
     directories, cards = {}, []
     for role in "URMTW":
         directories[role] = root / role
@@ -53,7 +55,7 @@ class Processes:
         try:
             for role in "TMRW":
                 path = Path(configs[role])
-                errors = open(path.parent / "test.stderr.log", "ab")
+                errors = open(path.parent / "test.stderr.log", "ab")  # noqa: SIM115 — 자식이 상속한 뒤 바로 닫는다
                 child = subprocess.Popen([sys.executable, "-B", "-m", "itx.runtime.service", "--config", str(path), "--parent-pipe"],
                     stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=errors,
                     env=dict(os.environ, PYTHONUTF8="1"), creationflags=0x08000000 if os.name == "nt" else 0)
@@ -102,7 +104,7 @@ class ExtensionIntegrationTests(unittest.TestCase):
         self.assertEqual(set(status["services"]), set("RMTW"))
         record = self.agent.request("independent provisioning", "strict")
         self.assertEqual(record["state"], "accept", record)
-        self.assertEqual(len(set(p.pid for p in self.services.children)), 4)
+        self.assertEqual(len({p.pid for p in self.services.children}), 4)
         self.assertEqual(len(set(self.agent.config["ca_files"].values())), 4)
 
     def test_02_package_public_and_recipient_encrypted(self):
@@ -131,12 +133,13 @@ class ExtensionIntegrationTests(unittest.TestCase):
         bad["u_signature"] = self.agent.key.sign(canonical_json(bad["body"])).hex()
         with self.assertRaises(ValueError):
             verify_package(bad, trust, fingerprint(trust))
-        wrong = create_recipient(self.root / "wrong-auditor")
+        create_recipient(self.root / "wrong-auditor")  # 다른 감사자의 키 폴더를 만들어 둔다
         with self.assertRaises(ValueError):
             verify_package(encrypted, trust, fingerprint(trust), self.root / "wrong-auditor")
         bad = copy.deepcopy(encrypted)
         bad["nonce"] = "00" * 12
-        with self.assertRaises(Exception):
+        # 봉인이 깨지면 복호화 단계에서 걸린다 — 형식 검증을 통과한 뒤의 실패여야 한다.
+        with self.assertRaises(InvalidTag):
             verify_package(bad, trust, fingerprint(trust), self.root / "auditor")
 
     def test_03_witness_rejects_fork_and_survives_new_checkpoint(self):
@@ -178,7 +181,8 @@ class ExtensionIntegrationTests(unittest.TestCase):
         bad = copy.deepcopy(self.agent.config)
         bad["ca_files"]["M"] = bad["ca_files"]["R"]
         peer = Peer(bad, self.agent.key)
-        with self.assertRaises(Exception):
+        # 고정된 CA 가 아니면 TLS 핸드셰이크 자체가 서지 않는다 (응답을 받고 나서 거절하는 게 아니다).
+        with self.assertRaises(URLError):
             peer.call("M", "health", {"challenge": "wrong-ca"})
 
     def test_06_enrollment_rejects_missing_or_modified_approvals(self):
@@ -228,7 +232,7 @@ class ExtensionIntegrationTests(unittest.TestCase):
 
     def test_99_rotation_preserves_history_and_retires_old_epoch(self):
         checkpoint = self.agent.peer.call("T", "audit_head", {})["head"]
-        operators, bundle, configs = provision(self.root / "second", self.bundle, self.configs, checkpoint)
+        _operators, bundle, configs = provision(self.root / "second", self.bundle, self.configs, checkpoint)
         bad = copy.deepcopy(bundle)
         bad["endorsements"][0]["previous_signature"] = None
         with self.assertRaises(ValueError):
@@ -257,7 +261,8 @@ class ExtensionIntegrationTests(unittest.TestCase):
 
 class HistoricalVerdictTest(unittest.TestCase):
     def test_wrong_early_verdict_is_not_hidden_by_correct_later_verdict(self):
-        from test_audit import _base_export, _reseal, _audit, _verdicts, _keys, SEED
+        from test_audit import SEED, _audit, _base_export, _keys, _reseal, _verdicts
+
         from itx.statements import SignedStatement
         export = copy.deepcopy(_base_export())
         first = _verdicts(export)[0]

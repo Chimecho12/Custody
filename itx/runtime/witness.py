@@ -3,8 +3,9 @@ from __future__ import annotations
 
 from itx.crypto import canonical_json, verify
 from itx.ts.merkle import verify_consistency
-from .common import now_ms
+
 from .auditing import fingerprint, trust_from_config, verify_head
+from .common import now_ms
 from .service import Service
 
 

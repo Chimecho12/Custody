@@ -1,17 +1,18 @@
 """Exercise v0.3 provisioning, witness, encryption and rotation inside the frozen Agent."""
 import json
 import os
-from pathlib import Path
 import queue
 import socket
 import subprocess
 import sys
 import tempfile
 import threading
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from itx.client import ItxClient
 from importlib.util import module_from_spec, spec_from_file_location
+
+from itx.client import ItxClient
 
 spec = spec_from_file_location("smoke_sidecar", Path(__file__).with_name("smoke-sidecar.py"))
 smoke = module_from_spec(spec)
@@ -23,7 +24,7 @@ def free_ports():
     try:
         for s in sockets:
             s.bind(("127.0.0.1", 0))
-        return dict(zip("RMTW", [s.getsockname()[1] for s in sockets]))
+        return dict(zip("RMTW", [s.getsockname()[1] for s in sockets], strict=True))
     finally:
         for s in sockets:
             s.close()
@@ -51,7 +52,7 @@ class Services:
         self.children = []
         try:
             for role in "TMRW":
-                errors = open(Path(configs[role]).parent / "smoke.stderr.log", "ab")
+                errors = open(Path(configs[role]).parent / "smoke.stderr.log", "ab")  # noqa: SIM115 — 자식이 상속한 뒤 바로 닫는다
                 child = subprocess.Popen([str(binary), "service", "--config", configs[role], "--parent-pipe"],
                     stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=errors,
                     creationflags=0x08000000 if os.name == "nt" else 0)
@@ -93,7 +94,7 @@ def run(binary, root):
             public = client._call("export_evidence")
             encrypted = client._call("export_evidence", {"recipient_path": recipient["path"], "recipient_fingerprint": recipient["fingerprint"]})
             checkpoint = client._call("export_checkpoint")
-            new_bundle, new_configs = provision(setup, bundle, checkpoint["path"], configs)
+            _new_bundle, new_configs = provision(setup, bundle, checkpoint["path"], configs)
             try:
                 client.request("retired", mode="protect")
                 raise AssertionError("retired epoch accepted")

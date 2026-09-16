@@ -7,7 +7,8 @@ import urllib.parse
 import urllib.request
 
 from itx.crypto import canonical_json, verify
-from .common import MAX_WIRE, now_ms, json_loads
+
+from .common import MAX_WIRE, json_loads, now_ms
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):

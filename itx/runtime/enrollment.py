@@ -14,12 +14,13 @@ from urllib.parse import urlsplit
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
+from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
 from itx.crypto import KeyPair, canonical_json, verify
-from .common import ISS, MODEL_ID, MODEL_HASH, now_ms, seal, unseal, write_private
-from .packages import read_document, write_document
+
 from .auditing import fingerprint, trust_from_config, verify_head
+from .common import MODEL_HASH, MODEL_ID, now_ms, seal, unseal, write_private
+from .packages import read_document, write_document
 
 ROLES = "URMTW"
 
@@ -182,7 +183,7 @@ def endorse(directory, proposal, expected_fingerprint, previous_config=None):
     if proposal["previous_hash"]:
         if not previous_config:
             raise ValueError("key rotation requires the locally pinned previous configuration")
-        from .common import load_config, key_for
+        from .common import key_for, load_config
         cfg = load_config(previous_config)
         if cfg["role"] != role or cfg.get("deployment_hash") != proposal["previous_hash"]:
             raise ValueError("previous role or pinned deployment does not match")

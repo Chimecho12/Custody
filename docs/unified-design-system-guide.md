@@ -118,6 +118,8 @@
 ---
 
 ## 4. 파일별 적용 지침
-1. **`desktop/src/style.css`**: 글래스모피즘 토큰, 섀도우, 이징 커브, 노드 펄스 키프레임 적용.
+1. **`ui/tokens.css`**: 글래스모피즘 토큰, 섀도우, 이징 커브를 한 곳에 둔다. 데스크톱 앱(`desktop/src/style.css` 의 @import)과
+   HTML 보고서(`itx/report/html.py` 의 인라인)가 **같은 파일**을 읽으므로, 한쪽만 고쳐 두 콘솔이 갈라지는 일이 없다.
+   노드 펄스 키프레임을 비롯한 콘솔 컴포넌트는 `ui/console.css` 에 있다.
 2. **`desktop/src/console.ts`**: `Playback` 클래스에 스크러버 마우스 이벤트, 스텝 이동, 패킷 꼬리(Trail) 로직 추가.
 3. **`desktop/src/report.ts`**: 스텝 버튼 및 호버 인터랙션 연동.

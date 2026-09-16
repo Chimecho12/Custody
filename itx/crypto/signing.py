@@ -13,11 +13,11 @@ import hashlib
 from dataclasses import dataclass
 
 try:  # pragma: no cover - 환경에 따라 다름
+    from cryptography.exceptions import InvalidSignature
     from cryptography.hazmat.primitives.asymmetric.ed25519 import (
         Ed25519PrivateKey,
         Ed25519PublicKey,
     )
-    from cryptography.exceptions import InvalidSignature
 
     HAS_CRYPTOGRAPHY = True
 except ImportError:  # pragma: no cover
@@ -188,15 +188,15 @@ class KeyPair:
     public_key: bytes
 
     @classmethod
-    def from_seed(cls, kid: str, seed: bytes) -> "KeyPair":
+    def from_seed(cls, kid: str, seed: bytes) -> KeyPair:
         if len(seed) != 32:
             raise ValueError("seed must be 32 bytes")
         return cls(kid=kid, seed=seed, public_key=_public_key(seed))
 
     @classmethod
-    def from_name(cls, kid: str, namespace: str = "itx-demo") -> "KeyPair":
+    def from_name(cls, kid: str, namespace: str = "itx-demo") -> KeyPair:
         """재현 가능한 데모 키. 실제 배포에서는 난수 시드를 써야 한다."""
-        seed = hashlib.sha256(f"{namespace}:{kid}".encode("utf-8")).digest()
+        seed = hashlib.sha256(f"{namespace}:{kid}".encode()).digest()
         return cls.from_seed(kid, seed)
 
     @property

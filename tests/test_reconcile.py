@@ -4,14 +4,19 @@
 import unittest
 from dataclasses import dataclass
 
-from itx.crypto import KeyPair, canonical_json, content_hash_hex, commit_hex
-from itx.statements import (
-    issue, CT_CONTRACT, CT_RELAY, CT_RECEIPT, CT_OBSERVATION, SignedStatement,
-)
-from itx.statements.schemas import contract_payload, relay_payload, receipt_payload, observation_payload
-from itx.reconcile import ReconciliationEngine, PrivateEvidence
+from itx.crypto import KeyPair, canonical_json, commit_hex, content_hash_hex
 from itx.enforce import UserGate
+from itx.reconcile import PrivateEvidence, ReconciliationEngine
 from itx.reconcile.transforms import public_formatter_v1
+from itx.statements import (
+    CT_CONTRACT,
+    CT_OBSERVATION,
+    CT_RECEIPT,
+    CT_RELAY,
+    SignedStatement,
+    issue,
+)
+from itx.statements.schemas import contract_payload, observation_payload, receipt_payload, relay_payload
 
 U = KeyPair.from_name("u")
 R = KeyPair.from_name("r")

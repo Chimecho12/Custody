@@ -3,13 +3,13 @@ from __future__ import annotations
 
 import concurrent.futures
 import json
-import threading
 import sys
+import threading
 from pathlib import Path
 
 from .agent import Agent
+from .common import MAX_WIRE, ProcessLock, json_loads
 from .lab import Lab
-from .common import MAX_WIRE, json_loads, ProcessLock
 
 
 class Desktop:
@@ -125,7 +125,7 @@ class Desktop:
         if op == "preflight":
             return agent.preflight()
         if op == "export_checkpoint":
-            from .auditing import verify_head, fingerprint
+            from .auditing import fingerprint, verify_head
             from .packages import write_document
             head = agent.peer.call("T", "audit_head", {})["head"]
             verify_head(head, agent.trust())
@@ -142,8 +142,8 @@ class Desktop:
             from . import retention
             return retention.preview(agent) if op == "retention_preview" else retention.apply(agent, args["token"])
         if op in ("export_evidence", "export_trust"):
-            from .packages import build_package, read_document, write_document, encrypt_package
             from .auditing import fingerprint
+            from .packages import build_package, encrypt_package, read_document, write_document
             if op == "export_trust":
                 value = agent.trust()
                 path = self.output_path("trust")
@@ -166,9 +166,9 @@ class Desktop:
             return result
         if op == "simulation_matrix":
             # Compact form of run_all(): full runs exceed the IPC frame, the UI fetches one run at a time.
-            from itx import __version__, CHECKER_VERSION
+            from itx import CHECKER_VERSION, __version__
             from itx.crypto import BACKEND
-            from itx.sim.runner import run_scenario, run_q1_matrix, aggregate, MODES
+            from itx.sim.runner import MODES, aggregate, run_q1_matrix, run_scenario
             from itx.sim.scenarios import SCENARIOS
             results = [run_scenario(sc, mode) for sc in SCENARIOS for mode in MODES]
             rows = []
@@ -195,18 +195,20 @@ class Desktop:
             return {"path": str(path)}
 
     def output_path(self, prefix):
-        from .common import now_ms
         import secrets
+
+        from .common import now_ms
         directory = self.directory / "exports"
         directory.mkdir(parents=True, exist_ok=True)
         return directory / f"{prefix}-{now_ms()}-{secrets.token_hex(3)}.json"
 
     def provision(self, op, args):
-        from . import enrollment
-        from .packages import read_document, write_document, create_recipient, verify_package
-        from .auditing import fingerprint
-        from .common import MODEL_ID, MODEL_HASH
         import secrets
+
+        from . import enrollment
+        from .auditing import fingerprint
+        from .common import MODEL_HASH, MODEL_ID
+        from .packages import create_recipient, read_document, verify_package, write_document
         if op == "enroll_prepare":
             directory = self.directory / "operators" / ("operator-" + secrets.token_hex(6))
             return {**enrollment.prepare_operator(directory, args["role"], args.get("endpoint") or None), "directory": str(directory)}

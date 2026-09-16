@@ -7,13 +7,25 @@ from pathlib import Path
 
 from itx import CHECKER_VERSION
 from itx.crypto import canonical_json, content_hash_hex
-from itx.statements import (SignedStatement, CT_CONTRACT, CT_RECEIPT, CT_RELAY, CT_OBSERVATION, CT_VERDICT, CT_POLICY)
-from itx.statements.schemas import contract_payload, observation_payload
 from itx.enforce import UserGate
-from itx.ts import TransparencyLog, RegistrationReceipt, verify_receipt
-from itx.audit import replay_audit
-from .common import (Store, ProcessLock, ISS, MAX_PROMPT, MAX_RESPONSE, authenticate, load_config, key_for,
-                     now_ms, signed, digest, policy_for)
+from itx.statements import CT_CONTRACT, CT_OBSERVATION, CT_POLICY, CT_RECEIPT, CT_RELAY, CT_VERDICT, SignedStatement
+from itx.statements.schemas import contract_payload, observation_payload
+from itx.ts import RegistrationReceipt, verify_receipt
+
+from .common import (
+    ISS,
+    MAX_PROMPT,
+    MAX_RESPONSE,
+    ProcessLock,
+    Store,
+    authenticate,
+    digest,
+    key_for,
+    load_config,
+    now_ms,
+    policy_for,
+    signed,
+)
 from .transport import Peer
 
 
@@ -115,8 +127,8 @@ class Agent:
         return {"services": results, "ok": all(v["ok"] for v in results.values()), "model_execution_verified": False}
 
     def witness(self):
-        from .witness import verify_witness_receipt
         from .auditing import fingerprint
+        from .witness import verify_witness_receipt
         if "W" not in self.config["identities"]:
             raise ValueError("별도 목격자 W가 등록된 배포를 먼저 연결하세요.")
         head = self.peer.call("T", "audit_head", {}, timeout=3)["head"]

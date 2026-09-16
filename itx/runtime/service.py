@@ -12,12 +12,30 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from itx.crypto import canonical_json, content_hash_hex
-from itx.statements import CT_CONTRACT, CT_RELAY, CT_RECEIPT, CT_OBSERVATION, CT_VERDICT, SignedStatement
-from itx.statements.schemas import relay_payload, receipt_payload
-from itx.ts import TransparencyLog, RegistrationReceipt
-from itx.reconcile import ReconciliationEngine, PrivateEvidence
-from .common import (MAX_WIRE, MAX_PROMPT, MAX_RESPONSE, ISS, TYPES, MODEL_ID, Store,
-                     load_config, key_for, policy_for, signed, authenticate, digest, now_ms, json_loads, seal, unseal, ProcessLock)
+from itx.reconcile import PrivateEvidence, ReconciliationEngine
+from itx.statements import CT_CONTRACT, CT_RECEIPT, CT_RELAY, CT_VERDICT, SignedStatement
+from itx.statements.schemas import receipt_payload, relay_payload
+from itx.ts import RegistrationReceipt, TransparencyLog
+
+from .common import (
+    ISS,
+    MAX_PROMPT,
+    MAX_RESPONSE,
+    MAX_WIRE,
+    TYPES,
+    ProcessLock,
+    Store,
+    authenticate,
+    digest,
+    json_loads,
+    key_for,
+    load_config,
+    now_ms,
+    policy_for,
+    seal,
+    signed,
+    unseal,
+)
 from .transport import Peer, verify_rpc
 
 
@@ -163,7 +181,7 @@ class Service:
             return self.audit_head()
         if op == "audit_page":
             head = p["head"]
-            from .auditing import verify_head, trust_from_config
+            from .auditing import trust_from_config, verify_head
             verify_head(head, trust_from_config(self.config))
             start, limit, size = p["start"], p.get("limit", 64), head["tree_size"]
             if (type(start) is not int or type(limit) is not int or not 1 <= limit <= 64
@@ -380,7 +398,7 @@ class Handler(BaseHTTPRequestHandler):
             if len(output) > MAX_WIRE:
                 raise ValueError("export exceeds v1 wire limit; use a smaller deployment")
             code = 200
-        except (ValueError, KeyError, TypeError, OverflowError, RecursionError) as e:
+        except (ValueError, KeyError, TypeError, OverflowError, RecursionError):
             code, output = 400, canonical_json({"ok": False, "error": "invalid or unauthorized input"})
         except Exception as exc:
             # Frame locations aid packaged diagnostics without logging prompts, keys or payloads.

@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from itx.crypto import canonical_json, sha256_hex, verify, KeyPair
+from itx.crypto import KeyPair, canonical_json, sha256_hex, verify
 
 CT_CONTRACT = "application/vnd.itx.contract+json"
 CT_RELAY = "application/vnd.itx.relay+json"
@@ -73,7 +73,7 @@ class SignedStatement:
         }
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "SignedStatement":
+    def from_dict(cls, d: dict[str, Any]) -> SignedStatement:
         return cls(
             iss=d["iss"],
             sub=d["sub"],

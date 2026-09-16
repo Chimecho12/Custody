@@ -4,16 +4,23 @@
 """
 from __future__ import annotations
 
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 from itx import CHECKER_VERSION, DEPLOYMENT_MODE, PROFILE_VERSION
 from itx.statements import (
-    SignedStatement, CT_CONTRACT, CT_RELAY, CT_RECEIPT, CT_OBSERVATION, CT_MANIFEST,
+    CT_CONTRACT,
+    CT_MANIFEST,
+    CT_OBSERVATION,
+    CT_RECEIPT,
+    CT_RELAY,
+    SignedStatement,
 )
-from .evidence import EvidenceSet, PrivateEvidence, StatementRef
-from .equations import evaluate_equations, FAIL, PASS, NA
-from .discrepancy import classify, Discrepancy, SEV_VIOLATION, SEV_CONTRADICTION, SEV_OBSERVATION
+
 from .completeness import assess_completeness
+from .discrepancy import SEV_CONTRADICTION, SEV_OBSERVATION, SEV_VIOLATION, Discrepancy, classify
+from .equations import FAIL, NA, PASS, evaluate_equations
+from .evidence import EvidenceSet, PrivateEvidence, StatementRef
 from .transforms import transform_definition_hash
 
 THREAT_MODEL_TM1 = "TM1: U 집행 모듈과 M 입출력 관측은 정직, R 은 악성일 수 있음. R+M 공모·T 침해는 별도 실험군"

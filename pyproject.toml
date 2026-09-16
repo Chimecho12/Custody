@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "itx"
+version = "0.1.0"
+description = "독립 제3자 기반 AI 서비스 경로 검증·정책 집행 플랫폼 (참조 구현)"
+requires-python = ">=3.10"
+# 시뮬레이션(run.py)은 표준 라이브러리만으로 돈다. 실통신 런타임은 아래 extra 가 필요하다.
+dependencies = []
+
+[project.optional-dependencies]
+runtime = ["cryptography>=44,<48"]
+package = ["pyinstaller>=6.12,<7"]
+
+[project.scripts]
+itx-sim = "itx.cli.simulation:main"
+itx-runtime = "itx.cli.runtime:main"
+
+[tool.setuptools]
+packages = ["itx", "itx.audit", "itx.cli", "itx.crypto", "itx.enforce", "itx.reconcile",
+            "itx.report", "itx.runtime", "itx.sim", "itx.statements", "itx.ts"]
+
+[tool.setuptools.package-data]
+"itx.report" = ["assets/*.css", "assets/*.html", "assets/*.js"]
+
+[tool.ruff]
+line-length = 140
+target-version = "py310"
+extend-exclude = [".build", ".toolchain", "artifacts", "desktop"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RUF"]
+ignore = [
+  "E501",    # line-length 는 formatter 가 아니라 위 설정으로 관리한다
+  "RUF001",  # 한글 주석의 전각 문장부호를 모호한 유니코드로 보지 않는다
+  "RUF002",
+  "RUF003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# 뿌리의 두 진입점은 sys.path 를 세운 뒤에 import 해야 한다.
+"run.py" = ["E402"]
+"runtime.py" = ["E402"]
+# merkle.py 는 RFC 9162 의 재귀 정의를 그대로 옮긴 것이다. 리스트 결합 표기를 spec 과 맞춰 둔다.
+"itx/ts/merkle.py" = ["RUF005"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

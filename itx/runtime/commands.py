@@ -2,8 +2,8 @@
 from . import enrollment
 from .agent import Agent
 from .auditing import fingerprint, trust_from_config
-from .common import load_config, MODEL_HASH
-from .packages import read_document, write_document, create_recipient, build_package, encrypt_package, verify_package
+from .common import MODEL_HASH, load_config
+from .packages import build_package, create_recipient, encrypt_package, read_document, verify_package, write_document
 
 
 def execute(args):

@@ -3,15 +3,23 @@ from __future__ import annotations
 import ctypes
 import json
 import os
-import secrets
 import sqlite3
 import threading
 import time
 from pathlib import Path
 
-from itx.crypto import KeyPair, HAS_CRYPTOGRAPHY, canonical_json, content_hash_hex, commit_hex
-from itx.statements import (SignedStatement, issue, validate_payload, ALL_CONTENT_TYPES,
-                            CT_CONTRACT, CT_RELAY, CT_RECEIPT, CT_OBSERVATION, CT_VERDICT)
+from itx.crypto import HAS_CRYPTOGRAPHY, KeyPair, canonical_json, commit_hex, content_hash_hex
+from itx.statements import (
+    ALL_CONTENT_TYPES,
+    CT_CONTRACT,
+    CT_OBSERVATION,
+    CT_RECEIPT,
+    CT_RELAY,
+    CT_VERDICT,
+    SignedStatement,
+    issue,
+    validate_payload,
+)
 from itx.statements.schemas import policy_payload
 
 MAX_WIRE = 2 * 1024 * 1024
@@ -98,7 +106,7 @@ class ProcessLock:
     def __init__(self, path):
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        self.file = open(path, "a+b")
+        self.file = open(path, "a+b")  # noqa: SIM115 — 잠금은 객체 수명 동안 열려 있어야 한다 (close 는 release 에서)
         self.file.seek(0, 2)
         if self.file.tell() == 0:
             self.file.write(b"0")
@@ -150,7 +158,7 @@ def load_config(path):
     if config["policy_expires_at"] <= config["created_at"] or type(config.get("lab")) is not bool:
         raise ValueError("정책 기간 또는 실험 구분이 잘못되었습니다.")
     if config.get("deployment_file"):
-        from .enrollment import verify_deployment, configuration
+        from .enrollment import configuration, verify_deployment
         from .packages import read_document
         bundle = read_document(config["deployment_file"])
         verify_deployment(bundle)

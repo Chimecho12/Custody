@@ -63,7 +63,7 @@
    - SVG 패킷 렌더링 시 잔상 꼬리(Gradient trail path 또는 추가 감속 보간) 추가
    - 노드 도착 시 SVG element 활성화 클래스 토글
 
-2. **`desktop/src/style.css`**:
+2. **`ui/tokens.css` · `ui/console.css`** (데스크톱·보고서 공통. 앱 셸 전용은 `desktop/src/style.css`):
    - 노드 활성화 펄스 키프레임 (`@keyframes nodePulse`)
    - 증거 행(`evrow`) 상태 전이 트랜지션 (`transition: background 0.2s, border-color 0.2s`)
    - 타임라인 스크러버 커서 및 호버 스타일 (`cursor: ew-resize`)

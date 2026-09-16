@@ -12,11 +12,11 @@ from typing import Any
 
 from itx import CHECKER_VERSION
 from itx.crypto import canonical_json
-from itx.statements import SignedStatement, CT_VERDICT, CT_POLICY
-from itx.ts import MerkleTree, TransparencyLog, CheckpointAnchor
-from itx.ts.log import TS_CONTENT_TYPES
-from itx.reconcile import ReconciliationEngine, PrivateEvidence
+from itx.reconcile import PrivateEvidence, ReconciliationEngine
 from itx.reconcile.engine import REQUIRED_FOR_PASS
+from itx.statements import CT_POLICY, CT_VERDICT, SignedStatement
+from itx.ts import CheckpointAnchor, MerkleTree, TransparencyLog
+from itx.ts.log import TS_CONTENT_TYPES
 
 
 @dataclass

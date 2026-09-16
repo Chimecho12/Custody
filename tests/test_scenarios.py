@@ -3,12 +3,12 @@
 실패한 방어·탐지 불가 사건도 '기대된 결과' 로 검사한다. 성공 장면만 검사하는 스위트는
 '모두 위반' 으로 판정하는 엔진에 높은 점수를 준다."""
 import unittest
-from functools import lru_cache
+from functools import cache
 
-from itx.sim import run_scenario, scenario_by_id, run_q1_matrix
+from itx.sim import run_q1_matrix, run_scenario, scenario_by_id
 
 
-@lru_cache(maxsize=None)
+@cache
 def _run(sid: str, mode: str):
     return run_scenario(scenario_by_id(sid), mode, seed=42)
 

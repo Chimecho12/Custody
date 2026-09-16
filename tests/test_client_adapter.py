@@ -1,14 +1,14 @@
 """Consumer-boundary and actual HTTP adapter fixtures; no real LLM required."""
 import json
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
 import tempfile
 import threading
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 
 from itx.client import ItxClient, ResponseRejected
-from itx.runtime.service import Service
 from itx.runtime.common import MAX_RESPONSE
+from itx.runtime.service import Service
 
 
 class SdkTests(unittest.TestCase):
@@ -105,9 +105,10 @@ class OllamaAdapterTests(unittest.TestCase):
 class PreExecutionAndRetirementTests(unittest.TestCase):
     def test_model_gate_and_retirement_before_response_release(self):
         from unittest.mock import patch
-        from itx.runtime.lab import Lab
+
         from itx.runtime.agent import Agent
         from itx.runtime.common import Store
+        from itx.runtime.lab import Lab
         with tempfile.TemporaryDirectory(prefix="itx-pre-exec-") as directory:
             lab = Lab(Path(directory) / "lab")
             for role in "URMT":
