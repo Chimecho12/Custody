@@ -436,6 +436,15 @@ button.quiet{border-color:transparent;background:transparent;font-weight:500;col
 .std-tool .h>span:last-child{margin-left:auto}
 .std-tool .codebox{border-left:0;border:1px solid var(--line);border-radius:6px;background:var(--chip);padding:8px 10px;font-size:11px;line-height:1.9;word-break:break-all;margin:0}
 .std-tool .small{margin-top:4px}
+/* 교차 검증 요약 한 줄. 판정이 아니라 「누가 무엇을 확인했는가」를 말한다. */
+.std-cross{margin:12px 13px 0;padding:9px 12px;border-radius:8px;font:500 12px/1.7 var(--sans);border:1px solid var(--line)}
+.std-cross.pass{border-left:3px solid var(--pass);background:var(--pass-soft)}
+.std-cross.fail{border-left:3px solid var(--fail);background:var(--fail-soft)}
+.std-cross.na{border-left:3px solid var(--na);background:var(--sunken);color:var(--muted)}
+.std-checks{margin-top:6px;padding-left:2px}
+.std-checks .std-vec{padding:3px 0}
+.std-checks .std-vec .label{font-size:11.5px}
+.std-crossnote{margin:0 13px 13px;line-height:1.7}
 
 .std-group{border-bottom:1px solid var(--line-soft);margin:0 13px}
 .std-group:last-child{border-bottom:0;margin-bottom:13px}

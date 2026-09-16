@@ -310,35 +310,27 @@ GROUPS = (
     ("gossip", "다중 목격자 · 분기 탐지", "RFC 9162 §8 · planned", _gossip_vectors),
 )
 
-#: 외부 도구 검증. itx 코드가 아니라 제3자 구현이 통과시킨 결과만 세야 하므로,
-#: 이 저장소는 명령과 대상 파일만 내고 결과는 「미실행」으로 둔다. 도구를 설치해
-#: 직접 돌린 결과만 verified_external 로 승격할 수 있다.
-EXTERNAL_TOOLS = (
-    {"tool": "pyscitt", "version": "≥0.9", "state": ABSENT,
-     "command": "pyscitt validate {file} --issuer {kid}",
-     "expect": "COSE_Sign1 verified · CWT claims parsed",
-     "note": "이 저장소에서 실행하지 않았다 — 결과 미확인"},
-    {"tool": "cbor2", "version": "≥5.6", "state": ABSENT,
-     "command": "python -m cbor2.tool --pretty {file}",
-     "expect": "deterministic re-encode byte-identical",
-     "note": "이 저장소에서 실행하지 않았다 — 결과 미확인"},
-    {"tool": "cosign", "version": "≥2.4", "state": ABSENT,
-     "command": "cosign verify-blob --key {kid}.pub --signature {file} payload.bin",
-     "expect": "Verified OK",
-     "note": "이 저장소에서 실행하지 않았다 — 결과 미확인"},
-)
+def run(groups: tuple[str, ...] | None = None, external: bool = True) -> dict[str, Any]:
+    """모든 벡터를 실행하고 화면·보고서가 그대로 쓰는 결과를 낸다.
 
+    `external=True` 면 제3자 구현(cbor2 · pycose)으로 교차 검증까지 한다. 그 결과는
+    벡터 수에 더하지 않는다 — 우리 벡터와 남의 도구는 다른 것을 말하기 때문이다.
+    """
+    from . import external as external_check
 
-def run(groups: tuple[str, ...] | None = None) -> dict[str, Any]:
-    """모든 벡터를 실행하고 화면·보고서가 그대로 쓰는 결과를 낸다."""
     selected = [g for g in GROUPS if groups is None or g[0] in groups]
     results = [Group(key, title, spec, build()).run() for key, title, spec, build in selected]
     totals = {s: sum(g["counts"][s] for g in results) for s in (PASS, PARTIAL, ABSENT, FAIL)}
     totals["total"] = sum(g["total"] for g in results)
+    cross = external_check.run() if external else {
+        "tools": [], "claim_status": "planned", "summary": "교차 검증을 건너뛰었다",
+        "reproduce": external_check.REPRODUCE, "note": ""}
+    # 우리 벡터가 다 통과해도 남의 구현이 거부하면 표준을 지켰다고 말할 수 없다.
+    claim = "verified_external" if totals[FAIL] == 0 and cross["claim_status"] == "verified_external"         else "mock_result" if totals[FAIL] or cross["claim_status"] == "mock_result" else "planned"
     return {
         "groups": results,
         "totals": totals,
-        "external_tools": [dict(t) for t in EXTERNAL_TOOLS],
-        "claim_status": "verified_external" if totals[FAIL] == 0 else "mock_result",
-        "note": "벡터는 이 저장소의 구현을 검사한다. 외부 도구 결과는 포함하지 않는다.",
+        "external": cross,
+        "claim_status": claim,
+        "note": "벡터는 이 저장소의 구현을 검사하고, 교차 검증은 제3자 구현이 같은 바이트를 읽는지를 본다.",
     }

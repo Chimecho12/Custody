@@ -70,6 +70,7 @@ export class StandardsView {
 
   private asideHtml(): string {
     const docs = (this.data!.documents ?? []) as Data[];
+    const claim = String(this.data!.claim_status ?? 'planned');
     const items = docs.map(d => {
       const c = d.counts as Data;
       const tone = c.fail ? 'fail' : (c.absent || c.partial) ? 'partial' : 'pass';
@@ -85,7 +86,12 @@ export class StandardsView {
       <div class="std-label">증거 문서</div>${items}
       <div class="std-claim">
         <div class="std-label">주장 상태</div>
-        <p>이 저장소가 실행한 벡터만 셉니다. 외부 도구 결과는 포함하지 않으므로 표준 준수 전체를 주장하지 않습니다.</p>
+        <p class="mono ${TONE[claim === 'verified_external' ? 'pass' : claim === 'mock_result' ? 'fail' : 'absent']}">${esc(claim)}</p>
+        <p>${claim === 'verified_external'
+          ? '우리 벡터가 모두 통과했고, 제3자 구현도 같은 바이트를 검증했습니다. 그래도 표준 준수 <b>전체</b>를 주장하지는 않습니다 — 미실행 항목이 남아 있습니다.'
+          : claim === 'mock_result'
+            ? '제3자 구현이 우리 출력을 거부했습니다. 회귀이므로 먼저 고쳐야 합니다.'
+            : '교차 검증 도구가 없어 순환을 벗어나지 못했습니다. 우리 벡터만으로는 표준 준수를 주장할 수 없습니다.'}</p>
       </div>
     </aside>`;
   }
@@ -127,18 +133,30 @@ export class StandardsView {
   }
 
   private toolsHtml(): string {
-    const tools = (this.data!.external_tools ?? []) as Data[];
-    const rows = tools.map(t => `<div class="std-tool">
-      <div class="h"><b class="mono">${esc(t.tool)}</b><span class="mono muted">${esc(t.version)}</span>
-        <span class="mono ${TONE[String(t.state)]}">${VERDICT[String(t.state)]}</span></div>
-      <div class="codebox mono"><div class="muted">$ ${esc(t.command)}</div><div class="na">기대: ${esc(t.expect)}</div></div>
-      <div class="small na">${esc(t.note)}</div>
-    </div>`).join('');
+    const cross = (this.data!.external ?? {}) as Data;
+    const tools = (cross.tools ?? []) as Data[];
+    const rows = tools.map(t => {
+      const checks = ((t.checks ?? []) as Data[]).map(c => `<div class="std-vec">
+        <span class="g ${TONE[String(c.state)]}">${GLYPH[String(c.state)]}</span>
+        <span class="label">${esc(c.label)}</span>
+        <span class="note mono na">${esc(c.detail ?? '')}</span>
+      </div>`).join('');
+      return `<div class="std-tool">
+        <div class="h"><b class="mono">${esc(t.tool)}</b><span class="mono muted">${esc(t.version)}</span>
+          <span class="mono ${TONE[String(t.state)]}">${VERDICT[String(t.state)]}</span></div>
+        <div class="small na">${esc(t.note)}</div>
+        ${checks ? `<div class="std-checks">${checks}</div>` : ''}
+      </div>`;
+    }).join('');
+    const tone = TONE[String(cross.claim_status) === 'verified_external' ? 'pass'
+      : String(cross.claim_status) === 'mock_result' ? 'fail' : 'absent'];
     return `<section class="card std-card">
-      <div class="std-card-head"><b>외부 도구 검증</b>
-        <span class="small muted">itx 코드가 아니라 제3자 구현이 통과시킨 결과만 셉니다</span>
-        <button type="button" class="itx-btn" id="std-copy">검증 명령 복사</button></div>
-      <div class="std-tools">${rows}</div>
+      <div class="std-card-head"><b>제3자 구현 교차 검증</b>
+        <span class="small muted">itx 코드가 아니라 남이 만든 구현이 같은 바이트를 읽는지를 봅니다</span>
+        <button type="button" class="itx-btn" id="std-copy">재현 명령 복사</button></div>
+      <div class="std-cross ${tone}">${esc(cross.summary)}</div>
+      <div class="std-tools">${rows || '<div class="std-absent">교차 검증 도구가 없습니다.</div>'}</div>
+      ${cross.note ? `<div class="std-crossnote small na">${esc(cross.note)}</div>` : ''}
     </section>`;
   }
 
@@ -199,10 +217,10 @@ export class StandardsView {
 
     const copy = this.root.querySelector<HTMLButtonElement>('#std-copy');
     if (copy) copy.onclick = async () => {
-      const text = ((this.data!.external_tools ?? []) as Data[]).map(t => '$ ' + t.command).join('\n');
+      const text = '$ ' + String(((this.data!.external ?? {}) as Data).reproduce ?? '');
       try { await navigator.clipboard.writeText(text); copy.textContent = '복사됨'; }
       catch { copy.textContent = '복사 실패'; }
-      setTimeout(() => { copy.textContent = '검증 명령 복사'; }, 1600);
+      setTimeout(() => { copy.textContent = '재현 명령 복사'; }, 1600);
     };
 
     const exportBtn = this.root.querySelector<HTMLButtonElement>('#std-export');

@@ -145,12 +145,36 @@ class ConformanceSuite(unittest.TestCase):
         absent = {i["id"] for g in report["groups"] for i in g["items"] if i["state"] == "absent"}
         self.assertTrue({"gs-01", "gs-03", "te-02"} <= absent)
 
-    def test_external_tool_results_are_not_claimed(self):
-        """이 저장소는 pyscitt·cosign 을 돌리지 않는다. 돌린 척하면 안 된다."""
+    def test_cross_verification_reports_what_actually_ran(self):
+        """설치돼 있으면 실제로 돌리고, 없으면 미실행으로 남긴다. 돌린 척하면 안 된다."""
         report = conformance.run()
-        self.assertTrue(report["external_tools"])
-        for tool in report["external_tools"]:
-            self.assertEqual(tool["state"], "absent", tool["tool"])
+        cross = report["external"]
+        self.assertEqual({t["tool"] for t in cross["tools"]}, {"cbor2", "pycose"})
+        for tool in cross["tools"]:
+            self.assertIn(tool["state"], ("pass", "fail", "absent"))
+            if tool["state"] == "absent":
+                self.assertEqual(tool["checks"], [], "미실행인데 확인 항목이 있다")
+            else:
+                self.assertTrue(tool["checks"], "실행했는데 확인 항목이 없다")
+
+    def test_claim_status_needs_both_our_vectors_and_a_third_party(self):
+        """우리 벡터만으로는 verified_external 이 될 수 없다 — 순환이기 때문이다."""
+        self.assertEqual(conformance.run(external=False)["claim_status"], "planned")
+
+    def test_a_third_party_rejection_would_lower_the_claim(self):
+        report = conformance.run()
+        if any(t["state"] == "absent" for t in report["external"]["tools"]):
+            self.skipTest("교차 검증 도구 미설치 — pip install -e .[conformance]")
+        self.assertEqual(report["external"]["claim_status"], "verified_external")
+        self.assertEqual(report["claim_status"], "verified_external")
+
+    def test_negative_check_is_present_in_the_signature_tool(self):
+        """변조 거부를 확인하지 않으면 '검증했다'가 아무 뜻도 없다."""
+        report = conformance.run()
+        pycose = next(t for t in report["external"]["tools"] if t["tool"] == "pycose")
+        if pycose["state"] == "absent":
+            self.skipTest("pycose 미설치")
+        self.assertIn("변조된 서명 거부", [c["label"] for c in pycose["checks"]])
 
     def test_negative_vectors_are_present_in_each_runnable_group(self):
         """거부 검사가 없으면 아무것도 거부하지 않는 구현이 만점을 받는다."""

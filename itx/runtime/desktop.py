@@ -374,10 +374,14 @@ def _verification_readme(view, written) -> str:
     if skipped:
         lines += ["", "내보내지 못한 문서: " + ", ".join(skipped),
                   "  COSE 의 서명 대상은 Sig_structure 이므로 발행자만 자기 진술을 재발행할 수 있습니다."]
-    lines += ["", "검증 명령 (외부 도구)"]
-    for tool in view["external_tools"]:
-        lines.append(f"  $ {tool['command']}")
-        lines.append(f"      기대: {tool['expect']}")
+    cross = view.get("external", {})
+    lines += ["", "제3자 구현 교차 검증 — " + cross.get("summary", "결과 없음"),
+              f"  재현: {cross.get('reproduce', '')}"]
+    for tool in cross.get("tools", []):
+        lines.append(f"  {tool['tool']} {tool['version']}: {tool['state']} — {tool['note']}")
+        lines += [f"      [{c['state']}] {c['label']}" for c in tool.get("checks", [])]
+    if cross.get("note"):
+        lines += ["", "  " + cross["note"]]
     lines += ["", f"이 저장소의 적합성 벡터: pass {view['totals']['pass']} / "
                   f"partial {view['totals']['partial']} / absent {view['totals']['absent']} / "
                   f"fail {view['totals']['fail']}"]

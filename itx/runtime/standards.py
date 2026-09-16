@@ -102,7 +102,7 @@ def build(export: dict[str, Any] | None, key: Any | None, sub: str = "—") -> d
     return {
         "documents": documents,
         "totals": report["totals"],
-        "external_tools": report["external_tools"],
+        "external": report["external"],
         "claim_status": report["claim_status"],
         "note": report["note"],
     }

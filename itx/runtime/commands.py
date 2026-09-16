@@ -43,7 +43,8 @@ def execute(args):
         return benchmark(args.output, args.repeats)
     if c == "conformance":
         from itx.cose import run_conformance
-        report = run_conformance(tuple(args.group) if args.group else None)
+        report = run_conformance(tuple(args.group) if args.group else None,
+                                 external=not args.no_external)
         if args.output:
             write_document(args.output, report)
             report = {**report, "path": args.output}

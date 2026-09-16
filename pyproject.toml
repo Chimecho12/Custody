@@ -13,6 +13,9 @@ dependencies = []
 [project.optional-dependencies]
 runtime = ["cryptography>=44,<48"]
 package = ["pyinstaller>=6.12,<7"]
+# 제3자 구현 교차 검증용. cbor2 는 5.x 로 고정한다 — pycose 1.1 은 cbor2 6 과 함께 쓰면
+# 자기가 만든 COSE_Sign1 조차 디코딩하지 못한다 (태그 값을 tuple 로 받는 쪽을 처리하지 않는다).
+conformance = ["cbor2>=5.6,<6", "pycose>=1.1,<2"]
 
 [project.scripts]
 itx-sim = "itx.cli.simulation:main"

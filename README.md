@@ -42,11 +42,15 @@
 Ed25519 는 메시지 전체에 서명하므로 「해시만 전송」은 prehash 방식에서만 참이고, 무엇을 보내는지는
 화면에 그대로 표시된다.
 
-외부 도구(`pyscitt`·`cbor2`·`cosign`) 검증은 **이 저장소에서 실행하지 않았다.** 명령과 `.cose`
-파일만 내보내고 결과는 '미실행' 으로 남긴다. 자세한 범위는 [docs/limits.md](docs/limits.md) 한계 13·14.
+적합성 주장이 순환하지 않도록 **제3자 구현이 같은 바이트를 읽는지** 교차 검증한다. `cbor2` 는 canonical
+재인코딩이 바이트 동일한지 보고, `pycose` 는 서명을 검증하고 변조된 서명을 거부하는지 본다. 두 도구가
+없으면 '미실행' 으로 남고 주장 상태가 `planned` 로 내려간다. 자세한 범위는
+[docs/limits.md](docs/limits.md) 한계 13·14.
 
 ```powershell
-python runtime.py conformance          # CBOR·COSE·Merkle 적합성 벡터 실행 (설정 불필요)
+pip install -e .[conformance]          # 교차 검증용 cbor2 · pycose (선택)
+python runtime.py conformance          # 적합성 벡터 + 제3자 구현 교차 검증
+python runtime.py conformance --no-external   # 우리 벡터만
 python runtime.py key-inventory --config <U 설정>   # 키 보관처·평문 노출·회전 기한
 ```
 
