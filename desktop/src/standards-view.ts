@@ -55,7 +55,7 @@ export class StandardsView {
       `<div class="std-stat"><div class="k">${label}</div><div class="v ${tone}">${value}</div></div>`;
     return `<div class="std-head">
       <div class="std-head-text">
-        <div class="eyebrow">ITX · 표준 적합성</div>
+        <div class="v3-meta">검증 · 감사</div>
         <h1>이 증거는 남의 도구로도 검증되는가</h1>
         <p>같은 문서를 자체 JSON 프로파일과 COSE_Sign1 바이너리로 나란히 놓고, 벡터를 실제로 실행해 통과한 수를 셉니다. 미구현 항목은 지우지 않고 결손 행으로 남깁니다.</p>
       </div>
