@@ -91,6 +91,11 @@ SPEC: list[tuple[str, str, list[tuple[str, dict]]]] = [
     ("benchmark", "세 모드를 반복 실행해 지연을 실측한다", [
         ("--output", _REQ),
         ("--repeats", {"type": int, "default": 5})]),
+
+    # --- 표준 적합성과 키 보관 ------------------------------------------------
+    ("conformance", "CBOR·COSE·Merkle 적합성 벡터를 실행한다 (설정 불필요)", [
+        ("--output", {}),
+        ("--group", {"nargs": "+", "help": "일부 묶음만: cose cbor scitt merkle tee gossip"})]),
 ]
 
 
