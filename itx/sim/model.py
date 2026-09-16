@@ -24,15 +24,13 @@ class MockModel:
     @property
     def manifest_hash(self) -> str:
         """아티팩트 매니페스트 해시 모사 (sha256-manifest). 실행 계산의 식별자가 아니다."""
-        return sha256_hex(f"mock-model-manifest:{self.model_id}:{self.version}:{self.style}".encode("utf-8"))
+        return sha256_hex(f"mock-model-manifest:{self.model_id}:{self.version}:{self.style}".encode())
 
     def infer(self, request: dict[str, Any]) -> dict[str, Any]:
         text = str(request.get("input", ""))
         clean = _INJECT_RE.sub("", text).strip()
-        if self.style == "full":
-            output = f"[{self.model_id}] 요약: {clean[:60]}"
-        else:
-            output = f"[{self.model_id}] 짧은 요약: {clean[:20]}"
+        output = (f"[{self.model_id}] 요약: {clean[:60]}" if self.style == "full"
+                  else f"[{self.model_id}] 짧은 요약: {clean[:20]}")
         if "system" in request:
             output += f" (system 적용: {str(request['system'])[:24]})"
         resp: dict[str, Any] = {

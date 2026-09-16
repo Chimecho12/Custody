@@ -1,23 +1,22 @@
 """시나리오 실행기. 결과를 JSON 직렬화 가능한 dict 로 돌려준다."""
 from __future__ import annotations
 
-import copy
 import json
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from itx import __version__, CHECKER_VERSION
-from itx.crypto import KeyPair, BACKEND
-from itx.statements import CT_VERDICT, CT_RELAY, SignedStatement, issue
-from itx.statements.schemas import relay_payload
-from itx.ts import CheckpointAnchor
+from itx import CHECKER_VERSION, __version__
 from itx.audit import replay_audit
-from itx.metrics import attempt_metrics, aggregate
+from itx.crypto import BACKEND, KeyPair
+from itx.metrics import aggregate, attempt_metrics
+from itx.statements import CT_RELAY, issue
+from itx.ts import CheckpointAnchor
+
 from .context import SimContext
 from .model import DEFAULT_MODELS, reference_hashes
-from .parties import User, Relay, RelayBehavior, ModelOperator, ThirdParty
-from .scenarios import Scenario, SCENARIOS, Q1_SCENARIO_IDS, COOPERATION_SETS, scenario_by_id
+from .parties import ModelOperator, Relay, ThirdParty, User
+from .scenarios import COOPERATION_SETS, Q1_SCENARIO_IDS, SCENARIOS, Scenario, scenario_by_id
 
 MODES = ("observe", "protect", "strict")
 
@@ -74,7 +73,7 @@ def run_scenario(scenario: Scenario, mode: str, seed: int = 42,
     if scenario.ts_down and scenario.ts_recover_before_close:
         ctx.advance(500)
         T.set_down(False)
-        for q, who in ((U.queue, "U"), (R.queue, "R"), (M.queue, "M")):
+        for q in (U.queue, R.queue, M.queue):
             q.flush(T)
     U.close_session()
     ctx.advance(T.service.total_delay_ms + 10)  # 마지막 등록이 보이도록

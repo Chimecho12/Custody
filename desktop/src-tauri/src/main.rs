@@ -11,7 +11,13 @@ struct Bridge { child: Mutex<Option<CommandChild>>, pending: Pending, next: Atom
 
 #[tauri::command]
 async fn dispatch(operation: String, args: Value, state: tauri::State<'_, Bridge>) -> Result<Value, String> {
-    const OPS: &[&str] = &["status", "request", "cancel", "history", "refresh", "audit", "simulation", "export", "connect", "lab", "stop_t", "start_t"];
+    // 이 목록은 itx/runtime/desktop.py 의 ALLOWED_OPERATIONS 와 같아야 한다.
+    // 한쪽만 고치면 설치형 앱에서만 "Unsupported Agent operation" 이 나므로
+    // tests/test_desktop_ipc.py 가 두 목록이 같은지 검사한다.
+    const OPS: &[&str] = &["status", "request", "cancel", "history", "refresh", "audit", "simulation", "simulation_matrix", "export", "connect", "lab", "stop_t", "start_t",
+        "export_evidence", "export_trust", "export_checkpoint", "preflight", "witness", "retention_preview", "retention_apply",
+        "enroll_prepare", "enroll_propose", "enroll_endorse", "enroll_assemble", "enroll_inspect", "enroll_activate", "recipient_create", "audit_verify",
+        "standards", "key_inventory", "cose_export"];
     if !OPS.contains(&operation.as_str()) || !args.is_object() { return Err("Unsupported Agent operation".into()); }
     let id = state.next.fetch_add(1, Ordering::Relaxed).to_string();
     let mut bytes = serde_json::to_vec(&json!({"id":id,"operation":operation,"args":args})).map_err(|e| e.to_string())?;

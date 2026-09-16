@@ -1,10 +1,18 @@
 """해시·정규화·서명 기반 계층."""
-from .hashing import sha256, sha256_hex, commit, commit_hex, content_hash_hex
-from .canonical import canonical_json, CanonicalizationError
-from .signing import KeyPair, verify, BACKEND, HAS_CRYPTOGRAPHY
+from .canonical import CanonicalizationError, canonical_json
+from .hashing import commit, commit_hex, content_hash_hex, sha256, sha256_hex
+from .signing import BACKEND, HAS_CRYPTOGRAPHY, KeyPair, verify
 
 __all__ = [
-    "sha256", "sha256_hex", "commit", "commit_hex", "content_hash_hex",
-    "canonical_json", "CanonicalizationError",
-    "KeyPair", "verify", "BACKEND", "HAS_CRYPTOGRAPHY",
+    "BACKEND",
+    "HAS_CRYPTOGRAPHY",
+    "CanonicalizationError",
+    "KeyPair",
+    "canonical_json",
+    "commit",
+    "commit_hex",
+    "content_hash_hex",
+    "sha256",
+    "sha256_hex",
+    "verify",
 ]

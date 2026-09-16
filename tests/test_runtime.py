@@ -1,4 +1,3 @@
-import copy
 import json
 import tempfile
 import threading
@@ -8,8 +7,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from itx.crypto import HAS_CRYPTOGRAPHY
-from itx.runtime.common import json_loads, Store, authenticate, key_for, load_config, signed, ISS
 from itx.runtime.agent import Agent
+from itx.runtime.common import Store, authenticate, json_loads, key_for, load_config, signed
 from itx.runtime.lab import Lab
 from itx.statements import CT_RECEIPT
 
@@ -112,9 +111,8 @@ class NetworkRuntimeTests(unittest.TestCase):
             self.agent.store.put("checkpoint", saved)
         export = self.agent.peer.call("T", "audit", {})
         export["ts_public_key"] = "ff" * 32
-        with patch.object(self.agent.peer, "call", return_value=export):
-            with self.assertRaises(ValueError):
-                self.agent.audit()
+        with patch.object(self.agent.peer, "call", return_value=export), self.assertRaises(ValueError):
+            self.agent.audit()
 
     def test_09_cancel_before_send(self):
         event = threading.Event()
@@ -124,9 +122,8 @@ class NetworkRuntimeTests(unittest.TestCase):
         self.assertIsNone(record["response"])
 
     def test_10_expired_policy(self):
-        with patch.dict(self.agent.config, policy_expires_at=0):
-            with self.assertRaises(ValueError):
-                self.agent.request("만료 정책", "protect")
+        with patch.dict(self.agent.config, policy_expires_at=0), self.assertRaises(ValueError):
+            self.agent.request("만료 정책", "protect")
 
     def test_11_authenticated_verdict_must_bind_current_contract(self):
         record = self.agent.request("판정 결합 검사", "protect")
@@ -136,9 +133,9 @@ class NetworkRuntimeTests(unittest.TestCase):
         from itx.statements import CT_VERDICT
         payload = dict(current["t_verdict"]["payload"], contract_hash="00" * 32)
         fake = signed(cfg, key_for(cfg), CT_VERDICT, record["sub"], payload)
-        with patch.object(self.agent.peer, "call", return_value={"statement": fake.to_dict()}):
-            with self.assertRaisesRegex(ValueError, "정책·요청"):
-                self.agent.verdict(saved)
+        with (patch.object(self.agent.peer, "call", return_value={"statement": fake.to_dict()}),
+              self.assertRaisesRegex(ValueError, "정책·요청")):
+            self.agent.verdict(saved)
 
     def test_12_same_execution_is_returned_without_second_model_call(self):
         record = self.agent.request("중복 요청 검사", "protect")
@@ -174,9 +171,8 @@ class RuntimeInputTests(unittest.TestCase):
         from itx.runtime.common import ProcessLock
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "service.lock"
-            with ProcessLock(path):
-                with self.assertRaises(RuntimeError):
-                    ProcessLock(path)
+            with ProcessLock(path), self.assertRaises(RuntimeError):
+                ProcessLock(path)
             with ProcessLock(path):
                 pass
 

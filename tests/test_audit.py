@@ -9,11 +9,11 @@ import unittest
 from itx import CHECKER_VERSION
 from itx.audit import replay_audit
 from itx.crypto import canonical_json
-from itx.statements import SignedStatement, CT_VERDICT
-from itx.ts import MerkleTree, CheckpointAnchor
 from itx.sim.model import DEFAULT_MODELS, reference_hashes
-from itx.sim.runner import run_scenario, _keys
+from itx.sim.runner import _keys, run_scenario
 from itx.sim.scenarios import scenario_by_id
+from itx.statements import CT_VERDICT, SignedStatement
+from itx.ts import CheckpointAnchor, MerkleTree
 
 SEED = 42
 REF = reference_hashes(DEFAULT_MODELS)

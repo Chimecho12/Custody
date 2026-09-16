@@ -1,46 +1,262 @@
 <!doctype html>
 <html lang="ko">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>itx · 경로 보호</title></head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>itx · 경로 검증</title></head>
 <body>
+<!-- Console v3 셸. 사이드바는 밝은 면, 메뉴는 목적별 4그룹. 모든 요소 ID 는 이전 화면과 같다 —
+     main.ts 의 핸들러와 scripts/check-ui.cjs 가 그 ID 로 동작한다. -->
 <aside class="sidebar">
-  <div class="brand"><span class="brand-mark">i</span><span>itx<small>경로 보호 플랫폼</small></span></div>
-  <div class="nav-label">WORKSPACE</div>
+  <div class="brand"><span class="brand-title">itx 경로검증 콘솔</span><span class="brand-env" id="env-badge">평가 환경 · air-local</span></div>
   <nav aria-label="주 메뉴">
-    <button data-view="request" class="selected">↗ <span>요청과 보호</span></button>
-    <button data-view="history">≡ <span>사건 기록</span></button>
-    <button data-view="audit">◇ <span>제3자 검증</span></button>
-    <button data-view="simulation">⊞ <span>참조 시나리오</span></button>
-    <button data-view="settings">⚙ <span>연결 설정</span></button>
+    <div class="nav-group"><div class="nav-label">사용</div>
+      <button data-view="request" class="selected"><span>요청</span><span class="hint" data-hint="request"></span></button>
+      <button data-view="history"><span>사건 기록</span><span class="hint" data-hint="history"></span></button>
+    </div>
+    <div class="nav-group"><div class="nav-label">검증 · 감사</div>
+      <button data-view="audit"><span>제3자 검증</span><span class="hint" data-hint="audit"></span></button>
+      <button data-view="evidence"><span>감사 자료</span><span class="hint" data-hint="evidence"></span></button>
+      <button data-view="standards"><span>표준 적합성</span><span class="hint" data-hint="standards"></span></button>
+    </div>
+    <div class="nav-group"><div class="nav-label">운영</div>
+      <button data-view="settings"><span>연결</span><span class="hint" data-hint="settings"></span></button>
+      <button data-view="deployment"><span>배포 설정</span><span class="hint" data-hint="deployment"></span></button>
+      <button data-view="keys"><span>키 · 신뢰 기준점</span><span class="hint" data-hint="keys"></span></button>
+    </div>
+    <div class="nav-group"><div class="nav-label">실험</div>
+      <button data-view="simulation"><span>참조 시나리오</span><span class="hint" data-hint="simulation">17</span></button>
+    </div>
   </nav>
-  <div class="sidebar-foot"><span class="live-dot"></span> <span id="agent-status">Agent 시작 중</span><small>evaluation · v0.2<br>앱을 통한 요청에 보호 적용</small></div>
+  <div class="sidebar-foot"><span class="live-dot off" id="agent-dot"></span><span id="agent-status">Agent 시작 중</span><small>evaluation · v0.3<br>메시지 무결성 ≠ 내용 안전성</small></div>
 </aside>
 <div class="workspace">
-  <header><span id="breadcrumb">워크스페이스 / 요청과 보호</span><div class="header-right"><span class="badge amber" id="source">초기화 중</span><button id="export" class="quiet">결과 내보내기 ↗</button></div></header>
+  <header class="appbar">
+    <div class="appbar-left"><span class="crumb" id="breadcrumb">워크스페이스 / 요청</span></div>
+    <div class="appbar-right"><span class="badge amber" id="source">초기화 중</span><button id="theme" class="quiet" type="button" title="밝기 전환">◐ 시스템</button><button id="export" class="quiet" type="button">결과 내보내기 ↗</button></div>
+  </header>
   <main>
-    <div id="notice" role="status" aria-live="polite" hidden></div>
+    <div id="notice" role="status" aria-live="polite" hidden><span id="notice-text"></span><button id="notice-close" class="quiet" type="button" aria-label="알림 닫기" title="닫기">✕</button></div>
+
+    <!-- ── 요청 ─────────────────────────────────────────────── -->
     <section id="view-request" class="view">
-      <div class="heading"><div><div class="eyebrow">INTEGRITY BEFORE USE</div><h1>요청과 보호</h1><p>승인한 요청부터 응답 수용까지, 증거와 집행 결과를 확인합니다.</p></div><span id="policy-state" class="badge">정책 확인 중</span></div>
-      <div id="topology" class="topology" aria-label="업무 경로와 제3자 검증 상태"></div>
-      <div class="work-grid">
-        <form id="request-form" class="panel composer">
-          <div class="panel-heading"><h2>AI 요청</h2><span class="muted">비스트리밍</span></div>
-          <label for="mode">보호 정책</label><select id="mode"><option value="protect">protect · 로컬 검증 후 수용</option><option value="strict">strict · T 판정까지 확인</option><option value="observe">observe · 미검증 수용</option></select>
-          <p id="mode-help" class="field-help">T가 연결되지 않아도 필수 로컬 증거와 유효한 정책이 있으면 계속합니다.</p>
-          <label for="scenario">실험 조건</label><select id="scenario"><option value="normal">정상 경로</option><option value="response_tamper">R의 응답 변조 · S03 대응</option><option value="request_tamper">R의 요청 변조 · S02 대응</option><option value="missing_receipt">M 영수증 제거</option></select>
-          <label for="prompt">요청 내용</label><textarea id="prompt" rows="7" maxlength="16000" placeholder="모델에 보낼 요청을 입력하세요." required>AI 서비스의 경로 무결성을 한 문장으로 설명해 주세요.</textarea>
-          <div class="form-actions"><button id="send" class="primary" type="submit" disabled>요청 실행 ↗</button><button id="cancel" type="button" disabled>취소</button></div>
-          <p class="field-help">모형 모델은 결정적 텍스트를 반환합니다. 통신·검증 시간은 실제 측정값입니다.</p>
-        </form>
-        <div class="panel outcome"><div class="panel-heading"><h2>검증과 수용</h2><span id="request-state" class="badge">대기</span></div><div id="result" aria-live="polite"><div class="empty"><div class="empty-glyph">◇</div><h3>첫 요청의 증거를 기다립니다</h3><p>응답을 받은 뒤 서명과 요청·응답 결합을 확인합니다.<br>protect와 strict에서는 실패한 응답을 공개하지 않습니다.</p></div></div></div>
+      <div class="v3-head">
+        <button id="back-to-log" class="v3-btn" type="button" hidden>← 목록으로 돌아가기</button>
+        <h1 id="request-title">요청</h1>
+        <span class="v3-meta" id="request-meta"></span>
+        <button class="v3-guide" type="button" data-guide="request" title="이 화면 설명" aria-expanded="false">ⓘ</button>
+        <div class="v3-head-actions"><button id="lab-t" type="button" class="v3-btn" hidden>실험: T 중단</button><span id="policy-state" class="badge">정책 확인 중</span></div>
       </div>
-      <div class="panel event-panel"><div class="panel-heading"><h2>실행 시간선</h2><span class="muted">U의 단조 시계 · ms</span></div><ol id="events" class="events"><li class="muted">아직 실행한 요청이 없습니다.</li></ol></div>
+      <p class="v3-guide-text" data-guide-text="request" hidden>요청을 보내면 사용자(U) · 중개자(R) · 모델 운영자(M) 경로를 지나 사용자 쪽 집행 모듈이 응답을 검증합니다. 검증 통과 여부와 응답 공개 여부는 별개 항목이며, 아래 요약에서 두 줄로 나누어 보여줍니다. 전송 · 수신 · 공개 같은 사건은 중립색으로 표시하고, 색은 검증 판정에만 씁니다. 통신·검증 시간은 실측값이고 모형 모델은 결정적 텍스트를 반환합니다.</p>
+
+      <!-- 1) 요청 입력 -->
+      <form id="request-form" class="v3-card">
+        <div class="v3-card-head"><span class="v3-card-title">요청 입력</span><span class="v3-meta">프롬프트와 정책을 확인한 뒤 실행합니다 · 비스트리밍</span></div>
+        <div class="v3-card-body">
+          <label for="prompt">프롬프트</label>
+          <textarea id="prompt" rows="4" maxlength="16000" placeholder="모델에 보낼 요청을 입력하세요." required>AI 서비스의 경로 무결성을 한 문장으로 설명해 주세요.</textarea>
+          <div class="v3-grid2">
+            <div><label>모델</label><div class="v3-field mono" id="model-field">연결 전</div>
+              <label style="margin-top:12px">실험 조건</label>
+              <select id="scenario" class="v3-sr" aria-label="실험 조건"><option value="normal">정상 경로</option><option value="response_tamper">R의 응답 변조 · S03 대응</option><option value="request_tamper">R의 요청 변조 · S02 대응</option><option value="missing_receipt">M 영수증 제거</option></select>
+              <div class="v3-pills" id="scenario-pills" role="radiogroup" aria-label="실험 조건"></div>
+              <p class="field-help" id="scenario-help">연결 모드에서는 공격을 주입할 수 없어 정상 경로만 선택됩니다.</p></div>
+            <div><label for="mode">집행 정책</label>
+              <select id="mode" class="v3-sr" aria-label="집행 정책"><option value="protect">protect · 로컬 검증 후 수용</option><option value="strict">strict · T 판정까지 확인</option><option value="observe">observe · 미검증 수용</option></select>
+              <div class="v3-mode-cards" id="mode-cards" role="radiogroup" aria-label="집행 정책"></div>
+              <p id="mode-help" class="field-help">T가 연결되지 않아도 필수 로컬 증거와 유효한 정책이 있으면 계속합니다.</p></div>
+          </div>
+          <div class="v3-run-row">
+            <button id="send" class="v3-btn primary" type="submit" title="요청 실행 (Ctrl+Enter)" disabled>요청 실행 ↗</button>
+            <button id="cancel" class="v3-btn" type="button" disabled>취소</button>
+            <span class="v3-live" id="run-live" hidden><span class="breathe"></span><span id="run-live-text">검증 진행 중</span></span>
+            <span class="v3-meta" id="run-note" style="margin-left:auto">첫 요청을 기다립니다</span>
+          </div>
+        </div>
+      </form>
+
+      <!-- 2) 결과 요약 — 검증 결과와 응답 공개 여부는 별개의 두 축이다 -->
+      <section class="v3-card" id="summary-card" aria-live="polite"><div id="summary"></div></section>
+
+      <!-- 3) 응답 본문 -->
+      <section class="v3-card">
+        <div class="v3-card-head"><span class="v3-card-title">응답 본문</span><span id="request-state" class="badge">대기</span>
+          <span class="v3-meta" id="body-meta" style="margin-left:auto"></span></div>
+        <div id="result"><div class="empty"><div class="empty-glyph">◇</div><h3>첫 요청의 증거를 기다립니다</h3><p>응답을 받은 뒤 서명과 요청·응답 결합을 확인합니다.<br>protect와 strict에서는 실패한 응답을 공개하지 않습니다.</p></div></div>
+      </section>
+
+      <!-- 4) 경로 상세 · 증거 · 시간선 — 접이식. 기본 화면은 결론이고, 경로는 그 근거다. -->
+      <section class="v3-card v3-collapsible" id="detail-card">
+        <button type="button" class="v3-collapse-head" id="detail-toggle" aria-expanded="false" aria-controls="detail-body">
+          <span class="v3-card-title">경로 상세 · 증거 · 시간선</span>
+          <span class="v3-meta">홉 20ms · 중개 처리 5ms · 서명 2ms · 추론 200ms — 실제 지연 비율</span>
+          <span class="v3-caret" id="detail-label">펼치기 ▾</span>
+        </button>
+        <div id="detail-body" hidden>
+          <div id="route-map" class="card" aria-label="업무 경로와 제3자 검증 상태"></div>
+          <div id="result-details"></div>
+          <div class="v3-sub"><div class="v3-sub-head"><span class="v3-card-title">실행 시간선</span><span class="v3-meta">U의 단조 시계 · ms · 실측</span></div><div id="timeline"></div></div>
+        </div>
+      </section>
     </section>
-    <section id="view-history" class="view" hidden><div class="heading"><div><div class="eyebrow">EVIDENCE & ENFORCEMENT</div><h1>사건 기록</h1><p>재시작 후에도 요청의 결정과 증거 제출 상태를 확인합니다.</p></div><button id="reload-history">새로고침</button></div><div class="panel" id="history-content"></div></section>
-    <section id="view-audit" class="view" hidden><div class="heading"><div><div class="eyebrow">VERIFY THE VERIFIER</div><h1>제3자 검증</h1><p>고정한 T 신원·정책과 이전 체크포인트를 기준으로 판정을 재실행합니다.</p></div><button id="run-audit" class="primary">감사 재실행</button></div><div class="panel audit-intro"><h2>감사의 기준은 T 밖에 보관합니다.</h2><p>신뢰 키와 정책은 연결 설정에서, 이전 체크포인트는 사용자 PC에서 가져옵니다. 같은 검사기의 재실행은 공통 논리 오류까지 증명하지 않으며, 로컬 체크포인트는 별도 운영 목격자가 아닙니다.</p></div><div id="audit-content" class="panel"><div class="empty"><h3>아직 감사를 실행하지 않았습니다.</h3><p>요청의 사후 판정을 갱신한 뒤 실행하세요.</p></div></div></section>
-    <section id="view-simulation" class="view" hidden><div class="heading"><div><div class="eyebrow">REFERENCE LAB</div><h1>참조 시나리오</h1><p>기존 17개 시나리오를 재실행합니다. 이 화면의 시간과 모델은 모의 값입니다.</p></div><span class="badge amber">mock_result</span></div><div class="panel"><div class="sim-controls"><label>시나리오<select id="sim-scenario"></select></label><label>정책<select id="sim-mode"><option>protect</option><option>strict</option><option>observe</option></select></label><button id="run-sim" class="primary">시나리오 실행</button></div><div id="sim-content" class="empty">시나리오를 선택하고 실행하세요.</div></div></section>
-    <section id="view-settings" class="view" hidden><div class="heading"><div><div class="eyebrow">CONNECTION & TRUST</div><h1>연결 설정</h1><p>실험실과 별도 배포한 서비스의 연결을 구분합니다.</p></div></div><div class="panel"><h2>연결 모드</h2><p>원격 서비스는 사전에 확인한 U 설정 파일로 연결합니다. 설정에는 고정된 공개키·TLS CA·허용 경로가 포함되어야 합니다.</p><label for="config-path">U의 config.json 절대 경로</label><div class="connect-row"><input id="config-path" placeholder="C:\itx-connection\U\config.json"><button id="connect">설정 적용</button><button id="use-lab">실험실로 전환</button></div></div><div id="connection-details" class="panel"></div></section>
+
+    <!-- ── 사건 기록 ─────────────────────────────────────────── -->
+    <section id="view-history" class="view" hidden>
+      <div class="v3-head"><h1>사건 기록</h1><span class="v3-meta" id="history-count"></span>
+        <button class="v3-guide" type="button" data-guide="history" title="이 화면 설명" aria-expanded="false">ⓘ</button>
+        <div class="v3-head-actions"><button id="reload-history" class="v3-btn" type="button">새로고침</button></div></div>
+      <p class="v3-guide-text" data-guide-text="history" hidden>재시작 후에도 요청의 결정과 증거 제출 상태를 확인합니다. '조사'를 누르면 요청 화면에서 경로 지도와 시점을 다시 봅니다. 검증 결과와 응답 공개 여부는 별개 열입니다 — 관찰 전용 정책에서는 검증에 실패한 응답도 공개됩니다.</p>
+      <section class="v3-card v3-card-pad">
+        <div class="v3-filter-row"><span class="v3-label">요청 ID</span><input id="history-query" placeholder="요청 ID 또는 시도 ID 일부" class="v3-input"><button id="history-clear" class="v3-btn" type="button">초기화</button></div>
+        <div class="v3-filters" id="history-filters"></div>
+      </section>
+      <section class="v3-card"><div class="panel-flat" id="history-content"></div></section>
+    </section>
+
+    <!-- ── 제3자 검증 ────────────────────────────────────────── -->
+    <section id="view-audit" class="view" hidden>
+      <div class="v3-head"><h1>제3자 검증</h1><span class="v3-meta" id="audit-meta"></span>
+        <button class="v3-guide" type="button" data-guide="audit" title="이 화면 설명" aria-expanded="false">ⓘ</button>
+        <div class="v3-head-actions"><button id="run-audit" class="v3-btn primary" type="button">감사 재실행</button></div></div>
+      <p class="v3-guide-text" data-guide-text="audit" hidden>고정한 T 신원·정책과 이전 체크포인트를 기준으로 판정을 재실행합니다. 감사의 기준은 T 밖에 보관합니다 — 신뢰 키와 정책은 연결에서, 이전 체크포인트는 사용자 PC에서 가져옵니다. 같은 검사기의 재실행은 공통 논리 오류까지 증명하지 않으며, 로컬 체크포인트는 별도 운영 목격자가 아닙니다.</p>
+      <div id="audit-cards" class="v3-stat-grid"></div>
+      <div id="audit-content"><div class="v3-card v3-card-pad"><div class="empty"><h3>아직 감사를 실행하지 않았습니다.</h3><p>요청의 사후 판정을 갱신한 뒤 실행하세요.</p></div></div></div>
+    </section>
+
+    <!-- ── 감사 자료 ─────────────────────────────────────────── -->
+    <section id="view-evidence" class="view" hidden>
+      <div class="v3-head"><h1>감사 자료</h1><span class="v3-meta">외부 감사 · 목격자 · 보관</span>
+        <button class="v3-guide" type="button" data-guide="evidence" title="이 화면 설명" aria-expanded="false">ⓘ</button></div>
+      <p class="v3-guide-text" data-guide-text="evidence" hidden>외부 감사자에게 넘길 증거 번들을 구성하고 운영 점검을 실행합니다. 제3자 검증이 판정을 다루고, 이 화면은 반출을 다룹니다. 결손 항목은 제외하지 않고 결손 사실과 함께 내보냅니다.</p>
+      <section class="v3-card"><div class="v3-card-head"><span class="v3-card-title">번들 구성</span><span class="v3-meta" id="bundle-meta">현재 연결에서 내보낼 수 있는 항목</span></div><div class="v3-card-body" id="bundle-items"></div></section>
+      <section class="v3-card"><div class="v3-card-head"><span class="v3-card-title">연결 능력과 목격자</span><span class="v3-meta">각 역할의 TLS·서명 신원 점검 · W는 체크포인트 이력만 검사하고 본문을 받지 않습니다</span></div>
+        <div class="v3-card-body"><div class="button-row"><button id="preflight" class="v3-btn" type="button">역할별 연결 점검</button><button id="run-witness" class="v3-btn" type="button">W에 체크포인트 확인 요청</button><button id="export-checkpoint" class="v3-btn" type="button">T 체크포인트 저장</button></div><p class="field-help">목격자 영수증과 앵커 해시를 파일로 저장합니다. 블록체인 게시를 수행한 결과가 아닙니다.</p></div></section>
+      <section class="v3-card"><div class="v3-card-head"><span class="v3-card-title">외부 감사용 내보내기</span><span class="v3-meta">신뢰 기준은 자료와 별도로 확인 · 공개 패키지에는 salt·비솔트 해시 없음</span></div>
+        <div class="v3-card-body"><div class="button-row"><button id="export-trust" class="v3-btn" type="button">별도 신뢰 기준 저장</button><button id="export-public" class="v3-btn" type="button">공개 증거 패키지 저장</button><button id="create-recipient" class="v3-btn" type="button">이 PC의 감사자 암호화 키 생성</button></div>
+          <div class="v3-grid2"><label>감사자가 제공한 recipient.json 경로<input id="recipient-path" class="v3-input"></label><label>별도 확인한 감사자 지문 · SHA-256<input id="recipient-fingerprint" class="v3-input" maxlength="64"></label></div>
+          <div class="button-row" style="margin-top:12px"><button id="export-encrypted" class="v3-btn" type="button">비공개 입력 포함 · 감사자 키로 암호화</button></div>
+          <p class="field-help">암호화 패키지는 요청별 salt·원문 해시를 포함하므로 지정한 감사자에게만 전달하세요. 원문·개인 서명 키는 포함하지 않습니다.</p></div></section>
+      <section class="v3-card"><div class="v3-card-head"><span class="v3-card-title">받은 패키지 재검증</span><span class="v3-meta">T에 연결하지 않고 검증</span></div>
+        <div class="v3-card-body"><div class="v3-grid2"><label>패키지 파일<input id="verify-package" class="v3-input"></label><label>독립적으로 확인한 trust.json<input id="verify-trust" class="v3-input"></label><label>그 신뢰 기준의 지문<input id="verify-fingerprint" class="v3-input" maxlength="64"></label><label>암호화 패키지 수신자의 로컬 키 폴더 · 해당 시<input id="verify-recipient" class="v3-input"></label></div>
+          <div class="button-row" style="margin-top:12px"><button id="verify-evidence" class="v3-btn" type="button">T에 연결하지 않고 검증</button></div></div></section>
+      <section class="v3-card"><div class="v3-card-head"><span class="v3-card-title">로컬 본문 보관 정리</span><span class="v3-meta">기본 30일 · 제출 대기 증거와 서명·집행 기록은 유지</span></div>
+        <div class="v3-card-body"><p class="field-help" style="margin:0 0 10px">기본 30일이 지난 요청의 본문·비공개 감사 입력을 정리합니다. 정리 후 전체 비공개 감사에는 이전에 저장한 암호화 패키지가 필요합니다.</p><div class="button-row"><button id="retention-preview" class="v3-btn" type="button">정리 대상 미리보기</button><button id="retention-apply" class="v3-btn" type="button" disabled>확인한 본문·비공개 입력 삭제</button></div><div id="retention-description"></div></div></section>
+      <section class="v3-card"><div class="v3-card-head"><span class="v3-card-title">실행 결과</span></div><div class="v3-card-body" id="evidence-output" aria-live="polite"><p class="field-help" style="margin:0">검증 결과와 저장 경로가 표시됩니다.</p></div></section>
+    </section>
+
+    <!-- ── 연결 ──────────────────────────────────────────────── -->
+    <section id="view-settings" class="view" hidden>
+      <div class="v3-head"><h1>연결</h1><span class="v3-meta" id="settings-meta"></span>
+        <button class="v3-guide" type="button" data-guide="settings" title="이 화면 설명" aria-expanded="false">ⓘ</button></div>
+      <p class="v3-guide-text" data-guide-text="settings" hidden>R · M · T 엔드포인트와 각 상대의 고정 공개키를 확인합니다. 공개키가 로컬 기준점 목록과 다르면 요청을 보내지 않습니다. 원격 서비스는 사전에 확인한 U 설정 파일로 연결합니다 — 설정에는 고정된 공개키·TLS CA·허용 경로가 포함되어야 합니다.</p>
+      <section class="v3-card"><div class="v3-card-head"><span class="v3-card-title">연결 모드</span><span class="v3-meta">실험실과 별도 배포한 서비스의 연결을 구분합니다</span></div>
+        <div class="v3-card-body"><label for="config-path">U의 config.json 절대 경로</label><div class="connect-row"><input id="config-path" class="v3-input" placeholder="C:\itx-connection\U\config.json"><button id="connect" class="v3-btn primary" type="button">설정 적용</button><button id="use-lab" class="v3-btn" type="button">실험실로 전환</button></div></div></section>
+      <div id="connection-details"></div>
+    </section>
+
+    <!-- ── 배포 설정 — 5단계. 탭은 자유롭게 오간다: 운영자마다 다른 PC 에서 다른 단계를 수행한다. ── -->
+    <section id="view-deployment" class="view" hidden>
+      <div class="v3-head"><h1>배포 설정</h1><span class="v3-meta" id="deploy-meta">0 / 5 단계 완료</span>
+        <button class="v3-guide" type="button" data-guide="deployment" title="이 화면 설명" aria-expanded="false">ⓘ</button></div>
+      <p class="v3-guide-text" data-guide-text="deployment" hidden>각 운영자가 자기 환경에서 키를 생성하고, 동일한 배포 지문을 확인한 뒤 승인합니다. 단계는 한 PC 에서 순서대로 하는 것이 아닙니다 — U 는 신원을 만들고 제안을 모으며, R·M·T 는 각자의 PC 에서 승인합니다. 그래서 탭은 자유롭게 오갈 수 있고, 완료 표시는 이 PC 에서 실행한 단계만 기록합니다.</p>
+      <div class="v3-wizard" id="deploy-tabs"></div>
+      <section class="v3-card" data-step="identity">
+        <div class="v3-card-head"><span class="v3-card-title">01 · 로컬 신원 생성</span><span class="v3-meta">공유할 파일은 operator.json · 개인키와 운영자 폴더는 이 PC 에 보관</span></div>
+        <div class="v3-card-body"><div class="v3-grid2"><label>역할<select id="operator-role" class="v3-input"><option>U</option><option>R</option><option>M</option><option>T</option><option>W</option></select></label><label>서비스 HTTPS 주소 · U는 비움<input id="operator-endpoint" class="v3-input" placeholder="https://service.example:8741"></label></div>
+          <div class="button-row" style="margin-top:12px"><button id="prepare-operator" class="v3-btn primary" type="button">신원 생성</button></div></div></section>
+      <section class="v3-card" data-step="propose" hidden>
+        <div class="v3-card-head"><span class="v3-card-title">02 · 배포 제안 만들기</span><span class="v3-meta">U/R/M/T 공개 카드 4개 (+W) · 각 운영자의 지문은 별도 연락 경로에서 확인</span></div>
+        <div class="v3-card-body"><label>공개 카드 절대 경로 · 한 줄에 하나<textarea id="deployment-cards" rows="4" placeholder="C:\exchange\U-operator.json"></textarea></label>
+          <div class="v3-grid2"><label>모델 유형<select id="deployment-model-kind" class="v3-input"><option value="deterministic_mock">결정적 모형</option><option value="ollama">Ollama</option></select></label><label>합의한 모델 ID<input id="deployment-model-id" class="v3-input" placeholder="기본: itx-reference-v1"></label><label>모델 기준 SHA-256<input id="deployment-model-hash" class="v3-input" placeholder="모형 외에는 직접 지정"></label><label>Ollama 모델 이름<input id="deployment-model-name" class="v3-input" placeholder="운영자가 준비한 모델명"></label></div>
+          <label class="checkbox-line"><input type="checkbox" id="deployment-pre-exec">M이 실행 전에 요청 커밋을 검사</label>
+          <details><summary>키 교체·새 정책 세대로 이어가기</summary><div class="v3-grid2"><label>이전 deployment bundle 경로<input id="deployment-previous" class="v3-input"></label><label>이전 T의 서명 체크포인트 파일<input id="deployment-checkpoint" class="v3-input"></label></div><p class="field-help">새 세대의 제안은 이전 배포 해시·체크포인트를 포함합니다. 이전 키와 새 키가 모두 승인해야 합니다.</p></details>
+          <div class="button-row" style="margin-top:12px"><button id="propose-deployment" class="v3-btn primary" type="button">제안 생성</button></div></div></section>
+      <section class="v3-card" data-step="endorse" hidden>
+        <div class="v3-card-head"><span class="v3-card-title">03 · 검토한 제안에 서명</span><span class="v3-meta">별도 경로로 받은 지문과 같은지 사람이 직접 확인 · 자동화하지 않음</span></div>
+        <div class="v3-card-body"><div class="v3-grid2"><label>이 운영자의 로컬 폴더<input id="endorse-operator" class="v3-input"></label><label>제안 파일 경로<input id="endorse-proposal" class="v3-input"></label><label>별도 확인한 제안 지문 · SHA-256<input id="endorse-fingerprint" class="v3-input" maxlength="64"></label><label>키 교체 시 이전 역할의 config.json<input id="endorse-previous" class="v3-input"></label></div>
+          <div class="button-row" style="margin-top:12px"><button id="endorse-deployment" class="v3-btn primary" type="button">이 운영자 키로 승인</button></div></div></section>
+      <section class="v3-card" data-step="assemble" hidden>
+        <div class="v3-card-head"><span class="v3-card-title">04 · 승인 모으기</span><span class="v3-meta">모든 서명을 검증한 뒤 배포를 묶습니다</span></div>
+        <div class="v3-card-body"><div class="v3-grid2"><label>제안 파일 경로<input id="assemble-proposal" class="v3-input"></label><label>키 교체 시 이전 bundle 경로<input id="assemble-previous" class="v3-input"></label></div><label>승인 파일 경로 · 한 줄에 하나<textarea id="assemble-endorsements" rows="4"></textarea></label>
+          <div class="button-row" style="margin-top:12px"><button id="assemble-deployment" class="v3-btn primary" type="button">모든 서명 검증 후 배포 묶기</button></div></div></section>
+      <section class="v3-card" data-step="activate" hidden>
+        <div class="v3-card-head"><span class="v3-card-title">05 · 검토한 배포 활성화</span><span class="v3-meta">활성화하면 해당 역할의 이전 설정은 새 요청을 거부합니다</span></div>
+        <div class="v3-card-body"><div class="v3-grid2"><label>배포 bundle 경로<input id="activate-bundle" class="v3-input"></label><label>해당 운영자의 로컬 폴더<input id="activate-operator" class="v3-input"></label><label>별도 확인한 배포 지문 · SHA-256<input id="activate-fingerprint" class="v3-input" maxlength="64"></label><label>서비스 바인딩<input id="activate-bind" class="v3-input" value="127.0.0.1"></label><label>M의 Ollama 주소 · 해당 시<input id="activate-model-endpoint" class="v3-input" placeholder="http://127.0.0.1:11434"></label><label>키 교체 시 이전 역할의 config.json<input id="activate-previous" class="v3-input"></label></div>
+          <div class="button-row" style="margin-top:12px"><button id="inspect-deployment" class="v3-btn" type="button">배포 내용·승인 검사</button><button id="activate-deployment" class="v3-btn primary" type="button">새 세대 활성화 · 이전 세대 요청 중지</button></div>
+          <p class="field-help">키 교체 전 진행 요청·증거 제출을 마치고 이전 감사 자료와 체크포인트를 보관하세요. 반환된 config.json으로 서비스를 다시 실행하고 U는 ‘연결’에서 적용합니다.</p></div></section>
+      <div class="v3-wizard-nav"><button id="deploy-prev" class="v3-btn" type="button">← 이전 단계</button><button id="deploy-next" class="v3-btn" type="button">다음 단계 →</button><span class="v3-meta" id="deploy-gate">단계는 자유롭게 오갈 수 있습니다. 완료 표시는 이 PC 에서 실행한 단계입니다.</span></div>
+      <section class="v3-card"><div class="v3-card-head"><span class="v3-card-title">실행 결과</span><span class="v3-meta" id="deploy-result-meta"></span></div><div class="v3-card-body" id="deployment-output" aria-live="polite"><p class="field-help" style="margin:0">단계별 결과와 저장 경로가 표시됩니다.</p></div></section>
+    </section>
+
+    <!-- ── 참조 시나리오 ─────────────────────────────────────── -->
+    <section id="view-simulation" class="view" hidden>
+      <div class="v3-head"><h1>참조 시나리오</h1><span class="v3-meta" id="rpt-count">17 건 · mock_result</span>
+        <button class="v3-guide" type="button" data-guide="simulation" title="이 화면 설명" aria-expanded="false">ⓘ</button>
+        <div class="v3-head-actions"><button id="rpt-run" class="v3-btn primary" type="button">전체 재실행</button></div></div>
+      <p class="v3-guide-text" data-guide-text="simulation" hidden>기존 17개 시나리오를 결정적 모형 모델과 시뮬레이션 시계로 재실행합니다. 모든 수치는 <b>mock_result</b>이며 실제 네트워크·LLM 성능이 아닙니다. 영수증은 evaluation 모드, 판정 보증은 최대 air-local, 등록 시각은 발생 시각의 상한입니다. 카드의 「이 사건 재생」은 아래 사건 상세로 이동해 그 시나리오를 재생합니다.</p>
+      <div class="badges" id="rpt-badges"></div>
+      <div id="rpt-status" class="empty"><div class="empty-glyph">⊞</div><h3>참조 시나리오를 아직 실행하지 않았습니다</h3><p>이 화면을 열면 자동으로 실행합니다.</p></div>
+      <div id="rpt-body" hidden>
+        <div class="v3-pills" id="rpt-cats"></div>
+        <div class="v3-scen-grid" id="rpt-cards"></div>
+
+        <h2>1. 모드별 요약 지표</h2>
+        <p class="small muted">분자/분모를 함께 표시한다. 탐지·사용 전 방어·피해 노출·오차단은 서로 다른 질문이다. '탐지 불가' 로 분류된 공격(공모·인젝션)은 탐지율 분모에서 제외하고 그 수를 따로 적는다.</p>
+        <div id="rpt-summary" class="tablewrap"></div>
+
+        <h2>2. 시나리오 × 모드</h2>
+        <p class="small muted">행을 클릭하면 아래 사건 상세가 바뀐다. 최종 판정은 세션 종료 후 T 가 서명·등록한 판정이다. 게이트는 사용자 측 집행 모듈의 결정이다.</p>
+        <div id="rpt-matrix" class="tablewrap"></div>
+
+        <h2 id="rpt-detail-anchor">3. 사건 상세 — 경로 지도와 재생</h2>
+        <p class="small muted">경로(실선)는 업무 데이터, T 로 가는 점선은 증거·통제 경로다. 재생은 이 시도의 실제 타임라인 이벤트로 구간을 나눈 것이며 임의의 데모 수치가 아니다. 시점 타임라인은 끌어서 임의의 t 로 옮길 수 있고, |◀ ▶| 는 홉 경계 단위로 이동한다.</p>
+        <div class="card controls sticky-controls" id="rpt-controls">
+          <div class="tabrow"><span class="tabrow-label">사건</span><div id="rpt-scenario-tabs" class="tabs"></div></div>
+          <div class="tabrow"><span class="tabrow-label">정책 모드</span><div id="rpt-mode-tabs" class="tabs"></div>
+            <div class="playctl" tabindex="-1">
+              <button type="button" class="itx-btn itx-btn-step" data-reset title="처음으로 (R · Home)">|◀ 처음</button>
+              <button type="button" class="itx-btn itx-btn-step" data-step="-1" title="이전 홉 (←)">◀ 이전 홉</button>
+              <button type="button" class="itx-btn itx-btn-accent" data-play title="재생·정지 (Space)">▶ 재생</button>
+              <button type="button" class="itx-btn itx-btn-step" data-step="1" title="다음 홉 (→)">다음 홉 ▶</button>
+              <button type="button" class="itx-btn itx-btn-speed" data-speed title="재생 속도 (0.5× · 1× · 2×)" aria-label="재생 속도">1×</button>
+              <span class="tlabel" data-tlabel>t = 0 ms</span>
+            </div>
+          </div>
+          <div class="tabrow" id="rpt-attempt-row" hidden><span class="tabrow-label">시도</span><div id="rpt-attempt-tabs" class="tabs"></div></div>
+        </div>
+        <div id="rpt-detail"></div>
+
+        <h2>4. Q1 — 협조 집합별 탐지 가능성</h2>
+        <p class="small muted">같은 위반을 협조 집합 {U, U+M, U+R, U+R+M} 에서 실행했다. 'insufficient_evidence' 는 위반이 없다는 뜻이 아니라 증거로 확립할 수 없다는 뜻이다. R 만 협조하고 M 이 없으면 종단 무결성(E10)을 세울 수 없다.</p>
+        <div id="rpt-q1" class="tablewrap"></div>
+
+        <h2>5. 판정 불확실성을 어떻게 보여줄 것인가</h2>
+        <p class="small muted">증거가 협조 수준만큼만 있을 때 '위반 없음'과 '위반을 확인할 수 없음'을 같은 칸에 섞으면 안 된다. 같은 사건을 세 가지 표현으로 비교한다 — 경로검증 콘솔 옵션 1d.</p>
+        <div class="card controls">
+          <div class="tabrow"><span class="tabrow-label">사건</span><div id="rpt-unc-scenario-tabs" class="tabs"></div></div>
+          <div class="tabrow"><span class="tabrow-label">협조 집합</span><div id="rpt-unc-coop-tabs" class="tabs"></div></div>
+        </div>
+        <div id="rpt-uncertainty"></div>
+
+        <h2>6. 이 보고서가 주장하지 않는 것</h2>
+        <div class="card small"><ul class="tight">
+          <li>중개자의 <b>기밀성 위반</b>(프롬프트 보관·학습 사용)은 어떤 등식으로도 탐지하지 못한다. 무결성·귀속·완전성만 다룬다.</li>
+          <li>모든 영수증은 evaluation 모드, 증명 문서는 mock 이다. 실제 TEE 위 실행을 보증하지 않는다.</li>
+          <li>R 과 M 이 공모해 일치하는 거짓 진술을 내면(S15) 현재 증거 구조는 위반을 보지 못한다. 위협 모델 TM1 밖이다.</li>
+          <li>아티팩트 해시 일치(E9)는 실행 계산의 일치가 아니다. 통계적 실행 검증은 미구현이다.</li>
+          <li>해시 트리와 앵커는 '신뢰 기준점 대비 변경'을 드러낼 뿐 조작 불가를 뜻하지 않는다. 앵커는 파일 기반 목격자 모사다.</li>
+          <li>시뮬레이션 지연은 고정 상수다. 실제 네트워크·모델 성능·가용성 수치가 아니다.</li>
+          <li>인센티브 양립('모든 정직한 노드가 손해 보지 않는 구조')은 가설이며 이 보고서는 검증하지 않았다.</li>
+        </ul></div>
+
+        <h2>7. 애니메이션·모션 설계 메모</h2>
+        <p class="small muted">경로검증 콘솔 옵션 1e. 모션은 인과를 보이는 데만 쓰고 강조에는 쓰지 않는다. 결손·미실행은 절대 움직이지 않는다 — 부재가 사건처럼 보이면 안 된다. <span class="mono">prefers-reduced-motion</span> 에서는 모든 재생이 최종 상태로 즉시 점프한다 (이 앱도 그렇게 동작한다).</p>
+        <div class="card small" id="rpt-notes"></div>
+      </div>
+    </section>
+
+    <section id="view-standards" class="view" hidden></section>
+    <section id="view-keys" class="view" hidden></section>
+
   </main>
-  <footer>itx · 독립 제3자 기반 경로 검증<span>메시지 무결성 ≠ 내용 안전성 · 실제 모델 실행 보증 없음</span></footer>
+  <footer><span>itx · 독립 제3자 기반 경로 검증 · evaluation</span><span>메시지 무결성 ≠ 내용 안전성 · 실제 모델 실행 보증 없음</span></footer>
 </div>
 <script type="module" src="/src/main.ts"></script>
 </body></html>

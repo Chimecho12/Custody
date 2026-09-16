@@ -1,8 +1,7 @@
 """암호 기반 계층 검사: RFC 8032 시험 벡터, 정규화 결정성, 커밋."""
 import unittest
 
-from itx.crypto import canonical_json, commit_hex, content_hash_hex, sha256_hex, verify, KeyPair
-from itx.crypto import signing
+from itx.crypto import KeyPair, canonical_json, commit_hex, content_hash_hex, sha256_hex, signing, verify
 from itx.crypto.canonical import CanonicalizationError
 
 # RFC 8032 §7.1 TEST 1~3 (seed, public key, message, signature)
@@ -57,7 +56,7 @@ class CanonicalTest(unittest.TestCase):
         a = canonical_json({"b": 1, "a": {"y": [1, 2], "x": "한글"}})
         b = canonical_json({"a": {"x": "한글", "y": [1, 2]}, "b": 1})
         self.assertEqual(a, b)
-        self.assertEqual(a, '{"a":{"x":"한글","y":[1,2]},"b":1}'.encode("utf-8"))
+        self.assertEqual(a, '{"a":{"x":"한글","y":[1,2]},"b":1}'.encode())
 
     def test_rejects_float_and_nonascii_key(self):
         with self.assertRaises(CanonicalizationError):

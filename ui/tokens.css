@@ -1,0 +1,57 @@
+/* itx 디자인 토큰 — 데스크톱 앱과 HTML 보고서가 함께 쓰는 단일 원본.
+   근거: docs/unified-design-system-guide.md. 이 파일만 고치면 두 콘솔이 같이 바뀐다.
+   desktop/src/style.css 는 @import 로, itx/report/html.py 는 인라인으로 읽는다. */
+:root{
+  /* 캔버스·카드 — Console v3 대비 보강판. --card 는 유리, --card-solid 는 표·입력처럼 글자가 얹히는 면 */
+  --bg:#EEF1F5;--sunken:#F8FAFC;--card:rgba(255,255,255,.92);--card-solid:#FFFFFF;--chip:#F1F5F9;
+  --fg:#111827;--body:#334155;--muted:#475569;--line:rgba(203,213,225,.7);--line-soft:rgba(203,213,225,.4);--line-strong:#CBD5E1;
+  /* 브랜드·조명 */
+  --accent:#1E3A8A;--on-accent:#FFFFFF;--accent-soft:rgba(30,58,138,.08);--accent-glow:rgba(30,58,138,.18);
+  /* 판정 — 이 네 색은 암호학적 판정에만 쓴다. 흰 배경에서 4.5:1 을 넘기도록 한 단계 어둡게 잡았다. */
+  --pass:#047857;--pass-soft:rgba(4,120,87,.10);--fail:#B91C1C;--fail-soft:rgba(185,28,28,.08);--fail-glow:rgba(185,28,28,.28);
+  --warn:#B45309;--warn-soft:rgba(180,83,9,.10);--na:#64748B;
+  --mark-consume:rgba(185,28,28,.10);--mark-decide:rgba(4,120,87,.12);
+  /* 사이드바 — v3 는 밝은 면이다. 선택 항목은 채움이 아니라 accent-soft 배경과 왼쪽 선으로 표시한다. */
+  --side-bg:#FFFFFF;--side-fg:#111827;--side-muted:#64748B;--side-line:rgba(203,213,225,.7);--side-active:#1E3A8A;
+  /* 그림자: 바깥 그림자 + 내부 상단 하이라이트 */
+  --shadow-sm:0 2px 8px rgba(0,0,0,.04),inset 0 1px 0 rgba(255,255,255,.9);
+  --shadow-md:0 4px 16px -2px rgba(0,0,0,.06),inset 0 1px 0 rgba(255,255,255,.9);
+  --shadow-lg:0 12px 32px -4px rgba(0,0,0,.08),inset 0 1px 0 rgba(255,255,255,1);
+  --shadow-1:var(--shadow-sm);--shadow-2:var(--shadow-md);--raised:var(--card-solid);
+  --glass-blur:16px;
+  --sans:"IBM Plex Sans KR","Pretendard","Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,"Malgun Gothic",monospace;
+  --sidebar-w:224px;--header-h:52px;
+  /* 모션: 인과를 보이는 데만 쓴다. 길이는 세 단계, 곡선은 Apple 표준 감속 하나로 고정한다. */
+  --dur-1:110ms;--dur-2:200ms;--dur-3:320ms;
+  --ease-apple:cubic-bezier(.16,1,.3,1);--ease-out:var(--ease-apple);--ease-in-out:cubic-bezier(.4,0,.2,1);
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0B0E14;--sunken:#0E131D;--card:rgba(18,24,38,.75);--card-solid:#121826;--chip:#1A2234;
+    --fg:#F1F5F9;--body:#CBD5E1;--muted:#94A3B8;--line:rgba(51,65,85,.5);--line-soft:rgba(51,65,85,.3);--line-strong:#334155;
+    --accent:#60A5FA;--on-accent:#0B0E14;--accent-soft:rgba(96,165,250,.12);--accent-glow:rgba(96,165,250,.25);
+    --pass:#34D399;--pass-soft:rgba(52,211,153,.15);--fail:#F87171;--fail-soft:rgba(248,113,113,.15);--fail-glow:rgba(248,113,113,.35);
+    --warn:#FBBF24;--warn-soft:rgba(251,191,36,.15);--na:#64748B;
+    --mark-consume:rgba(248,113,113,.14);--mark-decide:rgba(52,211,153,.14);
+    --side-bg:#070A10;--side-fg:#CBD5E1;--side-muted:#64748B;--side-line:#1A2234;--side-active:#1E3A8A;
+    --shadow-sm:0 1px 2px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.05);
+    --shadow-md:0 4px 20px -2px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.08);
+    --shadow-lg:0 16px 40px -4px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.1);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0B0E14;--sunken:#0E131D;--card:rgba(18,24,38,.75);--card-solid:#121826;--chip:#1A2234;
+  --fg:#F1F5F9;--body:#CBD5E1;--muted:#94A3B8;--line:rgba(51,65,85,.5);--line-soft:rgba(51,65,85,.3);--line-strong:#334155;
+  --accent:#60A5FA;--on-accent:#0B0E14;--accent-soft:rgba(96,165,250,.12);--accent-glow:rgba(96,165,250,.25);
+  --pass:#34D399;--pass-soft:rgba(52,211,153,.15);--fail:#F87171;--fail-soft:rgba(248,113,113,.15);--fail-glow:rgba(248,113,113,.35);
+  --warn:#FBBF24;--warn-soft:rgba(251,191,36,.15);--na:#64748B;
+  --mark-consume:rgba(248,113,113,.14);--mark-decide:rgba(52,211,153,.14);
+  --side-bg:#070A10;--side-fg:#CBD5E1;--side-muted:#64748B;--side-line:#1A2234;--side-active:#1E3A8A;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.05);
+  --shadow-md:0 4px 20px -2px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.08);
+  --shadow-lg:0 16px 40px -4px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.1);
+  color-scheme:dark;
+}

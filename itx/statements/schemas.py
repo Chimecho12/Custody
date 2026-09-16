@@ -12,9 +12,16 @@ from __future__ import annotations
 from typing import Any
 
 from itx import PROFILE_VERSION
+
 from .envelope import (
-    CT_CONTRACT, CT_RELAY, CT_RECEIPT, CT_OBSERVATION, CT_MANIFEST, CT_VERDICT, CT_POLICY,
     ALL_CONTENT_TYPES,
+    CT_CONTRACT,
+    CT_MANIFEST,
+    CT_OBSERVATION,
+    CT_POLICY,
+    CT_RECEIPT,
+    CT_RELAY,
+    CT_VERDICT,
 )
 
 HEX32 = 64  # 32바이트 = 16진 64자

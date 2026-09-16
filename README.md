@@ -15,9 +15,9 @@
 > 결정적 모형이며, 한 PC의 단일 운영자 실험이다. 독립 사업자나 실제 LLM 검증 결과가 아니다.
 > COSE/SCITT/AIR 표준 적합성을 주장하지 않으며 자체 JSON 프로파일을 쓴다. 한계는 [docs/limits.md](docs/limits.md).
 
-## Windows 설치 앱 — v0.2
+## Windows 설치 앱 — v0.3
 
-설치 파일: `desktop/src-tauri/target/release/bundle/nsis/itx_0.2.0_x64-setup.exe`.
+설치 파일: `desktop/src-tauri/target/release/bundle/nsis/itx_0.3.0_x64-setup.exe`.
 설치 후 **itx**를 실행하면 동봉 Agent와 로컬 TLS 실험실이 시작된다. 사용자에게 Python·Node·Rust 설치를 요구하지 않는다.
 
 - 앱 내부 AI 요청에서 observe/protect/strict 적용, 응답 공개 전 검증·격리
@@ -25,9 +25,34 @@
 - Windows DPAPI 보호 저장, SQLite 로그·증거 큐, 재시작 복구
 - 고정된 T 신원·정책 및 이전 체크포인트를 사용한 감사
 - 사건 기록·E1~E12 근거·기존 17개 참조 시나리오 실행
+- 역할별 키·TLS CA 생성, 전원 서명 배포, 이전/새 키 승인 교체와 이전 세대 폐기
+- 별도 목격자 W, 모든 과거 판정 검사, 정책 이력·암호화 오프라인 감사
+- 외부 앱 Python SDK, U 본문 보관 정리, 3모드 반복 TLS 평가
 
-[설치·개발·통신 프로파일과 한계](docs/desktop-runtime.md)를 먼저 읽는다.
-개발 계획의 원격 호스트 재현·별도 운영자 키 교환·실제 LLM 시험·외부 배포 서명은 후속 검증 항목이다.
+[v0.3 설치·검증 결과와 한계](docs/desktop-runtime-v0.3.md), [운영자 배포·키 교체·SDK·외부 감사](docs/operator-deployment.md)를 제공한다.
+원격 호스트·실제 독립 운영자·실제 LLM·새 PC 설치·외부 배포 서명은 별도 환경 검증 항목이다. 실제 체인 게시 기능은 포함하지 않는다.
+
+## 표준 적합성과 키 보관
+
+같은 진술을 자체 JSON 프로파일과 **RFC 9052 COSE_Sign1**(alg -8 EdDSA, CWT 클레임은 RFC 9597 라벨 15,
+본문은 RFC 8949 결정적 CBOR)로 나란히 낸다. 적합성은 주장이 아니라 **실행한 벡터 수**로 적는다.
+
+서명 키는 보관처가 아니라 **평문 노출 여부**로 판단한다. `itx.keys.CommandSigner` 로 외부
+서명자(KMS·HSM·스마트카드)에 위임하면 사설키가 이 프로세스에 들어오지 않는다. 다만 순수
+Ed25519 는 메시지 전체에 서명하므로 「해시만 전송」은 prehash 방식에서만 참이고, 무엇을 보내는지는
+화면에 그대로 표시된다.
+
+적합성 주장이 순환하지 않도록 **제3자 구현이 같은 바이트를 읽는지** 교차 검증한다. `cbor2` 는 canonical
+재인코딩이 바이트 동일한지 보고, `pycose` 는 서명을 검증하고 변조된 서명을 거부하는지 본다. 두 도구가
+없으면 '미실행' 으로 남고 주장 상태가 `planned` 로 내려간다. 자세한 범위는
+[docs/limits.md](docs/limits.md) 한계 13·14.
+
+```powershell
+pip install -e .[conformance]          # 교차 검증용 cbor2 · pycose (선택)
+python runtime.py conformance          # 적합성 벡터 + 제3자 구현 교차 검증
+python runtime.py conformance --no-external   # 우리 벡터만
+python runtime.py key-inventory --config <U 설정>   # 키 보관처·평문 노출·회전 기한
+```
 
 ## 기존 시뮬레이션 실행
 
@@ -40,6 +65,16 @@ python run.py all        # 시나리오 17종 × 모드 3종 실행 → artifact
 ```
 
 `artifacts/report.html` 을 브라우저로 연다. 서버가 필요 없다.
+
+### 코드 점검
+
+```powershell
+python run.py test                       # 단위·시나리오·콘솔 동기화 (91건)
+node --test scripts/test-console.cjs     # 재생/스크러버 상호작용 (데스크톱 + 보고서 스크립트)
+cd desktop; pnpm build                   # tsc --noEmit + vite build
+node scripts/check-ui.cjs                # 빌드된 미리보기의 레이아웃·콘솔 오류 (playwright 필요)
+ruff check .                             # 설정은 pyproject.toml
+```
 
 ## 사용자의 두 질문에 이 구현이 답하는 방식
 
@@ -107,21 +142,36 @@ Q1 매트릭스: S02·S03·S05·S06·S08 을 협조 집합 {U, U+M, U+R, U+R+M} 
 
 ```
 Pproject/
-├── run.py                     CLI (doctor / test / run / report / audit / all)
+├── run.py  runtime.py         진입점 (얇은 껍데기 — 실제 구현은 itx/cli/)
 ├── itx/
+│   ├── cli/                   simulation (doctor/test/run/report/audit/all) · runtime (사이드카·배포·감사 CLI)
 │   ├── crypto/                sha256·솔트 커밋, JCS 부분집합 정규화, Ed25519(순수 Python 또는 cryptography)
 │   ├── statements/            진술 봉투(iss·sub·content_type·kid 서명)와 7종 페이로드 스키마
 │   ├── ts/                    RFC 9162 Merkle 트리·포함/일관성 증명, 추가 전용 로그·등록 정책·영수증, 앵커, 장애 주입
 │   ├── reconcile/             등식 E1~E12, 불일치 D-코드, 완전성, 승인 변환, 대조 엔진
 │   ├── enforce/               사용자 게이트 (observe / protect / strict)
+│   ├── cose/                  결정적 CBOR(RFC 8949) · COSE_Sign1(RFC 9052) · 적합성 벡터
+│   ├── keys/                  서명 키 보관처·평문 노출·회전·계보, 외부 서명자 어댑터
 │   ├── sim/                   시뮬레이션 시계·모형 모델·당사자(U/R/M/T)·시나리오·실행기
+│   ├── runtime/               실제 TLS 통신 런타임: 역할별 서비스·에이전트·배포 합의·감사 패키지
 │   ├── audit/                 독립 판정 재실행
 │   ├── metrics.py             탐지·방어·오차단·안전 완료·피해 노출·대기
-│   └── report/                단일 HTML 보고서 (홉 정합 지도, 비교, 집행, 시간선, 자기 검증, Q1)
-├── tests/                     RFC 8032 벡터, Merkle, 등록 정책, 대조 반례, 시나리오 기대치
-├── docs/                      threat-model · equations · limits · design-mapping
+│   └── report/
+│       ├── html.py            조립만 한다 (60줄)
+│       └── assets/            report.html · report.css · report.js — 보통의 웹 파일
+├── ui/                        데스크톱 앱과 HTML 보고서가 같이 쓰는 CSS
+│   ├── tokens.css             색·그림자·이징·글꼴 토큰 (단일 원본)
+│   └── console.css            경로검증 콘솔 컴포넌트 (홉 지도·재생·그래프 캔버스·증거 패널)
+├── desktop/                   Tauri 앱 (src/ TypeScript, src-tauri/ Rust 껍데기)
+├── scripts/                   빌드·개발 실행·UI 점검·스모크
+├── tests/                     RFC 8032 벡터, Merkle, 등록 정책, 대조 반례, 시나리오 기대치, 콘솔 동기화
+├── docs/                      threat-model · equations · limits · design-mapping · 디자인 시스템
 └── artifacts/                 실행 결과 (results.json, summary.json, report.html, log-export-S01.json)
 ```
+
+화면은 두 곳(데스크톱 TypeScript, 보고서 `report.js`)에 있지만 **CSS 는 `ui/` 하나**이고,
+두 구현이 공유해야 하는 상수·표(홉 지연, 등식 이름, 검사↔등식 대응)는
+`tests/test_report_assets.py` 가 값이 갈라지는 순간 실패한다.
 
 ## 주장 상태 표기
 

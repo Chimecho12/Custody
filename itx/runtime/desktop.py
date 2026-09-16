@@ -3,13 +3,37 @@ from __future__ import annotations
 
 import concurrent.futures
 import json
-import threading
 import sys
+import threading
 from pathlib import Path
 
+from . import standards
 from .agent import Agent
+from .common import MAX_WIRE, ProcessLock, json_loads
 from .lab import Lab
-from .common import MAX_WIRE, json_loads, ProcessLock
+
+#: Agent 가 받는 명령. **desktop/src-tauri/src/main.rs 의 OPS 와 같아야 한다.**
+#: 두 목록이 어긋나면 브라우저 미리보기에서는 멀쩡하고 설치형 앱에서만
+#: "Unsupported Agent operation" 이 난다 — 가장 늦게 발견되는 종류의 어긋남이다.
+#: tests/test_desktop_ipc.py 가 이 상수와 Rust 목록이 같은지 검사한다.
+
+#: 연결·상태·등록처럼 요청 흐름 밖에서 바로 답하는 명령.
+DIRECT_OPERATIONS = frozenset({
+    "status", "cancel", "history", "connect", "lab", "stop_t", "start_t",
+    "recipient_create", "audit_verify",
+    "enroll_prepare", "enroll_propose", "enroll_endorse",
+    "enroll_assemble", "enroll_inspect", "enroll_activate",
+})
+
+#: 연결된 Agent 를 거쳐 처리되는 명령.
+AGENT_OPERATIONS = frozenset({
+    "request", "refresh", "audit", "simulation", "simulation_matrix", "export",
+    "export_evidence", "export_trust", "export_checkpoint",
+    "preflight", "witness", "retention_preview", "retention_apply",
+    "standards", "key_inventory", "cose_export",
+})
+
+ALLOWED_OPERATIONS = DIRECT_OPERATIONS | AGENT_OPERATIONS
 
 
 class Desktop:
@@ -51,12 +75,16 @@ class Desktop:
 
     def _execute(self, op, args):
         with self.lock:
+            if op.startswith("enroll_") or op in ("recipient_create", "audit_verify"):
+                return self.provision(op, args)
             # Let the user repair a missing/invalid saved connection without silent fallback.
             if op in ("connect", "lab"):
                 if self.active:
                     raise ValueError("진행 요청을 완료하거나 취소한 뒤 연결을 변경하세요.")
                 if op == "connect":
                     path = Path(args["path"]).resolve(strict=True)
+                    if self.agent and Path(self.agent.config["config_path"]) == path:
+                        return {**self.agent.status(), "services": self.lab.status() if self.lab else None}
                     replacement = Agent(path, self.emit)
                     if replacement.config["lab"]:
                         replacement.close()
@@ -79,7 +107,8 @@ class Desktop:
             self.ensure()
             agent = self.agent
             if op == "status":
-                return {**agent.status(), "services": self.lab.status() if self.lab else None}
+                return {**agent.status(), "services": self.lab.status() if self.lab else None,
+                        "operations": sorted(ALLOWED_OPERATIONS)}
             if op == "history":
                 return agent.history()
             if op == "cancel":
@@ -104,8 +133,9 @@ class Desktop:
                     raise ValueError("invalid request token")
                 cancellation = threading.Event()
                 self.active[token] = cancellation
-            elif op not in ("refresh", "audit", "simulation", "export"):
-                raise ValueError("허용되지 않은 명령입니다.")
+            elif op not in AGENT_OPERATIONS:
+                raise ValueError(f"이 Agent 는 '{op}' 을 모릅니다. "
+                                 "앱보다 오래된 Agent 빌드일 수 있습니다 — 사이드카를 다시 패키징하세요.")
         if op == "request":
             try:
                 return agent.request(args["prompt"], args["mode"], args.get("scenario", "normal"), cancellation, token)
@@ -116,6 +146,42 @@ class Desktop:
             return agent.refresh(args["sub"])
         if op == "audit":
             return agent.audit()
+        if op in ("standards", "key_inventory", "cose_export"):
+            return self.standards(op, args, agent)
+        if op == "preflight":
+            return agent.preflight()
+        if op == "export_checkpoint":
+            from .auditing import fingerprint, verify_head
+            from .packages import write_document
+            head = agent.peer.call("T", "audit_head", {})["head"]
+            verify_head(head, agent.trust())
+            path = self.output_path("checkpoint")
+            write_document(path, head)
+            return {"path": str(path), "head": head, "fingerprint": fingerprint(head)}
+        if op == "witness":
+            result = agent.witness()
+            from .packages import write_document
+            path = self.output_path("anchor")
+            write_document(path, result)
+            return {**result, "path": str(path)}
+        if op in ("retention_preview", "retention_apply"):
+            from . import retention
+            return retention.preview(agent) if op == "retention_preview" else retention.apply(agent, args["token"])
+        if op in ("export_evidence", "export_trust"):
+            from .auditing import fingerprint
+            from .packages import build_package, encrypt_package, read_document, write_document
+            if op == "export_trust":
+                value = agent.trust()
+                path = self.output_path("trust")
+                write_document(path, value)
+                return {"path": str(path), "fingerprint": fingerprint(value)}
+            recipient_path = args.get("recipient_path")
+            value = build_package(agent, include_private=bool(recipient_path))
+            if recipient_path:
+                value = encrypt_package(value, read_document(recipient_path), args["recipient_fingerprint"])
+            path = self.output_path("audit-encrypted" if recipient_path else "audit-public")
+            write_document(path, value)
+            return {"path": str(path), "private_included": bool(recipient_path), "encrypted": bool(recipient_path)}
         if op == "simulation":
             from itx.sim.runner import run_scenario
             from itx.sim.scenarios import scenario_by_id
@@ -124,6 +190,27 @@ class Desktop:
             result = run_scenario(scenario_by_id(args["scenario"]), args["mode"])
             result.pop("log_export", None)
             return result
+        if op == "simulation_matrix":
+            # Compact form of run_all(): full runs exceed the IPC frame, the UI fetches one run at a time.
+            from itx import CHECKER_VERSION, __version__
+            from itx.crypto import BACKEND
+            from itx.sim.runner import MODES, aggregate, run_q1_matrix, run_scenario
+            from itx.sim.scenarios import SCENARIOS
+            results = [run_scenario(sc, mode) for sc in SCENARIOS for mode in MODES]
+            rows = []
+            for r in results:
+                last = r["attempts"][-1]
+                fv = last["final_verdict"]
+                rows.append({"scenario_id": r["run"]["scenario_id"], "mode": r["run"]["mode"],
+                             "verification_status": fv["verification_status"], "completeness": fv["completeness"],
+                             "codes": [d["code"] for d in fv["discrepancies"]], "gate_action": last["gate"]["action"],
+                             "attack_present": last["metrics"]["attack_present"], "attempts": len(r["attempts"]),
+                             "audit_ok": r["audit"]["ok"], "verdict_mismatches": len(r["audit"]["verdict_mismatches"]),
+                             "anchors_ok": all(a["ok"] for a in r["audit"]["anchors"])})
+            return {"generated_with": {"itx_version": __version__, "checker_version": CHECKER_VERSION, "seed": 42,
+                                       "crypto_backend": BACKEND, "claim_status": "mock_result"},
+                    "scenarios": [s.to_dict() for s in SCENARIOS], "rows": rows,
+                    "q1_matrix": run_q1_matrix(), "summary": aggregate(results)}
         if op == "export":
             # Export only public UI records, never raw prompts, quarantine bodies, keys or salts.
             target = self.directory / "exports"
@@ -132,6 +219,108 @@ class Desktop:
             path.write_text(json.dumps({"requests": agent.history(), "audit": agent.store.get("last_audit")},
                                        ensure_ascii=False, indent=2), encoding="utf-8")
             return {"path": str(path)}
+
+    def output_path(self, prefix, suffix=".json"):
+        import secrets
+
+        from .common import now_ms
+        directory = self.directory / "exports"
+        directory.mkdir(parents=True, exist_ok=True)
+        return directory / f"{prefix}-{now_ms()}-{secrets.token_hex(3)}{suffix}"
+
+    def standards(self, op, args, agent):
+        """표준 적합성 · 키 인벤토리 · COSE 내보내기.
+
+        셋 다 판정을 바꾸지 않는다. 이미 내려진 판정을 무엇이 뒷받침하는지 보여줄 뿐이다.
+        """
+        from itx import keys as keystore
+
+        from .common import key_for
+
+        if op == "key_inventory":
+            return keystore.build(agent.config)
+
+        sub = args.get("sub") or "—"
+        # 당사자 진술은 사건 기록이 아니라 T 원장에 있다. 판정만 들어 있는 기록으로는 부족하다.
+        export = agent.audit_export() if sub != "—" else None
+        key = key_for(agent.config)
+        if op == "standards":
+            return standards.build(export, key, sub)
+
+        # cose_export: 이 기계가 서명할 수 있는 문서만 .cose 로 낸다.
+        from itx.cose import to_sign1
+        view = standards.build(export, key, sub)
+        found = standards.statements_for(export or {}, sub)
+        written = []
+        for document in view["documents"]:
+            statement = found.get(document["role"])
+            if not document.get("reissuable") or statement is None:
+                continue
+            path = self.output_path(document["export_name"].removesuffix(".cose"), ".cose")
+            path.write_bytes(to_sign1(key, statement))
+            written.append({"role": document["role"], "path": str(path),
+                            "bytes": path.stat().st_size})
+        readme = self.output_path("verify-cose", ".txt")
+        readme.write_text(_verification_readme(view, written), encoding="utf-8")
+        return {"written": written, "readme": str(readme),
+                "skipped": [d["role"] for d in view["documents"] if not d.get("reissuable")]}
+
+    def provision(self, op, args):
+        import secrets
+
+        from . import enrollment
+        from .auditing import fingerprint
+        from .common import MODEL_HASH, MODEL_ID
+        from .packages import create_recipient, read_document, verify_package, write_document
+        if op == "enroll_prepare":
+            directory = self.directory / "operators" / ("operator-" + secrets.token_hex(6))
+            return {**enrollment.prepare_operator(directory, args["role"], args.get("endpoint") or None), "directory": str(directory)}
+        if op == "enroll_propose":
+            paths = args["card_paths"]
+            if not 4 <= len(paths) <= 5:
+                raise ValueError("역할별 카드 4~5개가 필요합니다.")
+            proposal = enrollment.propose([read_document(p) for p in paths],
+                previous=read_document(args["previous_bundle"]) if args.get("previous_bundle") else None,
+                checkpoint=read_document(args["checkpoint"]) if args.get("checkpoint") else None,
+                model_id=args.get("model_id") or MODEL_ID, model_hash=args.get("model_hash") or MODEL_HASH,
+                model_kind=args.get("model_kind", "deterministic_mock"), model_name=args.get("model_name") or None,
+                pre_exec=args.get("pre_exec", False))
+            path = self.output_path("deployment-proposal")
+            write_document(path, proposal)
+            return {"path": str(path), "fingerprint": fingerprint(proposal), "proposal": proposal}
+        if op == "enroll_endorse":
+            endorsement = enrollment.endorse(args["operator_directory"], read_document(args["proposal"]),
+                                               args["fingerprint"], args.get("previous_config") or None)
+            path = self.output_path("endorsement")
+            write_document(path, endorsement)
+            return {"path": str(path), "role": endorsement["body"]["role"]}
+        if op == "enroll_assemble":
+            paths = args["endorsement_paths"]
+            if not 4 <= len(paths) <= 5:
+                raise ValueError("모든 운영자의 승인 파일이 필요합니다.")
+            bundle = enrollment.assemble(read_document(args["proposal"]), [read_document(p) for p in paths],
+                read_document(args["previous_bundle"]) if args.get("previous_bundle") else None)
+            path = self.output_path("deployment-bundle")
+            write_document(path, bundle)
+            return {"path": str(path), "fingerprint": fingerprint(bundle["proposal"])}
+        if op == "enroll_inspect":
+            bundle = read_document(args["bundle"])
+            digest = enrollment.verify_deployment(bundle)
+            config = enrollment.configuration(bundle)
+            return {"fingerprint": digest, "epoch": config["epoch"], "identities": config["identities"],
+                    "endpoints": config["endpoints"], "model_id": config["model_id"],
+                    "history": config["deployment_history"], "endorsements_verified": True,
+                    "legal_independence_verified": False}
+        if op == "enroll_activate":
+            return enrollment.activate(args["operator_directory"], read_document(args["bundle"]), args["fingerprint"],
+                bind=args.get("bind") or "127.0.0.1", model_endpoint=args.get("model_endpoint") or None,
+                previous_config=args.get("previous_config") or None)
+        if op == "recipient_create":
+            return create_recipient(self.directory / "auditors" / secrets.token_hex(8))
+        if op == "audit_verify":
+            return verify_package(read_document(args["package"]), read_document(args["trust"]),
+                                  args["fingerprint"], args.get("recipient_directory") or None)
+        raise ValueError("unsupported provisioning operation")
 
     def cancel_all(self):
         with self.lock:
@@ -190,3 +379,37 @@ def _stdio(directory):
         app.cancel_all()
         executor.shutdown(wait=True, cancel_futures=False)
         app.close()
+
+
+def _verification_readme(view, written) -> str:
+    """내보낸 .cose 와 함께 나가는 검증 안내. 명령이 배지 열 개보다 강하다."""
+    lines = [
+        "itx COSE_Sign1 내보내기",
+        "",
+        "이 파일들은 RFC 9052 COSE_Sign1 (alg -8 EdDSA) 이고, 클레임은 RFC 9597 형식으로",
+        "보호 헤더 라벨 15 에 들어 있습니다. 아래 명령은 이 저장소가 실행하지 않았습니다 —",
+        "직접 돌린 결과만 근거로 삼으십시오.",
+        "",
+        "내보낸 문서",
+    ]
+    lines += [f"  {w['role']}  {pathlib_name(w['path'])}  ({w['bytes']} B)" for w in written] or ["  없음"]
+    skipped = [d["role"] for d in view["documents"] if not d.get("reissuable")]
+    if skipped:
+        lines += ["", "내보내지 못한 문서: " + ", ".join(skipped),
+                  "  COSE 의 서명 대상은 Sig_structure 이므로 발행자만 자기 진술을 재발행할 수 있습니다."]
+    cross = view.get("external", {})
+    lines += ["", "제3자 구현 교차 검증 — " + cross.get("summary", "결과 없음"),
+              f"  재현: {cross.get('reproduce', '')}"]
+    for tool in cross.get("tools", []):
+        lines.append(f"  {tool['tool']} {tool['version']}: {tool['state']} — {tool['note']}")
+        lines += [f"      [{c['state']}] {c['label']}" for c in tool.get("checks", [])]
+    if cross.get("note"):
+        lines += ["", "  " + cross["note"]]
+    lines += ["", f"이 저장소의 적합성 벡터: pass {view['totals']['pass']} / "
+                  f"partial {view['totals']['partial']} / absent {view['totals']['absent']} / "
+                  f"fail {view['totals']['fail']}"]
+    return "\n".join(lines) + "\n"
+
+
+def pathlib_name(path: str) -> str:
+    return Path(path).name

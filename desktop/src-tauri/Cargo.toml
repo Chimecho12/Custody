@@ -1,6 +1,6 @@
 [package]
 name = "itx-desktop"
-version = "0.2.0"
+version = "0.3.0"
 description = "itx AI route integrity evaluation desktop"
 edition = "2021"
 

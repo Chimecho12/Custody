@@ -3,15 +3,23 @@ from __future__ import annotations
 import ctypes
 import json
 import os
-import secrets
 import sqlite3
 import threading
 import time
 from pathlib import Path
 
-from itx.crypto import KeyPair, HAS_CRYPTOGRAPHY, canonical_json, content_hash_hex, commit_hex
-from itx.statements import (SignedStatement, issue, validate_payload, ALL_CONTENT_TYPES,
-                            CT_CONTRACT, CT_RELAY, CT_RECEIPT, CT_OBSERVATION, CT_VERDICT)
+from itx.crypto import HAS_CRYPTOGRAPHY, KeyPair, canonical_json, commit_hex, content_hash_hex
+from itx.statements import (
+    ALL_CONTENT_TYPES,
+    CT_CONTRACT,
+    CT_OBSERVATION,
+    CT_RECEIPT,
+    CT_RELAY,
+    CT_VERDICT,
+    SignedStatement,
+    issue,
+    validate_payload,
+)
 from itx.statements.schemas import policy_payload
 
 MAX_WIRE = 2 * 1024 * 1024
@@ -98,7 +106,7 @@ class ProcessLock:
     def __init__(self, path):
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        self.file = open(path, "a+b")
+        self.file = open(path, "a+b")  # noqa: SIM115 — 잠금은 객체 수명 동안 열려 있어야 한다 (close 는 release 에서)
         self.file.seek(0, 2)
         if self.file.tell() == 0:
             self.file.write(b"0")
@@ -129,13 +137,14 @@ def load_config(path):
     require_crypto()
     path = Path(path).resolve()
     config = json_loads(path.read_bytes())
-    if config.get("version") != 1 or config.get("role") not in ISS:
+    if config.get("version") != 1 or config.get("role") not in (*ISS, "W"):
         raise ValueError("지원하지 않는 연결 설정입니다.")
     config["config_path"] = str(path)
     config["directory"] = str(path.parent)
-    for field in ("ca_file", "tls_cert", "tls_key"):
+    for field in ("ca_file", "tls_cert", "tls_key", "tls_password_file", "deployment_file"):
         if field in config:
             config[field] = str((path.parent / config[field]).resolve())
+    config["ca_files"] = {r: str((path.parent / p).resolve()) for r, p in config.get("ca_files", {}).items()}
     for role in "URMT":
         info = config["identities"][role]
         if info["iss"] != ISS[role] or len(bytes.fromhex(info["public_key"])) != 32:
@@ -148,6 +157,13 @@ def load_config(path):
         raise ValueError("정책 시각은 정수여야 합니다.")
     if config["policy_expires_at"] <= config["created_at"] or type(config.get("lab")) is not bool:
         raise ValueError("정책 기간 또는 실험 구분이 잘못되었습니다.")
+    if config.get("deployment_file"):
+        from .enrollment import configuration, verify_deployment
+        from .packages import read_document
+        bundle = read_document(config["deployment_file"])
+        verify_deployment(bundle)
+        if any(config.get(k) != v for k, v in configuration(bundle).items()):
+            raise ValueError("local configuration differs from the endorsed deployment")
     return config
 
 
@@ -162,12 +178,15 @@ def key_for(config):
 
 def policy_for(config):
     identities = config["identities"]
-    return policy_payload(version=1, ts_id=config["log_id"], ts_iss=ISS["T"],
+    policy = policy_payload(version=config.get("epoch", 1), ts_id=config["log_id"], ts_iss=ISS["T"],
                           allowed_content_types=list(ALL_CONTENT_TYPES),
                           sub_pattern=r"^urn:itx:(req|policy):[0-9a-zA-Z:-]+$",
                           trusted_keys={i["kid"]: {"iss": i["iss"], "public_key": i["public_key"]}
-                                        for r, i in identities.items() if r != "T"},
+                                        for r, i in identities.items() if r in "URM"},
                           issuer_content_types={ISS[r]: TYPES[r] for r in "URM"})
+    if config.get("deployment_hash"):
+        policy["deployment_hash"] = config["deployment_hash"]
+    return policy
 
 
 def signed(config, key, ct, sub, payload):
@@ -227,6 +246,10 @@ class Store:
         with self.lock:
             rows = self.db.execute("SELECT key,value FROM kv WHERE key LIKE ? ORDER BY key DESC", (prefix + "%",)).fetchall()
             return [(k, json_loads(unseal(v))) for k, v in rows]
+
+    def count(self, prefix):
+        with self.lock:
+            return self.db.execute("SELECT count(*) FROM kv WHERE key LIKE ?", (prefix + "%",)).fetchone()[0]
 
     def enqueue(self, item, capacity=256):
         ident = content_hash_hex(canonical_json(item))

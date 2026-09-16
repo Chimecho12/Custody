@@ -1,5 +1,6 @@
 """Generate the simple code-native itx application icon."""
 from pathlib import Path
+
 from PIL import Image, ImageDraw
 
 root = Path(__file__).resolve().parents[1]

@@ -12,12 +12,30 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from itx.crypto import canonical_json, content_hash_hex
-from itx.statements import CT_CONTRACT, CT_RELAY, CT_RECEIPT, CT_OBSERVATION, CT_VERDICT, SignedStatement
-from itx.statements.schemas import relay_payload, receipt_payload
-from itx.ts import TransparencyLog
-from itx.reconcile import ReconciliationEngine, PrivateEvidence
-from .common import (MAX_WIRE, MAX_PROMPT, MAX_RESPONSE, ISS, TYPES, MODEL_ID, Store,
-                     load_config, key_for, policy_for, signed, authenticate, digest, now_ms, json_loads, seal, unseal, ProcessLock)
+from itx.reconcile import PrivateEvidence, ReconciliationEngine
+from itx.statements import CT_CONTRACT, CT_RECEIPT, CT_RELAY, CT_VERDICT, SignedStatement
+from itx.statements.schemas import receipt_payload, relay_payload
+from itx.ts import RegistrationReceipt, TransparencyLog
+
+from .common import (
+    ISS,
+    MAX_PROMPT,
+    MAX_RESPONSE,
+    MAX_WIRE,
+    TYPES,
+    ProcessLock,
+    Store,
+    authenticate,
+    digest,
+    json_loads,
+    key_for,
+    load_config,
+    now_ms,
+    policy_for,
+    seal,
+    signed,
+    unseal,
+)
 from .transport import Peer, verify_rpc
 
 
@@ -61,6 +79,8 @@ class Service:
         existing = self.store.db.execute("SELECT value FROM journal WHERE hash=?", (stmt.statement_hash,)).fetchone()
         if existing:
             return json_loads(unseal(existing[0]))["receipt"]
+        if len(self.log.entries) >= self.config.get("max_log_entries", 100000):
+            raise ValueError("log capacity reached; provision a successor deployment epoch")
         # This v1 network profile permits only one observation per issuer/type/attempt.
         if stmt.content_type != CT_VERDICT and any(e.statement.content_type == stmt.content_type
                                                   for e in self.log.statements_for(stmt.sub)):
@@ -95,6 +115,13 @@ class Service:
     def handle(self, actor, op, p):
         if not isinstance(p, dict):
             raise ValueError("payload must be an object")
+        if op == "health":
+            active = not (Path(self.config["directory"]) / "retirement.json").exists()
+            body = {"role": self.role, "log_id": self.config["log_id"], "challenge": p["challenge"],
+                    "at": now_ms(), "model_kind": self.config["model_kind"], "model_id": self.config["model_id"],
+                    "queue_depth": len(self.store.pending()), "profile": "itx-health/1",
+                    "accepting_requests": active and now_ms() < self.config["policy_expires_at"]}
+            return {"body": body, "signature": self.key.sign(canonical_json(body)).hex()}
         if self.role == "T":
             with self.lock:
                 return self.third_party(actor, op, p)
@@ -108,6 +135,9 @@ class Service:
         if op == "submit":
             if "statement" in p:
                 ct = p["statement"].get("content_type")
+                if ct == CT_CONTRACT:
+                    from .enrollment import assert_active
+                    assert_active(self.config)
                 if ct not in TYPES[actor]:
                     raise ValueError("unauthorized statement type")
                 stmt = authenticate(self.config, p["statement"], actor, ct)
@@ -120,6 +150,9 @@ class Service:
                 for v in (ev.salt, ev.request_hash):
                     if len(v) != 64 or len(bytes.fromhex(v)) != 32:
                         raise ValueError("invalid private evidence")
+                previous = self.store.get("private:" + p["sub"])
+                if previous and any(previous[k] != ev.to_dict()[k] for k in ("salt", "request_hash", "expected_request_commits")):
+                    raise ValueError("private request evidence cannot be rewritten")
                 self.store.put("private:" + p["sub"], ev.to_dict())
                 return {"stored": True}
             raise ValueError("invalid submission")
@@ -135,15 +168,64 @@ class Service:
                 raise ValueError("unknown request")
             # These extra fields bind the network verdict to an exact contract and lifetime.
             verdict["contract_hash"] = ev.contract.statement_hash
+            verdict["private_evidence_hash"] = content_hash_hex(canonical_json(private))
             verdict["valid_until"] = now_ms() + 30000
             stmt = signed(self.config, self.key, CT_VERDICT, sub, verdict)
             rc = self.register(stmt)
             return {"statement": stmt.to_dict(), "receipt": rc, "head": self.log.tree_head(now_ms())}
         if op == "audit":
-            return self.log.export(now_ms())
+            export = self.audit_head()
+            export["entries"] = self.audit_entries(0, len(self.log.entries))
+            return export
+        if op == "audit_head":
+            return self.audit_head()
+        if op == "audit_page":
+            head = p["head"]
+            from .auditing import trust_from_config, verify_head
+            verify_head(head, trust_from_config(self.config))
+            start, limit, size = p["start"], p.get("limit", 64), head["tree_size"]
+            if (type(start) is not int or type(limit) is not int or not 1 <= limit <= 64
+                    or not 0 <= start < size <= len(self.log.entries) or self.log.root_at(size) != head["root_hash"]):
+                raise ValueError("invalid snapshot range")
+            page, budget = [], 0
+            for entry in self.audit_entries(start, min(size, start + limit)):
+                budget += len(canonical_json(entry))
+                if page and budget > MAX_WIRE - 4096:
+                    break
+                page.append(entry)
+            return {"entries": page, "next": start + len(page)}
+        if op == "consistency":
+            first, second = p["first"], p["second"]
+            if type(first) is not int or type(second) is not int or not 0 <= first <= second <= len(self.log.entries):
+                raise ValueError("invalid consistency range")
+            return {"proof": self.log.consistency_proof(first, second)}
         raise ValueError("unsupported operation")
 
+    def audit_head(self):
+        return {"log_id": self.log.log_id, "ts_kid": self.key.kid, "ts_public_key": self.key.public_hex,
+                "ts_iss": self.log.ts_iss, "policy_hash": self.log.policy_hash,
+                "trust_keys_version": self.log.trust_keys_version, "receipt_profile": 1,
+                "head": self.log.tree_head(now_ms())}
+
+    def audit_entries(self, start, end):
+        result = []
+        for e in self.log.entries[start:end]:
+            row = self.store.db.execute("SELECT value FROM journal WHERE seq=?", (e.index,)).fetchone()
+            saved = json_loads(unseal(row[0]))
+            receipt = saved.get("receipt")
+            if receipt is None:  # The policy entry in v0.2 did not store its receipt.
+                rc = RegistrationReceipt(self.log.log_id, e.index, e.index + 1,
+                    self.log.root_at(e.index + 1), e.leaf_hash, e.registered_at, self.key.kid,
+                    self.log.inclusion_proof(e.index, e.index + 1))
+                rc.signature = self.key.sign(rc.signed_bytes()).hex()
+                receipt = rc.to_dict()
+            result.append({"index": e.index, "registered_at": e.registered_at,
+                           "statement": e.statement.to_dict(), "receipt": receipt})
+        return result
+
     def infer(self, p):
+        from .enrollment import assert_active
+        assert_active(self.config)
         contract = authenticate(self.config, p["contract"], "U", CT_CONTRACT)
         c, sub = contract.payload, contract.sub
         body, salt = p["body"], p["salt"]
@@ -166,6 +248,8 @@ class Service:
             if "result" not in previous:
                 raise ValueError("execution outcome unknown after interruption; no automatic re-execution")
             return previous["result"]
+        if self.store.count("execution:") >= self.config.get("max_requests", 10000):
+            raise ValueError("execution store capacity reached; create a successor epoch")
         if not self.store.claim("nonce:" + c["nonce"], sub):
             raise ValueError("nonce already consumed")
         self.store.put(execution_key, {"binding": binding, "status": "started"})
@@ -223,19 +307,35 @@ class Service:
         from urllib.parse import urlsplit
         endpoint = self.config["model_endpoint"]
         url = urlsplit(endpoint)
-        if url.scheme != "https" and not (url.scheme == "http" and url.hostname in ("localhost", "127.0.0.1", "::1")):
+        if (not url.hostname or url.username or url.password or url.query or url.fragment or url.path not in ("", "/")
+                or (url.scheme != "https" and not (url.scheme == "http" and url.hostname in ("localhost", "127.0.0.1", "::1")))):
             raise ValueError("model endpoint must use HTTPS or explicit loopback")
         data = json.dumps({"model": self.config["model_name"], "prompt": body["prompt"], "stream": False}).encode()
         from .transport import NoRedirect
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
-        with opener.open(urllib.request.Request(endpoint.rstrip("/") + "/api/generate", data=data,
-                                               headers={"Content-Type": "application/json"}), timeout=18) as response:
-            raw = response.read(MAX_WIRE + 1)
+        try:
+            with opener.open(urllib.request.Request(endpoint.rstrip("/") + "/api/generate", data=data,
+                                                   headers={"Content-Type": "application/json"}), timeout=18) as response:
+                raw = response.read(MAX_WIRE + 1)
+        except urllib.error.HTTPError as exc:
+            exc.close()
+            raise ValueError("model endpoint returned HTTP " + str(exc.code)) from None
         if len(raw) > MAX_WIRE:
             raise ValueError("model response too large")
-        result = json.loads(raw)
+        def unique_object(pairs):
+            obj = {}
+            for key, value in pairs:
+                if key in obj:
+                    raise ValueError("duplicate model response key")
+                obj[key] = value
+            return obj
+        def invalid_constant(value):
+            raise ValueError("non-finite model response number")
+        result = json.loads(raw, object_pairs_hook=unique_object, parse_constant=invalid_constant)
+        if not isinstance(result, dict) or result.get("model") != self.config["model_name"]:
+            raise ValueError("model response name differs from the configured canonical name")
         text = result.get("response")
-        if not isinstance(text, str) or len(text) > MAX_RESPONSE or not result.get("done"):
+        if not isinstance(text, str) or len(text) > MAX_RESPONSE or result.get("done") is not True:
             raise ValueError("model did not return a complete text response")
         return {"text": text}
 
@@ -298,7 +398,7 @@ class Handler(BaseHTTPRequestHandler):
             if len(output) > MAX_WIRE:
                 raise ValueError("export exceeds v1 wire limit; use a smaller deployment")
             code = 200
-        except (ValueError, KeyError, TypeError, OverflowError, RecursionError) as e:
+        except (ValueError, KeyError, TypeError, OverflowError, RecursionError):
             code, output = 400, canonical_json({"ok": False, "error": "invalid or unauthorized input"})
         except Exception as exc:
             # Frame locations aid packaged diagnostics without logging prompts, keys or payloads.
@@ -319,17 +419,22 @@ class Handler(BaseHTTPRequestHandler):
 
 def serve(path, parent_pipe=False):
     config = load_config(path)
-    if config["role"] not in "RMT":
+    if config["role"] not in "RMTW":
         raise ValueError("service role must be R, M or T")
-    service = Service(config)
+    if config["role"] == "W":
+        from .witness import WitnessService
+        service = WitnessService(config)
+    else:
+        service = Service(config)
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.minimum_version = ssl.TLSVersion.TLSv1_2
-    context.load_cert_chain(config["tls_cert"], config["tls_key"])
+    password = unseal(Path(config["tls_password_file"]).read_bytes()).decode() if config.get("tls_password_file") else None
+    context.load_cert_chain(config["tls_cert"], config["tls_key"], password=password)
     server = Server((config.get("bind", "127.0.0.1"), config.get("port", 0)), service, context)
     stopped = threading.Event()
     def background():
         while not stopped.wait(0.2):
-            if service.role != "T":
+            if service.role in "RM":
                 service.flush()
     threading.Thread(target=background, daemon=True).start()
     if parent_pipe:

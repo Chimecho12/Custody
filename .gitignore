@@ -17,3 +17,5 @@ dist/
 !packaging/agent.spec
 # 실행 산출물 (python run.py run/report, desktop 스모크 테스트) — 규칙 3.5: 빌드 산출물은 커밋하지 않는다.
 artifacts/
+# 브라우저 미리보기용 런타임 표본 (scripts/make-preview-fixtures.py 가 생성)
+desktop/preview/

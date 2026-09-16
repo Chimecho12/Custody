@@ -32,7 +32,7 @@ class PrivateEvidence:
         }
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "PrivateEvidence":
+    def from_dict(cls, d: dict[str, Any]) -> PrivateEvidence:
         return cls(
             salt=d["salt"],
             request_hash=d["request_hash"],
