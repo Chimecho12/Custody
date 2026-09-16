@@ -85,22 +85,32 @@ def verify_held_receipts(tree: MerkleTree, entries: list[_Entry], held: list[dic
     unverifiable: list[dict[str, Any]] = []
     included = 0
     checkpoints: dict[int, dict[str, Any]] = {}
+    # 보관자별 집계. U 만 영수증을 내면 R·M 이 제출한 항목의 누락은 보이지 않는다 — 누가 얼마나
+    # 냈는지가 곧 이 검사의 범위다.
+    by_holder: dict[str, dict[str, int]] = {}
     for item in held:
+        holder = item.get("holder") or "U"
+        tally = by_holder.setdefault(holder, {"held": 0, "included": 0, "missing": 0, "unverifiable": 0})
+        tally["held"] += 1
         try:
             rc = RegistrationReceipt.from_dict(item["receipt"])
         except (KeyError, TypeError):
-            unverifiable.append({**{k: item.get(k) for k in ("sub", "content_type")}, "reason": "영수증 형식 오류"})
+            tally["unverifiable"] += 1
+            unverifiable.append({**{k: item.get(k) for k in ("sub", "content_type")}, "holder": holder, "reason": "영수증 형식 오류"})
             continue
-        ident = {"sub": item.get("sub"), "content_type": item.get("content_type"),
+        ident = {"sub": item.get("sub"), "content_type": item.get("content_type"), "holder": holder,
                  "leaf_index": rc.leaf_index, "leaf_hash": rc.leaf_hash, "registered_at": rc.registered_at}
         if rc.log_id != log_id or not verify(ts_pub, rc.signed_bytes(), bytes.fromhex(rc.signature or "00")):
+            tally["unverifiable"] += 1
             unverifiable.append({**ident, "reason": "영수증 서명이 T 키로 검증되지 않거나 다른 로그의 영수증"})
             continue
         checkpoints.setdefault(rc.tree_size, {"tree_size": rc.tree_size, "root_hash": rc.root_hash, "anchored_at": rc.registered_at})
         entry = entries[rc.leaf_index] if 0 <= rc.leaf_index < len(entries) else None
         if entry is not None and leaf_hash(entry.statement.leaf_bytes()).hex() == rc.leaf_hash:
             included += 1
+            tally["included"] += 1
             continue
+        tally["missing"] += 1
         # 잎이 다른 자리에 있으면 '재배열' 이다 — 앞선 항목이 빠졌다는 뜻이므로 역시 약속 위반이다.
         elsewhere = next((e.index for e in entries if leaf_hash(e.statement.leaf_bytes()).hex() == rc.leaf_hash), None)
         if elsewhere is not None:
@@ -117,8 +127,9 @@ def verify_held_receipts(tree: MerkleTree, entries: list[_Entry], held: list[dic
         "missing": missing,
         "unverifiable": unverifiable,
         "receipt_checkpoints": checkpoint_results,
+        "by_holder": by_holder,
         "ok": not missing and all(c["ok"] for c in checkpoint_results),
-        "scope": "none" if not held else "submitter_receipts",
+        "scope": "none" if not held else ("all_parties" if {"U", "R", "M"} <= set(by_holder) else "submitter_receipts"),
     }
 
 

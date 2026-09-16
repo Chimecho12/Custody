@@ -107,8 +107,10 @@ def run_scenario(scenario: Scenario, mode: str, seed: int = 42,
 
     export = T.log.export(ctx.now())
     private_by_sub = {s: p.to_dict() for s, p in T.private.items()}
-    # 감사자는 U 가 보관한 등록 영수증을 받아 '약속된 항목이 지금도 로그에 있는가' 를 같이 검사한다.
-    audit = replay_audit(export, T.anchor.records, private_by_sub, T.expected_parties, ref, held_receipts=U.queue.held)
+    # 감사자는 U·R·M 이 각자 보관한 등록 영수증을 받아 '약속된 항목이 지금도 로그에 있는가' 를 같이 검사한다.
+    # R·M 이 영수증을 내지 않으면 그들이 제출한 항목의 누락은 보이지 않는다 (by_holder 가 그 범위를 적는다).
+    held_receipts = U.queue.held + R.queue.held + M.queue.held
+    audit = replay_audit(export, T.anchor.records, private_by_sub, T.expected_parties, ref, held_receipts=held_receipts)
     ctx.record("auditor", "replay_audit", ok=audit["ok"], mismatches=len(audit["verdict_mismatches"]),
                anchors_ok=all(a["ok"] for a in audit["anchors"]), receipts_missing=len(audit["held_receipts"]["missing"]))
     audit_without_receipts = None
@@ -160,12 +162,13 @@ def run_scenario(scenario: Scenario, mode: str, seed: int = 42,
             "down_during_run": scenario.ts_down, "extra_delay_ms": scenario.ts_extra_delay_ms,
             "queue_drops": {"U": U.queue.dropped, "R": R.queue.dropped, "M": M.queue.dropped},
             "anchor_record": anchor_rec, "tampered_index": tampered_index, "omitted_indexes": omitted_indexes,
-            "held_receipts": len(U.queue.held),
+            "held_receipts": len(held_receipts),
+            "held_receipts_by_holder": {"U": len(U.queue.held), "R": len(R.queue.held), "M": len(M.queue.held)},
         },
         "audit": audit,
         "audit_without_held_receipts": audit_without_receipts,
         "log_export": export,
-        "held_receipts": U.queue.held,  # U 가 보관한 등록 영수증. 내보내기와 함께 감사 재현용으로 남긴다
+        "held_receipts": held_receipts,  # U·R·M 이 보관한 등록 영수증 (holder 표기). 내보내기와 함께 감사 재현용으로 남긴다
     }
 
 

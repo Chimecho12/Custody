@@ -144,11 +144,15 @@ function receiptsHtml(a: Data): string {
   const held: number = h.held ?? 0, missing: Data[] = h.missing || [], unver: Data[] = h.unverifiable || [];
   if (!held) return `<div class="anchor none"><span class="pinglyph">▣</span>보관한 등록 영수증 없음 — T 가 항목을 빼고 다시 서명해도 이 감사는 그것을 볼 수 없다. 영수증은 제출 때 검증 후 보관된다.</div>`;
   const tone = missing.length ? 'fail' : 'pass';
+  // 보관자별 범위. R·M 이 영수증을 내지 않았으면 그들이 제출한 항목의 누락은 이 감사에서 보이지 않는다.
+  const byHolder: Data = h.by_holder || {};
+  const holders = ['U', 'R', 'M'].map(k => byHolder[k] ? `${k} ${byHolder[k].included}/${byHolder[k].held}` : `${k} 없음`).join(' · ');
+  const unreachable: Data[] = h.holders_unreachable || [];
   const head = ref('held_receipts', `anchor ${tone}`,
     `<span class="pinglyph">▣</span><span class="mono">보관 영수증 ${held}건</span> · 포함 ${h.included ?? 0}건 · 누락 <b class="${tone}">${missing.length}건</b>${unver.length ? ` · 검증 불가 ${unver.length}건` : ''}
-     <span class="small muted"> · 등록 시점의 (tree_size, root) ${(h.receipt_checkpoints || []).length}개를 현재 헤드와 일관성 대조</span>`);
+     <span class="small muted"> · 보관자별 ${esc(holders)}${unreachable.length ? ` · <span class="warn">${unreachable.map(u => esc(u.role)).join(',')} 에 닿지 못함 — 그 당사자가 제출한 항목의 누락은 보이지 않음</span>` : ''} · 등록 시점의 (tree_size, root) ${(h.receipt_checkpoints || []).length}개를 현재 헤드와 일관성 대조</span>`);
   const rows = missing.map((m, i) => ref(`held_receipts.missing.${i}`, 'anchor fail',
-    `<span class="pinglyph">✗</span><span class="mono">잎 #${m.leaf_index}</span> · ${esc(String(m.content_type || '').split('.').pop() || '')} · ${short(m.sub)}
+    `<span class="pinglyph">✗</span><span class="mono">잎 #${m.leaf_index}</span> · ${esc(m.holder || 'U')} 보관 · ${esc(String(m.content_type || '').split('.').pop() || '')} · ${short(m.sub)}
      <b class="fail">${esc(m.reason)}</b>${typeof m.found_at === 'number' ? `<span class="small muted"> · 현재 위치 #${m.found_at}</span>` : ''}`)).join('');
   return `<div class="anchors">${head}${rows}</div>`;
 }

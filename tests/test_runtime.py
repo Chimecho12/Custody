@@ -218,8 +218,12 @@ class NetworkRuntimeTests(unittest.TestCase):
             self.assertTrue(report["tree_recomputed_matches_head"] and report["head_signature_valid"])
             self.assertEqual(report["anchors"], [])
             held = report["held_receipts"]
-            self.assertEqual(held["held"], held_before)
+            self.assertGreaterEqual(held["held"], held_before)
             self.assertIn(record["sub"], {m["sub"] for m in held["missing"]})
+            # R·M 도 자기 영수증을 보관·제출하므로 그들이 제출한 항목의 누락도 보인다.
+            self.assertEqual({m["holder"] for m in held["missing"]}, {"U", "R", "M"})
+            self.assertEqual(held["scope"], "all_parties")
+            self.assertEqual(held["holders_unreachable"], [])
             self.assertIsNone(self.agent.store.get("checkpoint"))  # 실패한 감사는 체크포인트를 옮기지 않는다
         finally:
             self.lab.stop_role("T")

@@ -203,6 +203,10 @@ class ThirdPartyTest(unittest.TestCase):
         self.assertEqual(held["included"] + len(held["missing"]), held["held"])
         self.assertIn(a["sub"], {m["sub"] for m in held["missing"]})
         self.assertFalse(all(c["ok"] for c in held["receipt_checkpoints"]))
+        # R·M 이 제출한 중계 진술·영수증의 누락도 그들의 보관 영수증으로 드러난다.
+        self.assertEqual({m["holder"] for m in held["missing"]}, {"U", "R", "M"})
+        self.assertEqual(held["scope"], "all_parties")
+        self.assertEqual(r["ts"]["held_receipts_by_holder"]["R"], 1)
 
     def test_S01_held_receipts_are_all_included(self):
         r, _ = _last("S01", "protect")

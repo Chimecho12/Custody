@@ -15,7 +15,7 @@ from itx.crypto import canonical_json, content_hash_hex
 from itx.reconcile import PrivateEvidence, ReconciliationEngine
 from itx.statements import CT_CONTRACT, CT_RECEIPT, CT_RELAY, CT_VERDICT, SignedStatement
 from itx.statements.schemas import receipt_payload, relay_payload
-from itx.ts import RegistrationReceipt, TransparencyLog
+from itx.ts import RegistrationReceipt, TransparencyLog, verify_receipt
 
 from .common import (
     ISS,
@@ -102,7 +102,17 @@ class Service:
         try:
             for ident, item in self.store.pending():
                 try:
-                    self.peer.call("T", "submit", item, timeout=0.6)
+                    result = self.peer.call("T", "submit", item, timeout=0.6)
+                    # R·M 도 영수증을 검증하고 보관한다. 자기가 제출한 항목이 나중에 T 의 로그에서 사라졌는지는
+                    # 자기 영수증으로만 물을 수 있고, 감사자(U)는 held_receipts 로 이를 받아 함께 검사한다.
+                    stmt = SignedStatement.from_dict(item["statement"])
+                    rc = RegistrationReceipt.from_dict(result["receipt"])
+                    ok, why = verify_receipt(rc, stmt, bytes.fromhex(self.config["identities"]["T"]["public_key"]))
+                    if not ok or rc.log_id != self.config["log_id"]:
+                        raise ValueError("invalid registration receipt: " + why)
+                    self.store.put("receipt:" + stmt.statement_hash, {
+                        "receipt": rc.to_dict(), "statement_hash": stmt.statement_hash, "sub": stmt.sub,
+                        "content_type": stmt.content_type, "iss": stmt.iss, "holder": self.role})
                     self.store.ack(ident)
                 except Exception:
                     break
@@ -125,6 +135,9 @@ class Service:
         if self.role == "T":
             with self.lock:
                 return self.third_party(actor, op, p)
+        if op == "held_receipts":
+            # 감사자에게 자기 보관 영수증을 넘긴다. 본문·프롬프트·키는 들어 있지 않다 (잎 해시·위치·서명뿐).
+            return {"holder": self.role, "receipts": [v for _, v in self.store.items("receipt:")]}
         if op == "infer":
             # Serialize model/relay calls; reject overload at the HTTP boundary as well.
             with self.lock:

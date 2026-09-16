@@ -107,7 +107,22 @@ class Agent:
             "sub": stmt.sub, "content_type": stmt.content_type, "iss": stmt.iss})
 
     def held_receipts(self):
-        return [record for _, record in self.store.items("receipt:")]
+        return [dict(record, holder="U") for _, record in self.store.items("receipt:")]
+
+    def collect_receipts(self):
+        """U 의 영수증에 R·M 이 보관한 영수증을 더한다. 닿지 않는 당사자는 범위 밖으로 적는다 —
+        그 당사자가 제출한 항목의 누락은 이 감사에서 보이지 않는다."""
+        held = self.held_receipts()
+        unreachable = []
+        for role in ("R", "M"):
+            try:
+                result = self.peer.call(role, "held_receipts", {}, timeout=3)
+                for record in result.get("receipts", []):
+                    if isinstance(record, dict) and record.get("iss") == ISS[role]:
+                        held.append(dict(record, holder=role))
+            except Exception as exc:
+                unreachable.append({"role": role, "error": type(exc).__name__})
+        return held, unreachable
 
     def remember_private(self, private):
         self.store.put("private-version:" + content_hash_hex(canonical_json(private)), private)
@@ -354,8 +369,10 @@ class Agent:
         old = self.store.get("checkpoint")
         anchors = [] if old is None else [{"tree_size": old["tree_size"], "root_hash": old["root_hash"], "anchored_at": old["time"]}]
         private, versions = self.private_evidence()
+        held, unreachable = self.collect_receipts()
         report = verify_export(export, self.trust(), anchors=anchors, private=private, private_by_hash=versions,
-                               held_receipts=self.held_receipts())
+                               held_receipts=held)
+        report["held_receipts"]["holders_unreachable"] = unreachable
         report.update(pinned_identity=True, previous_checkpoint=old, current_checkpoint=head,
                       witness_scope="사용자 PC 보관 · 별도 운영 목격자 아님")
         if report["ok"]:

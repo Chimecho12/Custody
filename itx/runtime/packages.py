@@ -80,7 +80,7 @@ def build_package(agent, include_private=False):
             "private_by_hash": versions, "private_included": include_private,
             "anchors": [] if old is None else [{"tree_size": old["tree_size"], "root_hash": old["root_hash"], "anchored_at": old["time"]}],
             "witness_receipts": [v for _, v in agent.store.items("witness:")],
-            "held_receipts": agent.held_receipts(),
+            "held_receipts": agent.collect_receipts()[0],
             "deployment_history": agent.config.get("deployment_history", []),
             "deployment_bundle": read_document(agent.config["deployment_file"]) if agent.config.get("deployment_file") else None}
     return {"body": body, "u_signature": agent.key.sign(canonical_json(body)).hex()}
