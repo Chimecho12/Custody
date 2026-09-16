@@ -1157,6 +1157,20 @@ function renderUncertainty(){
   <table><thead><tr><th>사건</th><th>(a) U 로컬만 · T 없음</th><th>(b) U+T protect</th><th>(c) U+T strict</th><th>T 가 더한 것</th></tr></thead><tbody>${rows.map(r=>`<tr><td><b>${esc(r.scenario_id)}</b>${r.attack_present?' <span class="fail small">공격</span>':''}<div class="small">${esc(r.title)}</div></td><td>${cell(r.local_only,false)}</td><td>${cell(r.with_t_protect,true)}</td><td>${cell(r.with_t_strict,true)}</td><td class="small">${r.t_adds.length?r.t_adds.map(a=>esc(ADD[a]||a)).join('<br>'):'<span class="absent">없음</span>'}</td></tr>`).join('')}</tbody></table>`;
 })();
 
+// ---------- 4c 인센티브 원장 ----------
+(function(){
+  const el = $('#incentives'); if (!el) return;
+  const inc = D.incentives; if (!inc || !inc.summary){ el.innerHTML = '<p class="small absent">이 결과 파일에는 인센티브 원장이 없다 (python run.py run 을 다시 실행).</p>'; return; }
+  const s = inc.summary, st_ = s.structural, pp = s.per_party, par = s.parametric;
+  const P = ['U','R','M','T'];
+  const sign = (v)=>v>0?`<span class="pass">+${v}</span>`:v<0?`<span class="fail">${v}</span>`:'<span class="na">0</span>';
+  el.innerHTML = `<p class="small">구조: 부당한 책임 <b class="${st_.unjust_liability_total?'fail':'pass'}">${st_.unjust_liability_total}건</b> · 가해자 있는 공격 ${st_.attacks}건 중 분쟁 해결 ${st_.attacks_resolved}건 · 미해결 ${st_.attacks_unresolved.join(', ')||'없음'} (공모는 증거 구조가 보지 못한다) · 지목할 당사자 없음 ${st_.attacks_without_party.join(', ')||'없음'} · <span class="mono">${st_.claim_status}</span></p>
+  <table><thead><tr><th>당사자</th><th>정직 행 수</th><th>정당한 책임</th><th>부당한 책임</th><th>면책</th><th>정직 참여 비용(단위)</th><th>정직 참여 편익(단위)</th><th>순편익(단위)</th></tr></thead><tbody>
+  ${P.map(p=>`<tr><td><b>${p}</b></td><td>${pp[p].honest_rows}</td><td>${pp[p].just_liability}</td><td class="${pp[p].unjust_liability?'fail':'pass'}">${pp[p].unjust_liability}</td><td>${pp[p].exonerated}</td><td>${pp[p].honest_cost_units}</td><td>${pp[p].honest_benefit_units}</td><td>${sign(pp[p].honest_net_units)}</td></tr>`).join('')}
+  </tbody></table>
+  <p class="small muted">단위 파라미터 (<span class="mono">${par.claim_status}</span>): ${Object.entries(par.params).map(([k,v])=>`${k}=${v}`).join(' · ')}. ${esc(par.note)}</p>`;
+})();
+
 // ---------- 등식 라벨 <-> 등식표·집행 칩 양방향 연동, 해시 복사 ----------
 (function(){
   let current = null;

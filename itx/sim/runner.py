@@ -14,6 +14,7 @@ from itx.statements import CT_RELAY, issue
 from itx.ts import CheckpointAnchor
 
 from .context import SimContext
+from .incentives import ledger_for_run, summarize_ledgers
 from .model import DEFAULT_MODELS, reference_hashes
 from .parties import ModelOperator, Relay, ThirdParty, User
 from .scenarios import COOPERATION_SETS, Q1_SCENARIO_IDS, SCENARIOS, Scenario, scenario_by_id
@@ -267,6 +268,7 @@ def run_all(out_dir: Path, seed: int = 42, modes: tuple[str, ...] = MODES) -> di
             results.append(run_scenario(sc, mode, seed))
     q1 = run_q1_matrix(seed)
     contribution = run_t_contribution(seed)
+    ledgers = [ledger_for_run(r) for r in results]
     summary = aggregate(results)
     bundle = {
         "generated_with": {"itx_version": __version__, "checker_version": CHECKER_VERSION, "seed": seed,
@@ -277,11 +279,13 @@ def run_all(out_dir: Path, seed: int = 42, modes: tuple[str, ...] = MODES) -> di
         "q1_matrix": q1,
         "t_contribution": contribution,
         "t_contribution_summary": summarize_t_contribution(contribution),
+        "incentives": {"rows": ledgers, "summary": summarize_ledgers(ledgers)},
         "summary": summary,
     }
     (out_dir / "results.json").write_text(json.dumps(bundle, ensure_ascii=False, indent=1), encoding="utf-8")
     (out_dir / "summary.json").write_text(json.dumps({"summary": summary, "q1_matrix": q1, "t_contribution": contribution,
-                                                       "t_contribution_summary": bundle["t_contribution_summary"]},
+                                                       "t_contribution_summary": bundle["t_contribution_summary"],
+                                                       "incentives_summary": bundle["incentives"]["summary"]},
                                                       ensure_ascii=False, indent=1), encoding="utf-8")
     # S01 의 로그 전체를 감사 재생용 예시로 남긴다.
     for r in results:
