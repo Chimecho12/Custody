@@ -43,12 +43,12 @@ const preview = Object.fromEntries(Object.entries(require('../desktop/preview-da
     const rows = [];
     for (const width of [1320,900]) {
       await page.setViewportSize({width,height:920});
-      for (const view of ['request','history','audit','simulation','settings','deployment','evidence']) {
+      for (const view of ['request','history','audit','simulation','settings','deployment','evidence','standards','keys']) {
         await page.locator(`nav button[data-view="${view}"]`).click();
         assert.equal(await page.locator(`#view-${view}`).isVisible(), true);
         const dimensions = await page.evaluate(() => ({viewport:innerWidth,content:document.documentElement.scrollWidth}));
         assert.ok(dimensions.content <= dimensions.viewport, `horizontal overflow ${view} at ${width}`);
-        if (['deployment','evidence'].includes(view)) {
+        if (['deployment','evidence','standards','keys'].includes(view)) {
           await page.screenshot({path:path.join(output,`${view}-${width}.png`),fullPage:true});
         }
         rows.push({view,width,horizontal_overflow:false});

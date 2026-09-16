@@ -7,6 +7,7 @@ import sys
 import threading
 from pathlib import Path
 
+from . import standards
 from .agent import Agent
 from .common import MAX_WIRE, ProcessLock, json_loads
 from .lab import Lab
@@ -110,7 +111,7 @@ class Desktop:
                 self.active[token] = cancellation
             elif op not in ("refresh", "audit", "simulation", "simulation_matrix", "export", "export_evidence",
                             "export_trust", "preflight", "witness", "export_checkpoint", "retention_preview",
-                            "retention_apply"):
+                            "retention_apply", "standards", "key_inventory", "cose_export"):
                 raise ValueError("허용되지 않은 명령입니다.")
         if op == "request":
             try:
@@ -122,6 +123,8 @@ class Desktop:
             return agent.refresh(args["sub"])
         if op == "audit":
             return agent.audit()
+        if op in ("standards", "key_inventory", "cose_export"):
+            return self.standards(op, args, agent)
         if op == "preflight":
             return agent.preflight()
         if op == "export_checkpoint":
@@ -194,13 +197,50 @@ class Desktop:
                                        ensure_ascii=False, indent=2), encoding="utf-8")
             return {"path": str(path)}
 
-    def output_path(self, prefix):
+    def output_path(self, prefix, suffix=".json"):
         import secrets
 
         from .common import now_ms
         directory = self.directory / "exports"
         directory.mkdir(parents=True, exist_ok=True)
-        return directory / f"{prefix}-{now_ms()}-{secrets.token_hex(3)}.json"
+        return directory / f"{prefix}-{now_ms()}-{secrets.token_hex(3)}{suffix}"
+
+    def standards(self, op, args, agent):
+        """표준 적합성 · 키 인벤토리 · COSE 내보내기.
+
+        셋 다 판정을 바꾸지 않는다. 이미 내려진 판정을 무엇이 뒷받침하는지 보여줄 뿐이다.
+        """
+        from itx import keys as keystore
+
+        from .common import key_for
+
+        if op == "key_inventory":
+            return keystore.build(agent.config)
+
+        sub = args.get("sub") or "—"
+        # 당사자 진술은 사건 기록이 아니라 T 원장에 있다. 판정만 들어 있는 기록으로는 부족하다.
+        export = agent.audit_export() if sub != "—" else None
+        key = key_for(agent.config)
+        if op == "standards":
+            return standards.build(export, key, sub)
+
+        # cose_export: 이 기계가 서명할 수 있는 문서만 .cose 로 낸다.
+        from itx.cose import to_sign1
+        view = standards.build(export, key, sub)
+        found = standards.statements_for(export or {}, sub)
+        written = []
+        for document in view["documents"]:
+            statement = found.get(document["role"])
+            if not document.get("reissuable") or statement is None:
+                continue
+            path = self.output_path(document["export_name"].removesuffix(".cose"), ".cose")
+            path.write_bytes(to_sign1(key, statement))
+            written.append({"role": document["role"], "path": str(path),
+                            "bytes": path.stat().st_size})
+        readme = self.output_path("verify-cose", ".txt")
+        readme.write_text(_verification_readme(view, written), encoding="utf-8")
+        return {"written": written, "readme": str(readme),
+                "skipped": [d["role"] for d in view["documents"] if not d.get("reissuable")]}
 
     def provision(self, op, args):
         import secrets
@@ -316,3 +356,33 @@ def _stdio(directory):
         app.cancel_all()
         executor.shutdown(wait=True, cancel_futures=False)
         app.close()
+
+
+def _verification_readme(view, written) -> str:
+    """내보낸 .cose 와 함께 나가는 검증 안내. 명령이 배지 열 개보다 강하다."""
+    lines = [
+        "itx COSE_Sign1 내보내기",
+        "",
+        "이 파일들은 RFC 9052 COSE_Sign1 (alg -8 EdDSA) 이고, 클레임은 RFC 9597 형식으로",
+        "보호 헤더 라벨 15 에 들어 있습니다. 아래 명령은 이 저장소가 실행하지 않았습니다 —",
+        "직접 돌린 결과만 근거로 삼으십시오.",
+        "",
+        "내보낸 문서",
+    ]
+    lines += [f"  {w['role']}  {pathlib_name(w['path'])}  ({w['bytes']} B)" for w in written] or ["  없음"]
+    skipped = [d["role"] for d in view["documents"] if not d.get("reissuable")]
+    if skipped:
+        lines += ["", "내보내지 못한 문서: " + ", ".join(skipped),
+                  "  COSE 의 서명 대상은 Sig_structure 이므로 발행자만 자기 진술을 재발행할 수 있습니다."]
+    lines += ["", "검증 명령 (외부 도구)"]
+    for tool in view["external_tools"]:
+        lines.append(f"  $ {tool['command']}")
+        lines.append(f"      기대: {tool['expect']}")
+    lines += ["", f"이 저장소의 적합성 벡터: pass {view['totals']['pass']} / "
+                  f"partial {view['totals']['partial']} / absent {view['totals']['absent']} / "
+                  f"fail {view['totals']['fail']}"]
+    return "\n".join(lines) + "\n"
+
+
+def pathlib_name(path: str) -> str:
+    return Path(path).name

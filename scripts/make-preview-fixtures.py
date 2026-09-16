@@ -41,11 +41,20 @@ def main() -> int:
                         break
                     except Exception:
                         time.sleep(0.3)
+            from itx import keys as keystore
+            from itx.runtime import standards
+            from itx.runtime.common import key_for
+
+            latest = agent.history()[0]["sub"] if agent.history() else ""
+            export = agent.audit_export() if latest else None
             fixtures = {
                 "status": {**agent.status(), "services": lab.status()},
                 "history": agent.history(),
                 "audit": agent.audit(),
                 "preflight": agent.preflight(),
+                # 새 두 화면도 미리보기에서 그려져야 UI 점검이 그 화면을 검사할 수 있다.
+                "standards": standards.build(export, key_for(agent.config), latest or "—"),
+                "key_inventory": keystore.build(agent.config),
             }
         finally:
             agent.close()

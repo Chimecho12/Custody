@@ -370,3 +370,162 @@ button.quiet{border-color:transparent;background:transparent;font-weight:500;col
   .tabrow>.playctl{margin-left:0}
   .sticky-controls{position:static}
 }
+
+/* ---------- 표준 적합성 · 키 신뢰 기준점 (standards-view.ts · keys-view.ts) ----------
+   두 화면 모두 판정 색을 쓰지 않는 축이 있다. 적합성은 벡터 개수로, 보관처는 평문
+   노출 여부로 말한다. 결손은 회색 점선으로 남기고 절대 빨강으로 그리지 않는다. */
+.std-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:16px}
+.std-head-text{min-width:0;flex:1 1 420px}
+.std-head-text h1{margin:0 0 4px;font-size:22px;letter-spacing:-.01em}
+.std-head-text p{margin:0;font-size:12.5px;color:var(--muted);max-width:76ch}
+.std-stats{display:flex;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:9px;overflow:hidden;flex:none}
+.std-stat{background:var(--card-solid);padding:10px 16px;min-width:104px}
+.std-stat .k{font:400 9.5px var(--mono);letter-spacing:.1em;color:var(--na)}
+.std-stat .v{font:600 19px var(--mono);margin-top:2px;font-variant-numeric:tabular-nums}
+.std-stat .v .of{font-size:13px;color:var(--na)}
+.std-label{font:600 9.5px var(--mono);letter-spacing:.14em;color:var(--na)}
+.role-badge{display:grid;place-items:center;flex:none;width:24px;height:24px;border-radius:7px;align-self:center;background:var(--chip);color:var(--fg);font:700 12px var(--mono)}
+
+.std-split{display:grid;grid-template-columns:minmax(0,260px) minmax(0,1fr);gap:14px;align-items:start}
+.std-aside{display:flex;flex-direction:column;gap:8px;min-width:0;position:sticky;top:calc(var(--header-h) + 12px)}
+.std-doc{display:flex;flex-direction:column;align-items:stretch;gap:4px;width:100%;padding:11px 12px;cursor:pointer;
+  border:1px solid var(--line);border-radius:10px;background:var(--card-solid);text-align:left;box-shadow:var(--shadow-sm);
+  transition:border-color var(--dur-2) var(--ease-out),box-shadow var(--dur-2) var(--ease-out)}
+.std-doc.on{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow),var(--shadow-sm)}
+.std-doc .row{display:flex;align-items:center;gap:8px;width:100%}
+.std-doc .name{font:600 12.5px var(--sans);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.std-doc .score{font:600 11px var(--mono);white-space:nowrap}
+.std-doc .sub{font:400 10.5px var(--mono);color:var(--na)}
+.std-doc .meter,.std-ghead .meter,.key-row .bar{display:block;height:3px;border-radius:2px;background:var(--chip);overflow:hidden}
+.std-doc .meter>span,.std-ghead .meter>span,.key-row .bar>span{display:block;height:3px;border-radius:2px}
+.std-claim{margin-top:4px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--chip)}
+.std-claim p{margin:4px 0 0;font-size:12px;line-height:1.7}
+.std-main{display:flex;flex-direction:column;gap:14px;min-width:0}
+.std-card{margin:0;padding:0;overflow:hidden}
+.std-card-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:10px 13px;border-bottom:1px solid var(--line);background:var(--sunken)}
+.std-card-head>b{font:600 12.5px var(--sans)}
+.std-card-head .small{flex:1 1 180px;min-width:0}
+.std-card-head .itx-btn{margin-left:auto}
+.std-tabs{display:flex;gap:6px;margin-left:auto}
+.std-absent{padding:13px;font-size:12.5px;color:var(--muted);border:1px dashed var(--na);border-radius:9px;margin:13px;background:var(--sunken)}
+
+.std-encodings{display:grid;grid-template-columns:repeat(auto-fit,minmax(288px,1fr));gap:12px;padding:13px}
+.std-enc{border-radius:9px;overflow:hidden;min-width:0}
+.std-enc .h{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 11px;font:600 10.5px var(--mono)}
+.std-enc pre{margin:0;padding:11px 12px;font:400 10.5px/1.75 var(--mono);white-space:pre-wrap;word-break:break-all;max-height:260px;overflow:auto}
+/* 자체 프로파일은 점선, 표준으로 이관된 쪽은 실선 — 진행 상태 자체가 읽히게 한다. */
+.std-enc.legacy{border:1px dashed var(--na);background:var(--sunken)}
+.std-enc.legacy .h{border-bottom:1px dashed var(--na);color:var(--na)}
+.std-enc.legacy pre{color:var(--muted)}
+.std-enc.standard{border:1px solid var(--accent);background:var(--card-solid)}
+.std-enc.standard .h{border-bottom:1px solid var(--line);color:var(--accent)}
+.std-enc.standard.absent{border:1px dashed var(--na)}
+.std-enc.standard.absent .h{color:var(--na);border-bottom:1px dashed var(--na)}
+.std-enc.standard.absent .std-absent{margin:0;border:0;background:none}
+.std-tree{margin:0 13px 13px;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.std-tree .h{padding:8px 11px;background:var(--sunken);border-bottom:1px solid var(--line);font:600 11px var(--mono)}
+.std-trow{display:flex;align-items:baseline;gap:10px;padding:5px 11px;border-bottom:1px solid var(--line-soft)}
+.std-trow:last-child{border-bottom:0}
+.std-trow .i{font:400 10.5px var(--mono);color:var(--na);width:20px;flex:none;text-align:right}
+.std-trow .k{font:500 11px var(--mono);flex:1;min-width:0}
+.std-trow .v{font:400 11px var(--mono);color:var(--muted);flex:1.4;min-width:0;word-break:break-all}
+.std-trow .n{font:600 10.5px var(--mono);white-space:nowrap}
+
+.std-tools{padding:12px 13px;display:flex;flex-direction:column;gap:12px}
+.std-tool .h{display:flex;align-items:baseline;gap:9px;margin-bottom:5px}
+.std-tool .h>span:last-child{margin-left:auto}
+.std-tool .codebox{border-left:0;border:1px solid var(--line);border-radius:6px;background:var(--chip);padding:8px 10px;font-size:11px;line-height:1.9;word-break:break-all;margin:0}
+.std-tool .small{margin-top:4px}
+
+.std-group{border-bottom:1px solid var(--line-soft);margin:0 13px}
+.std-group:last-child{border-bottom:0;margin-bottom:13px}
+.std-ghead{display:flex;align-items:center;gap:11px;width:100%;padding:11px 2px;border:0;background:none;cursor:pointer;text-align:left;box-shadow:none}
+.std-ghead:hover:not(:disabled){background:none;border-color:transparent}
+.std-ghead .g{font:600 12px var(--mono);width:14px;flex:none}
+.std-ghead .t{min-width:0;flex:1;display:flex;flex-direction:column}
+.std-ghead .t b{font:600 12.5px var(--sans)}
+.std-ghead .t span{font:400 10.5px var(--mono);margin-top:1px}
+.std-ghead .meter{width:112px;flex:none;height:4px}
+.std-ghead .meter>span{height:4px}
+.std-ghead .score{width:52px;flex:none;text-align:right;font-variant-numeric:tabular-nums}
+.std-ghead .caret{width:12px;flex:none;color:var(--na);font-size:10px}
+.std-vecs{padding:2px 0 12px 25px}
+.std-vec{display:flex;align-items:baseline;gap:10px;padding:5px 0}
+.std-vec .g{font:600 11px var(--mono);width:12px;flex:none}
+.std-vec .id{width:82px;flex:none;color:var(--muted);font-size:10.5px}
+.std-vec .label{font-size:12px;flex:1;min-width:0}
+.std-vec .note{font-size:10.5px;white-space:nowrap}
+.std-export{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0;border-left:3px solid var(--accent)}
+.std-export>div{flex:1 1 320px;min-width:0}
+
+/* ---------- 키 인벤토리 ---------- */
+.key-table{overflow-x:auto}
+.key-head,.key-row{display:grid;grid-template-columns:34px minmax(0,1.5fr) minmax(0,1.3fr) minmax(0,1.1fr) minmax(0,1fr) 96px;gap:12px;min-width:740px}
+.key-head{padding:8px 14px;border-bottom:1px solid var(--line);font:600 9.5px var(--mono);letter-spacing:.12em;color:var(--na)}
+.key-head .r{text-align:right}
+.key-row{padding:11px 14px;cursor:pointer;border-bottom:1px solid var(--line-soft);border-left:3px solid transparent;
+  transition:background var(--dur-2) var(--ease-out)}
+.key-row:hover{background:var(--sunken)}
+.key-row.sel{border-left-color:var(--accent);background:var(--accent-soft)}
+.key-row:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.key-row .id,.key-row .exposure,.key-row .rot{min-width:0;display:flex;flex-direction:column;justify-content:center}
+.key-row .id b,.key-row .id span,.key-row .exposure span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.key-row .id b{font-size:12px}
+.key-row .exposure b{font-size:11.5px}
+.key-row .exposure span,.key-row .id span{font-size:10px}
+.key-row .store{min-width:0;display:flex;align-items:center}
+.key-row .rot span:first-child{font-size:11px}
+.key-row .bar{margin-top:4px}
+.key-row .signs{text-align:right;align-self:center;font-size:11.5px;font-variant-numeric:tabular-nums}
+/* 약한 보관처는 점선 — 위반이 아니라 운영 위험이므로 판정 색을 쓰지 않는다. */
+.store-badge{font:500 10.5px var(--mono);border-radius:5px;padding:3px 9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  color:var(--fg);background:var(--chip);border:1px solid var(--line)}
+.store-badge.weak{color:var(--warn);background:var(--card-solid);border:1px dashed var(--warn)}
+
+.key-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px;margin-top:14px}
+.key-chain{display:flex;align-items:stretch;gap:8px 0;flex-wrap:wrap;padding:13px 13px 0}
+.key-step{display:flex;align-items:stretch;flex:1 1 168px;min-width:0}
+.key-step .box{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;padding:10px 11px;border-radius:9px;
+  background:var(--card-solid);border:1px solid var(--line)}
+/* 굵은 테두리 구간이 곧 키가 나가지 않는 경계다. */
+.key-step .box.inside{border:2px solid var(--fg)}
+.key-step .box b{font:600 11px var(--mono)}
+.key-step .box span{font:400 10.5px var(--sans);color:var(--muted)}
+.key-step .arrow{display:grid;place-items:center;flex:none;width:24px;color:var(--na)}
+.key-boundary{margin:11px 13px 0;padding:9px 12px;border-radius:8px;font:400 12px/1.7 var(--sans);border:1px solid var(--line)}
+.key-boundary.weak{border-left:3px solid var(--warn);background:var(--warn-soft)}
+.key-boundary.strong{border-left:3px solid var(--pass);background:var(--pass-soft)}
+.key-latency{margin:12px 13px 13px;padding-top:11px;border-top:1px solid var(--line-soft)}
+.key-latency p{margin:5px 0 0;line-height:1.7}
+
+.key-lineage{padding:13px;display:flex;flex-direction:column}
+.key-event{display:flex;gap:11px;min-width:0}
+.key-event .rail{display:flex;flex-direction:column;align-items:center;flex:none;width:14px}
+.key-event .dot{width:9px;height:9px;border-radius:50%;flex:none;margin-top:5px;border:1px solid}
+.key-event .line{flex:1;width:1px;background:var(--line);margin-top:3px}
+.key-event .body{min-width:0;flex:1;padding-bottom:14px;display:flex;flex-direction:column;gap:3px}
+.key-event:last-child .body{padding-bottom:0}
+.key-event .h{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.key-event .h b{font:600 12px var(--sans)}
+.key-event .t{color:var(--muted);line-height:1.7}
+.tag{font:500 10px var(--mono);background:var(--card-solid);border:1px solid;border-radius:4px;padding:1px 7px;white-space:nowrap}
+.tag.dashed{border-style:dashed}
+
+.key-anchors{display:grid;grid-template-columns:repeat(auto-fit,minmax(272px,1fr));gap:12px;padding:13px}
+.key-anchor{padding:12px 13px;border-radius:10px;background:var(--card-solid);border:1px solid var(--line);min-width:0}
+/* 미실행 기준점은 지우지 않고 점선 결손 카드로 남긴다. 빈칸도 초록도 아니다. */
+.key-anchor.absent{border:1px dashed var(--na);background:var(--sunken)}
+.key-anchor .h{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.key-anchor .h b{font:600 12.5px var(--sans)}
+.key-anchor p{margin:5px 0 0;line-height:1.7;color:var(--muted)}
+.key-anchor .rows{display:flex;flex-direction:column;gap:4px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line-soft)}
+.key-anchor .rows>div{display:flex;align-items:baseline;gap:9px}
+.key-anchor .rows span:first-child{width:66px;flex:none;font-size:10px}
+.key-anchor .rows span:last-child{flex:1;min-width:0;font-size:10.5px;word-break:break-all}
+
+@media (max-width:1100px){
+  .std-split{grid-template-columns:1fr}
+  .std-aside{position:static;flex-direction:row;flex-wrap:wrap}
+  .std-aside .std-label,.std-claim{flex-basis:100%}
+  .std-doc{flex:1 1 200px}
+}

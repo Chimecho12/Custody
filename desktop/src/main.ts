@@ -8,6 +8,8 @@ import { STATE_NAMES, MapMode, routeCard, idleRouteHtml, resultHtml, timelineHtm
 import { renderAudit } from './audit-view';
 import { mountFlow } from './flow';
 import { mountTrace } from './trace';
+import { StandardsView } from './standards-view';
+import { KeysView } from './keys-view';
 
 const get = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 function el(tag: string, className = '', text?: string): HTMLElement {
@@ -23,7 +25,7 @@ let activeToken = '';
 let busy = false;
 let mapMode: MapMode = 'checks';
 const native = '__TAURI_INTERNALS__' in window;
-const titles: Record<string, string> = {request: '요청과 보호', history: '사건 기록', audit: '제3자 검증', simulation: '참조 시나리오', settings: '연결 설정', deployment: '배포와 키', evidence: '감사 자료'};
+const titles: Record<string, string> = {request: '요청과 보호', history: '사건 기록', audit: '제3자 검증', simulation: '참조 시나리오', settings: '연결 설정', deployment: '배포와 키', evidence: '감사 자료', standards: '표준 적합성', keys: '키 · 신뢰 기준점'};
 
 async function call<T = Data>(operation: string, args: Data = {}): Promise<T> {
   return native ? invoke<T>('dispatch', {operation, args}) : previewCall(operation, args);
@@ -69,6 +71,8 @@ try { applyTheme(localStorage.getItem('itx-theme') || 'auto'); } catch { applyTh
 
 // ---------- 화면 전환: 본문만 바뀌고 스크롤은 항상 맨 위로 ----------
 const report = new ReportView(get('view-simulation'), call, fail);
+const standards = new StandardsView(get('view-standards'), call, fail);
+const keys = new KeysView(get('view-keys'), call, fail);
 async function showView(name: string) {
   for (const node of document.querySelectorAll<HTMLElement>('.view')) node.hidden = node.id !== 'view-' + name;
   for (const node of document.querySelectorAll<HTMLButtonElement>('nav button')) node.classList.toggle('selected', node.dataset.view === name);
@@ -77,6 +81,8 @@ async function showView(name: string) {
   if (name === 'history') await loadHistory();
   if (name === 'settings') await updateStatus();
   if (name === 'simulation') await report.show();
+  if (name === 'standards') await standards.show(selected?.sub ?? '');
+  if (name === 'keys') await keys.show();
 }
 for (const b of document.querySelectorAll<HTMLButtonElement>('nav button')) b.onclick = () => { showView(b.dataset.view!).catch(fail); };
 
