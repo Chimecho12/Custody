@@ -148,9 +148,10 @@ function receiptsHtml(a: Data): string {
   const byHolder: Data = h.by_holder || {};
   const holders = ['U', 'R', 'M'].map(k => byHolder[k] ? `${k} ${byHolder[k].included}/${byHolder[k].held}` : `${k} 없음`).join(' · ');
   const unreachable: Data[] = h.holders_unreachable || [];
+  const later: Data[] = h.after_snapshot || [];
   const head = ref('held_receipts', `anchor ${tone}`,
     `<span class="pinglyph">▣</span><span class="mono">보관 영수증 ${held}건</span> · 포함 ${h.included ?? 0}건 · 누락 <b class="${tone}">${missing.length}건</b>${unver.length ? ` · 검증 불가 ${unver.length}건` : ''}
-     <span class="small muted"> · 보관자별 ${esc(holders)}${unreachable.length ? ` · <span class="warn">${unreachable.map(u => esc(u.role)).join(',')} 에 닿지 못함 — 그 당사자가 제출한 항목의 누락은 보이지 않음</span>` : ''} · 등록 시점의 (tree_size, root) ${(h.receipt_checkpoints || []).length}개를 현재 헤드와 일관성 대조</span>`);
+     <span class="small muted"> · 보관자별 ${esc(holders)}${later.length ? ` · 스냅샷 이후 등록 ${later.length}건 (다음 감사 대상)` : ''}${unreachable.length ? ` · <span class="warn">${unreachable.map(u => esc(u.role)).join(',')} 에 닿지 못함 — 그 당사자가 제출한 항목의 누락은 보이지 않음</span>` : ''} · 등록 시점의 (tree_size, root) ${(h.receipt_checkpoints || []).length}개를 현재 헤드와 일관성 대조</span>`);
   const rows = missing.map((m, i) => ref(`held_receipts.missing.${i}`, 'anchor fail',
     `<span class="pinglyph">✗</span><span class="mono">잎 #${m.leaf_index}</span> · ${esc(m.holder || 'U')} 보관 · ${esc(String(m.content_type || '').split('.').pop() || '')} · ${short(m.sub)}
      <b class="fail">${esc(m.reason)}</b>${typeof m.found_at === 'number' ? `<span class="small muted"> · 현재 위치 #${m.found_at}</span>` : ''}`)).join('');

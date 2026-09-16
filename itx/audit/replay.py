@@ -73,7 +73,7 @@ def _verdict_envelope_problem(stmt: SignedStatement, export: dict[str, Any], ts_
 
 
 def verify_held_receipts(tree: MerkleTree, entries: list[_Entry], held: list[dict[str, Any]],
-                         ts_pub: bytes, log_id: str) -> dict[str, Any]:
+                         ts_pub: bytes, log_id: str, head_time: int | None = None) -> dict[str, Any]:
     """제출자가 보관한 등록 영수증을 현재 내보내기와 대조한다 (RFC 9162 §11.3 의 '포함 검사').
 
     T 가 항목을 빼고 트리·헤드를 다시 서명하면 트리는 스스로 일관되고 재실행할 판정도 사라진다.
@@ -83,6 +83,7 @@ def verify_held_receipts(tree: MerkleTree, entries: list[_Entry], held: list[dic
     않으므로 '보관 0건' 을 '누락 0건' 과 구별해 적는다."""
     missing: list[dict[str, Any]] = []
     unverifiable: list[dict[str, Any]] = []
+    after_snapshot: list[dict[str, Any]] = []
     included = 0
     checkpoints: dict[int, dict[str, Any]] = {}
     # 보관자별 집계. U 만 영수증을 내면 R·M 이 제출한 항목의 누락은 보이지 않는다 — 누가 얼마나
@@ -100,6 +101,13 @@ def verify_held_receipts(tree: MerkleTree, entries: list[_Entry], held: list[dic
             continue
         ident = {"sub": item.get("sub"), "content_type": item.get("content_type"), "holder": holder,
                  "leaf_index": rc.leaf_index, "leaf_hash": rc.leaf_hash, "registered_at": rc.registered_at}
+        if head_time is not None and rc.registered_at > head_time and rc.tree_size > tree.size:
+            # 내보내기 헤드를 뜬 뒤에 등록된 영수증. 이 스냅샷으로는 물을 수 없다 — 누락도 포함도 아니고
+            # 다음 감사의 대상이다. (같은 조건인데 등록 시각이 헤드보다 앞서면 꼬리 절단이므로 누락으로 센다.)
+            tally.setdefault("after_snapshot", 0)
+            tally["after_snapshot"] += 1
+            after_snapshot.append(ident)
+            continue
         if rc.log_id != log_id or not verify(ts_pub, rc.signed_bytes(), bytes.fromhex(rc.signature or "00")):
             tally["unverifiable"] += 1
             unverifiable.append({**ident, "reason": "영수증 서명이 T 키로 검증되지 않거나 다른 로그의 영수증"})
@@ -126,6 +134,7 @@ def verify_held_receipts(tree: MerkleTree, entries: list[_Entry], held: list[dic
         "included": included,
         "missing": missing,
         "unverifiable": unverifiable,
+        "after_snapshot": after_snapshot,
         "receipt_checkpoints": checkpoint_results,
         "by_holder": by_holder,
         "ok": not missing and all(c["ok"] for c in checkpoint_results),
@@ -189,7 +198,7 @@ def replay_audit(
     # 3b. 보관 영수증 포함 검사 -------------------------------------------------------
     # 앵커는 '과거를 바꿨는가' 를 보고, 영수증은 '약속한 항목이 지금도 있는가' 를 본다. 첫 감사에는
     # 앵커가 없으므로 영수증이 유일한 외부 기준점이다.
-    receipts = verify_held_receipts(tree, entries, held_receipts or [], ts_pub, export["log_id"])
+    receipts = verify_held_receipts(tree, entries, held_receipts or [], ts_pub, export["log_id"], head_time=head.get("time"))
 
     # 4. 판정 재실행 -------------------------------------------------------------
     issuer_content_types: dict[str, tuple[str, ...]] = {}
