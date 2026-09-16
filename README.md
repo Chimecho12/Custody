@@ -53,6 +53,7 @@ python runtime.py conformance          # 적합성 벡터 + 제3자 구현 교�
 python runtime.py conformance --no-external   # 우리 벡터만
 python runtime.py key-inventory --config <U 설정>   # 키 보관처·평문 노출·회전 기한
 python runtime.py proxy --data-dir <폴더> --lab      # OpenAI 호환 루프백 게이트웨이 (base_url 만 바꿔 붙는다, 스트리밍 거부)
+python runtime.py endurance --output <json>          # T 정지·복구를 낀 연속 요청: 구간별 서비스·적체·회복 시간·사후 판정 (실측, 루프백)
 ```
 
 ## 기존 시뮬레이션 실행

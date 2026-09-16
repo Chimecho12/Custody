@@ -41,6 +41,9 @@ def execute(args):
     if c == "benchmark":
         from .benchmark import benchmark
         return benchmark(args.output, args.repeats)
+    if c == "endurance":
+        from .endurance import endurance
+        return endurance(args.output, args.requests, args.outage, tuple(args.modes))
     if c == "conformance":
         from itx.cose import run_conformance
         report = run_conformance(tuple(args.group) if args.group else None,
