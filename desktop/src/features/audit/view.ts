@@ -52,10 +52,25 @@ export function auditCardsHtml(a: Data): string {
      n: anchorTone === 'na' ? '다음 감사부터 이 시점과 비교합니다' : '게시 방식은 파일 기반 모사입니다', tone: anchorTone},
     {k: '전수 검사', v: mism.length ? `불일치 ${mism.length}건` : '전부 일치',
      n: `판정 ${a.verdict_count ?? 0}건 · 요청 ${a.subs_checked ?? 0}건${(a.compared_without || []).length ? ` · 비교 제외 ${a.compared_without.join(',')}` : ''}`, tone: mism.length ? 'fail' : 'pass'},
+    receiptCard(a),
     {k: '목격자 독립성', v: '관측 불가', n: esc(a.witness_scope || '별도 운영 목격자 없음 — 분기 탐지 성립 안 함'), tone: 'na'},
   ];
   const glyph = (t: string) => t === 'pass' ? '✓' : t === 'fail' ? '✗' : '–';
   return cards.map(c => `<div class="v3-stat ${c.tone}"><div class="k">${c.k}</div><div class="v ${c.tone}"><span class="g">${glyph(c.tone)}</span><span>${c.v}</span></div><div class="n">${c.n}</div></div>`).join('');
+}
+
+// 보관 영수증 포함 검사 (RFC 9162 §11.3). 트리·헤드·앵커는 "보여 준 자료가 일관적인가" 만 답하고,
+// "보여 줘야 할 자료를 다 보여 줬는가" 는 U 가 등록 때 받아 둔 영수증으로만 물을 수 있다.
+// 영수증이 없으면 이 검사는 성립하지 않으므로 '보관 0건' 을 pass 로 그리지 않는다.
+function receiptCard(a: Data): {k: string; v: string; n: string; tone: string} {
+  const h: Data = a.held_receipts || {};
+  const held: number = h.held ?? 0, missing: Data[] = h.missing || [], unver: Data[] = h.unverifiable || [];
+  const cps: Data[] = h.receipt_checkpoints || [];
+  const cpBad = cps.filter(c => !c.ok).length;
+  if (!held) return {k: '보관 영수증 포함', v: '검사 불가', n: '보관한 등록 영수증이 없어 누락 여부를 물을 수 없습니다', tone: 'na'};
+  if (missing.length || cpBad) return {k: '보관 영수증 포함', v: `누락 ${missing.length}건${cpBad ? ` · 체크포인트 불일치 ${cpBad}` : ''}`,
+    n: `${held}건 중 포함 ${h.included ?? 0}건 — T 가 약속한 항목을 지금 갖고 있지 않습니다`, tone: 'fail'};
+  return {k: '보관 영수증 포함', v: `전부 포함 (${held}건)`, n: `등록 시점 체크포인트 ${cps.length}개 모두 현재 헤드와 일관${unver.length ? ` · 검증 불가 ${unver.length}` : ''}`, tone: 'pass'};
 }
 
 // ---------- 요약 ----------
@@ -66,6 +81,7 @@ function summaryHtml(a: Data): string {
     ['T 신원·정책', a.pinned_identity ? '고정 기준 확인' : '미확인', 'pinned_identity'],
     ['과거 판정 전수 검사', `${a.verdict_count ?? 0}건 · 요청 ${a.subs_checked ?? 0}건`, 'verdict_count'],
     ['불일치 요청', `${(a.verdict_mismatches || []).length}건`, 'verdict_mismatches'],
+    ['보관 영수증 포함', a.held_receipts ? `${a.held_receipts.included ?? 0}/${a.held_receipts.held ?? 0}건 · 누락 ${(a.held_receipts.missing || []).length}건` : '—', 'held_receipts'],
   ];
   return `<div class="audit-summary">
     <span class="badge ${ok ? 'green' : 'red'}">${esc(label)}</span>
@@ -119,7 +135,22 @@ function bridgeHtml(a: Data): string {
          <span class="small">· 루트 ${x.root_matches ? '<span class="pass">일치</span>' : '<span class="fail">불일치</span>'} · 헤드까지 일관성 ${x.consistent_with_head ? '<span class="pass">성립</span>' : '<span class="fail">불성립</span>'}</span>
          <b class="${x.ok ? 'pass' : 'fail'}">${esc(x.reason)}</b><span class="small muted"> · 앵커 시각 ${esc(fmtTime(x.anchored_at))}</span>`)).join('')
     : `<div class="anchor none"><span class="pinglyph">◆</span>비교할 앵커 없음 — 첫 체크포인트. 이번 헤드를 사용자 PC 에 보관하고 다음 감사부터 이 시점과 비교한다.</div>`;
-  return `<div class="bridge">${heads}${ribbon}<div class="anchors">${anchorList}</div></div>`;
+  return `<div class="bridge">${heads}${ribbon}<div class="anchors">${anchorList}</div>${receiptsHtml(a)}</div>`;
+}
+
+// 보관 영수증: 앵커가 '과거를 바꿨는가' 를 본다면, 영수증은 '약속한 항목이 지금도 있는가' 를 본다.
+function receiptsHtml(a: Data): string {
+  const h: Data = a.held_receipts || {};
+  const held: number = h.held ?? 0, missing: Data[] = h.missing || [], unver: Data[] = h.unverifiable || [];
+  if (!held) return `<div class="anchor none"><span class="pinglyph">▣</span>보관한 등록 영수증 없음 — T 가 항목을 빼고 다시 서명해도 이 감사는 그것을 볼 수 없다. 영수증은 제출 때 검증 후 보관된다.</div>`;
+  const tone = missing.length ? 'fail' : 'pass';
+  const head = ref('held_receipts', `anchor ${tone}`,
+    `<span class="pinglyph">▣</span><span class="mono">보관 영수증 ${held}건</span> · 포함 ${h.included ?? 0}건 · 누락 <b class="${tone}">${missing.length}건</b>${unver.length ? ` · 검증 불가 ${unver.length}건` : ''}
+     <span class="small muted"> · 등록 시점의 (tree_size, root) ${(h.receipt_checkpoints || []).length}개를 현재 헤드와 일관성 대조</span>`);
+  const rows = missing.map((m, i) => ref(`held_receipts.missing.${i}`, 'anchor fail',
+    `<span class="pinglyph">✗</span><span class="mono">잎 #${m.leaf_index}</span> · ${esc(String(m.content_type || '').split('.').pop() || '')} · ${short(m.sub)}
+     <b class="fail">${esc(m.reason)}</b>${typeof m.found_at === 'number' ? `<span class="small muted"> · 현재 위치 #${m.found_at}</span>` : ''}`)).join('');
+  return `<div class="anchors">${head}${rows}</div>`;
 }
 
 // ---------- 2. 판정 대조 ----------

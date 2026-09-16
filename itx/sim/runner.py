@@ -81,6 +81,14 @@ def run_scenario(scenario: Scenario, mode: str, seed: int = 42,
     for a in U.attempts:
         stmt = T.finalize(a.sub, a.expected_parties, ctx.now())
         final_verdicts[a.sub] = stmt.payload
+
+    omitted_indexes = None
+    if scenario.ts_omit_request_before_anchor:
+        # 앵커·감사 이전에 T 가 첫 요청의 항목을 전부 빼고 로그를 다시 꾸민다 (S18). 트리와 헤드는 다시
+        # 계산되므로 스스로는 깨지지 않고, 그 요청의 판정도 사라져 재실행할 것도 없다.
+        target = U.attempts[0].sub
+        omitted_indexes = T.log.drop_sub(target)
+        ctx.record("T", "log_entries_omitted", target, indexes=omitted_indexes, note="운영자가 요청 항목을 누락하고 재서명 (모사)")
     anchor_rec = T.checkpoint(ctx.now())
 
     tampered_index = None
@@ -98,10 +106,19 @@ def run_scenario(scenario: Scenario, mode: str, seed: int = 42,
                 break
 
     export = T.log.export(ctx.now())
-    audit = replay_audit(export, T.anchor.records, {s: p.to_dict() for s, p in T.private.items()},
-                         T.expected_parties, ref)
+    private_by_sub = {s: p.to_dict() for s, p in T.private.items()}
+    # 감사자는 U 가 보관한 등록 영수증을 받아 '약속된 항목이 지금도 로그에 있는가' 를 같이 검사한다.
+    audit = replay_audit(export, T.anchor.records, private_by_sub, T.expected_parties, ref, held_receipts=U.queue.held)
     ctx.record("auditor", "replay_audit", ok=audit["ok"], mismatches=len(audit["verdict_mismatches"]),
-               anchors_ok=all(a["ok"] for a in audit["anchors"]))
+               anchors_ok=all(a["ok"] for a in audit["anchors"]), receipts_missing=len(audit["held_receipts"]["missing"]))
+    audit_without_receipts = None
+    if scenario.ts_omit_request_before_anchor:
+        # 대조군: 영수증을 버린 감사자. 같은 내보내기가 어떻게 읽히는지 나란히 남긴다.
+        without = replay_audit(export, T.anchor.records, private_by_sub, T.expected_parties, ref)
+        audit_without_receipts = {"ok": without["ok"], "subs_checked": without["subs_checked"],
+                                  "tree_recomputed_matches_head": without["tree_recomputed_matches_head"],
+                                  "head_signature_valid": without["head_signature_valid"],
+                                  "anchors_ok": all(a["ok"] for a in without["anchors"])}
 
     attempts_out = []
     for idx, a in enumerate(U.attempts):
@@ -142,10 +159,13 @@ def run_scenario(scenario: Scenario, mode: str, seed: int = 42,
             **T.self_audit(),
             "down_during_run": scenario.ts_down, "extra_delay_ms": scenario.ts_extra_delay_ms,
             "queue_drops": {"U": U.queue.dropped, "R": R.queue.dropped, "M": M.queue.dropped},
-            "anchor_record": anchor_rec, "tampered_index": tampered_index,
+            "anchor_record": anchor_rec, "tampered_index": tampered_index, "omitted_indexes": omitted_indexes,
+            "held_receipts": len(U.queue.held),
         },
         "audit": audit,
+        "audit_without_held_receipts": audit_without_receipts,
         "log_export": export,
+        "held_receipts": U.queue.held,  # U 가 보관한 등록 영수증. 내보내기와 함께 감사 재현용으로 남긴다
     }
 
 
@@ -183,7 +203,7 @@ def run_all(out_dir: Path, seed: int = 42, modes: tuple[str, ...] = MODES) -> di
                            "crypto_backend": BACKEND, "claim_status": "mock_result",
                            "note": "결정적 모형 모델·시뮬레이션 시계 기반. 실제 네트워크·LLM 성능이 아니다."},
         "scenarios": [s.to_dict() for s in SCENARIOS],
-        "results": [{k: v for k, v in r.items() if k != "log_export"} for r in results],
+        "results": [{k: v for k, v in r.items() if k not in ("log_export", "held_receipts")} for r in results],
         "q1_matrix": q1,
         "summary": summary,
     }
@@ -194,4 +214,5 @@ def run_all(out_dir: Path, seed: int = 42, modes: tuple[str, ...] = MODES) -> di
         if r["run"]["scenario_id"] == "S01" and r["run"]["mode"] == "protect":
             (out_dir / "log-export-S01.json").write_text(json.dumps(r["log_export"], ensure_ascii=False, indent=1), encoding="utf-8")
             (out_dir / "anchors-S01.json").write_text(json.dumps(r["ts"]["anchors"], ensure_ascii=False, indent=1), encoding="utf-8")
+            (out_dir / "receipts-S01.json").write_text(json.dumps(r["held_receipts"], ensure_ascii=False, indent=1), encoding="utf-8")
     return bundle

@@ -8,9 +8,10 @@ from unittest.mock import patch
 
 from itx.crypto import HAS_CRYPTOGRAPHY
 from itx.runtime.agent import Agent
-from itx.runtime.common import Store, authenticate, json_loads, key_for, load_config, signed
+from itx.runtime.common import Store, authenticate, json_loads, key_for, load_config, policy_for, seal, signed, unseal
 from itx.runtime.lab import Lab
-from itx.statements import CT_RECEIPT
+from itx.statements import CT_RECEIPT, SignedStatement
+from itx.ts import TransparencyLog
 
 
 @unittest.skipUnless(HAS_CRYPTOGRAPHY, "network runtime requires cryptography")
@@ -164,6 +165,70 @@ class NetworkRuntimeTests(unittest.TestCase):
         self.assertEqual(recovered["state"], "interrupted")
         self.assertIsNone(recovered["response"])
         self.assertEqual(self.agent.store.get("checkpoint"), checkpoint)
+
+
+    def test_14_omitted_log_entries_are_caught_only_by_held_receipts(self):
+        """T 가 어떤 요청의 항목을 전부 빼고 저널을 다시 꾸민 뒤 재기동한다. 트리·헤드·영수증 프로파일은
+        전부 새로 맞춰지므로 로그만 보는 감사는 통과한다. Agent 가 보관한 등록 영수증만 누락을 본다."""
+        record = self.agent.request("영수증 보관 검사", "protect")
+        self.reconcile(record)
+        # 앞선 테스트가 남긴 판정 없는 요청(취소·미조회)에 사후 판정을 붙여 감사 기준선을 깨끗하게 만든다.
+        for _, saved in self.agent.store.items("request:"):
+            if saved["state"] != "pending" and not saved.get("t_verdict"):
+                self.reconcile(saved) if saved.get("observation") else self.agent.refresh(saved["sub"])
+        self.assertTrue(self.agent.audit()["ok"])
+        held_before = self.agent.store.count("receipt:")
+        self.assertGreater(held_before, 0)
+        self.lab.stop_role("T")
+        t_dir = self.lab.root / "T"
+        cfg = load_config(t_dir / "config.json")
+        store = Store(t_dir)
+        original = store.db.execute("SELECT seq,hash,value FROM journal ORDER BY seq").fetchall()
+        records = [json_loads(unseal(blob)) for _, _, blob in original]
+        log = TransparencyLog(cfg["log_id"], key_for(cfg), policy_for(cfg), cfg["created_at"])
+        rebuilt = [original[0]]
+        for saved in records[1:]:
+            if saved["statement"]["sub"] == record["sub"]:
+                continue
+            stmt = SignedStatement.from_dict(saved["statement"])
+            rc = log.register(stmt, saved["at"])
+            rebuilt.append((rc.leaf_index, stmt.statement_hash,
+                            seal(__import__("itx.crypto", fromlist=["canonical_json"]).canonical_json(
+                                {"statement": saved["statement"], "at": saved["at"], "receipt": rc.to_dict()}))))
+        self.assertLess(len(rebuilt), len(original))
+        checkpoint = self.agent.store.get("checkpoint")
+        try:
+            with store.db:
+                store.db.execute("DELETE FROM journal")
+                store.db.executemany("INSERT INTO journal VALUES (?,?,?)", rebuilt)
+            store.close()
+            self.lab.restart_t()
+            self.agent.store.put("checkpoint", None)  # 첫 감사처럼: 비교할 이전 체크포인트가 없다
+            from itx.runtime.auditing import verify_export
+            export = self.agent.audit_export()
+            private, versions = self.agent.private_evidence()
+            forgetful = verify_export(export, self.agent.trust(), private=private, private_by_hash=versions)
+            self.assertTrue(forgetful["ok"], forgetful)  # 영수증을 버린 감사자는 아무것도 보지 못한다
+            self.assertEqual(forgetful["receipt_errors"], [])
+            self.assertEqual(forgetful["held_receipts"]["scope"], "none")
+            report = self.agent.audit()
+            self.assertFalse(report["ok"])
+            self.assertTrue(report["tree_recomputed_matches_head"] and report["head_signature_valid"])
+            self.assertEqual(report["anchors"], [])
+            held = report["held_receipts"]
+            self.assertEqual(held["held"], held_before)
+            self.assertIn(record["sub"], {m["sub"] for m in held["missing"]})
+            self.assertIsNone(self.agent.store.get("checkpoint"))  # 실패한 감사는 체크포인트를 옮기지 않는다
+        finally:
+            self.lab.stop_role("T")
+            store = Store(t_dir)
+            with store.db:
+                store.db.execute("DELETE FROM journal")
+                store.db.executemany("INSERT INTO journal VALUES (?,?,?)", original)
+            store.close()
+            self.lab.restart_t()
+            self.agent.store.put("checkpoint", checkpoint)
+        self.assertTrue(self.agent.audit()["ok"])
 
 
 class RuntimeInputTests(unittest.TestCase):

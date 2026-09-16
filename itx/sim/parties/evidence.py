@@ -26,6 +26,8 @@ class EvidenceQueue:
         self.items: list[QueueItem] = []
         self.dropped: list[dict[str, Any]] = []
         self.receipts: dict[str, RegistrationReceipt] = {}  # statement_hash -> receipt
+        # 보관 영수증. 감사자가 '약속된 항목이 지금도 로그에 있는가' 를 검사하는 유일한 근거다.
+        self.held: list[dict[str, Any]] = []
 
     def enqueue(self, kind: str, sub: str, payload: Any) -> None:
         self.items.append(QueueItem(kind, sub, payload, self.ctx.now()))
@@ -45,6 +47,8 @@ class EvidenceQueue:
                 if item.kind == "statement":
                     rc = third_party.submit(item.payload, self.ctx.now())
                     self.receipts[item.payload.statement_hash] = rc
+                    self.held.append({"receipt": rc.to_dict(), "statement_hash": item.payload.statement_hash,
+                                      "sub": item.sub, "content_type": item.payload.content_type})
                     self.ctx.record(self.owner, "evidence_registered", item.sub,
                                     content_type=item.payload.content_type, leaf_index=rc.leaf_index,
                                     registered_at=rc.registered_at, queued_ms=self.ctx.now() - item.enqueued_at)

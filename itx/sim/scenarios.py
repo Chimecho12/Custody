@@ -37,6 +37,7 @@ class Scenario:
     ts_extra_delay_ms: int = 0
     ts_misjudge: bool = False
     ts_tamper_after_anchor: bool = False
+    ts_omit_request_before_anchor: bool = False  # T 가 첫 요청의 항목을 전부 빼고 재서명 (앵커·감사 이전)
     queue_capacity: int = 100
     model_collude: bool = False
     attack_attempts: tuple[int, ...] | None = None  # 공격이 실린 시도 인덱스. None 이면 ground_truth 를 모든 시도에 적용
@@ -54,7 +55,8 @@ class Scenario:
             "model_issue_receipts": self.model_issue_receipts, "model_pre_exec_enforce": self.model_pre_exec_enforce,
             "ts_down": self.ts_down, "ts_recover_before_close": self.ts_recover_before_close,
             "ts_extra_delay_ms": self.ts_extra_delay_ms, "ts_misjudge": self.ts_misjudge,
-            "ts_tamper_after_anchor": self.ts_tamper_after_anchor, "queue_capacity": self.queue_capacity,
+            "ts_tamper_after_anchor": self.ts_tamper_after_anchor,
+            "ts_omit_request_before_anchor": self.ts_omit_request_before_anchor, "queue_capacity": self.queue_capacity,
             "model_collude": self.model_collude,
             "attack_attempts": list(self.attack_attempts) if self.attack_attempts is not None else None,
             "expected_parties": list(self.expected_parties), "ground_truth": self.ground_truth, "expected": self.expected,
@@ -207,6 +209,15 @@ SCENARIOS: list[Scenario] = [
         expected={"model_refused": True, "completeness": "not_observable", "verdict": "failed",
                   "codes": ["D-REQ-UNAPPROVED"], "protect": "quarantine",
                   "note": "M 의 거부 영수증(request_commit) 자체가 변조 증거가 된다"},
+    ),
+    Scenario(
+        "S18", "T 가 요청 기록을 누락하고 로그를 다시 서명 (앵커 이전)",
+        "T 가 첫 요청의 계약·중계·영수증·수신·판정 항목을 전부 빼고 남은 항목으로 트리를 다시 계산해 헤드를 서명한다. "
+        "트리·헤드·판정 재실행은 모두 자기 일관적이고 외부 앵커는 아직 없다. 사용자가 보관한 등록 영수증의 포함 검사만이 "
+        "누락을 드러낸다 — 영수증을 버리면 이 사건은 감사를 통과한다 ('보여 준 자료가 일관적인가' ≠ '보여 줘야 할 자료를 다 보여 줬는가').",
+        "third_party", ts_omit_request_before_anchor=True,
+        ground_truth=_gt(False, "none", False, True, "T 의 기록 누락. 사용자 피해 없음, T 의 책임 회피"),
+        expected={"audit_ok_without_receipts": True, "audit_ok_with_receipts": False, "protect": "accept"},
     ),
 ]
 

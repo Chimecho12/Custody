@@ -218,6 +218,20 @@ class TransparencyLog:
         }
 
     # -- 악성 운영자 모사 (시나리오 전용) --------------------------------------
+    def drop_sub(self, sub: str) -> list[int]:
+        """운영자가 어떤 요청의 항목을 전부 빼고 로그를 다시 꾸미는 상황. 남은 항목을 0 부터
+        다시 번호 매기고 트리를 새로 계산하므로 트리·헤드 서명·재실행은 전부 자기 일관적이다.
+        빠진 항목을 드러내는 것은 제출자가 보관한 등록 영수증뿐이다. 뺀 원래 인덱스를 돌려준다."""
+        removed = [e.index for e in self.entries if e.statement.sub == sub]
+        kept = [e for e in self.entries if e.statement.sub != sub]
+        self.tree = MerkleTree()
+        self.entries = []
+        for e in kept:
+            idx = self.tree.append(e.statement.leaf_bytes())
+            self.entries.append(LogEntry(index=idx, statement=e.statement, registered_at=e.registered_at,
+                                         leaf_hash=self.tree.leaf(idx).hex()))
+        return removed
+
     def tamper_entry(self, index: int, new_statement: SignedStatement) -> None:
         """운영자가 과거 항목을 몰래 바꾸는 상황. 트리·헤드는 다시 계산되므로 트리 자체는
         깨지지 않는다. 외부 앵커와 이전에 발급된 영수증만이 변경을 드러낸다."""

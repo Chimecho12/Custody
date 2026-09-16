@@ -70,6 +70,9 @@ class Agent:
                         ok, why = verify_receipt(rc, stmt, bytes.fromhex(self.config["identities"]["T"]["public_key"]))
                         if not ok or rc.log_id != self.config["log_id"]:
                             raise ValueError("invalid registration receipt: " + why)
+                        # 영수증은 검증하고 버리는 것이 아니라 보관한다. 다음 감사에서 T 가 이 항목을
+                        # 지금도 갖고 있는지 물을 수 있는 유일한 근거이기 때문이다 (RFC 9162 §11.3).
+                        self.remember_receipt(stmt, rc)
                     self.store.ack(ident)
                 except Exception:
                     break
@@ -84,6 +87,14 @@ class Agent:
     def trust(self):
         from .auditing import trust_from_config
         return trust_from_config(self.config)
+
+    def remember_receipt(self, stmt, rc):
+        self.store.put("receipt:" + stmt.statement_hash, {
+            "receipt": rc.to_dict(), "statement_hash": stmt.statement_hash,
+            "sub": stmt.sub, "content_type": stmt.content_type, "iss": stmt.iss})
+
+    def held_receipts(self):
+        return [record for _, record in self.store.items("receipt:")]
 
     def remember_private(self, private):
         self.store.put("private-version:" + content_hash_hex(canonical_json(private)), private)
@@ -105,7 +116,8 @@ class Agent:
                 "policy_hash": self.policy_hash(), "config_path": self.config["config_path"],
                 "epoch": self.config.get("epoch"), "deployment_hash": self.config.get("deployment_hash"),
                 "deployment_history": self.config.get("deployment_history", []),
-                "witness_configured": "W" in self.config["identities"]}
+                "witness_configured": "W" in self.config["identities"],
+                "held_receipts": self.store.count("receipt:")}
 
     def preflight(self):
         from itx.crypto import verify
@@ -293,6 +305,7 @@ class Agent:
         ok, _ = verify_receipt(rc, stmt, bytes.fromhex(self.config["identities"]["T"]["public_key"]))
         if not ok or rc.log_id != self.config["log_id"]:
             raise ValueError("T 판정 등록 증명이 올바르지 않습니다.")
+        self.remember_receipt(stmt, rc)  # T 의 판정도 T 가 나중에 지울 수 없게 영수증을 보관한다
         return stmt.to_dict()
 
     def refresh(self, sub):
@@ -313,7 +326,8 @@ class Agent:
         old = self.store.get("checkpoint")
         anchors = [] if old is None else [{"tree_size": old["tree_size"], "root_hash": old["root_hash"], "anchored_at": old["time"]}]
         private, versions = self.private_evidence()
-        report = verify_export(export, self.trust(), anchors=anchors, private=private, private_by_hash=versions)
+        report = verify_export(export, self.trust(), anchors=anchors, private=private, private_by_hash=versions,
+                               held_receipts=self.held_receipts())
         report.update(pinned_identity=True, previous_checkpoint=old, current_checkpoint=head,
                       witness_scope="사용자 PC 보관 · 별도 운영 목격자 아님")
         if report["ok"]:

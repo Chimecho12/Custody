@@ -168,6 +168,34 @@ class ThirdPartyTest(unittest.TestCase):
         self.assertEqual(a["gate"]["local_checks"]["tool_policy"]["result"], "fail")
         self.assertEqual(a["gate"]["action"], "quarantine")
 
+    def test_S18_omitted_entries_are_seen_only_through_held_receipts(self):
+        """T 가 항목을 빼고 재서명한 로그는 스스로 일관적이다. 영수증을 버린 감사는 통과하고,
+        영수증을 보관한 감사만 누락을 본다. 이 차이를 기대 결과로 고정한다."""
+        r, a = _last("S18", "protect")
+        self.assertEqual(a["gate"]["action"], "accept")  # 사용자 쪽 사건은 정상이었다
+        self.assertTrue(r["ts"]["omitted_indexes"])
+        without = r["audit_without_held_receipts"]
+        self.assertTrue(without["ok"])  # 트리·헤드·앵커·재실행 전부 일관 — 누락이 보이지 않는다
+        self.assertEqual(without["subs_checked"], 0)
+        audit = r["audit"]
+        self.assertTrue(audit["tree_recomputed_matches_head"] and audit["head_signature_valid"])
+        self.assertTrue(all(x["ok"] for x in audit["anchors"]))
+        self.assertFalse(audit["ok"])
+        held = audit["held_receipts"]
+        self.assertEqual(held["held"], r["ts"]["held_receipts"])
+        self.assertGreater(len(held["missing"]), 0)
+        self.assertEqual(held["included"] + len(held["missing"]), held["held"])
+        self.assertIn(a["sub"], {m["sub"] for m in held["missing"]})
+        self.assertFalse(all(c["ok"] for c in held["receipt_checkpoints"]))
+
+    def test_S01_held_receipts_are_all_included(self):
+        r, _ = _last("S01", "protect")
+        held = r["audit"]["held_receipts"]
+        self.assertGreater(held["held"], 0)
+        self.assertEqual(held["included"], held["held"])
+        self.assertEqual(held["missing"], [])
+        self.assertTrue(all(c["ok"] for c in held["receipt_checkpoints"]))
+
 
 class Q1MatrixTest(unittest.TestCase):
     def test_cooperation_sets_change_detectability(self):
