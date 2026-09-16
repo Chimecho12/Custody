@@ -1,3 +1,4 @@
+import type { Data } from '../../shared/types';
 // 「키 · 신뢰 기준점」 — 사설키가 이 기계 밖으로 나가는가.
 //
 // 화면이 지키는 규칙 세 가지.
@@ -5,7 +6,7 @@
 //  - 약한 보관처는 fail 이 아니라 **점선 배지 + 경고**다. 로컬 파일 키는 위반이
 //    아니라 운영 위험이고, 그 키로 만든 서명도 암호학적으로는 유효하다.
 //  - 키 계보(생성·회전·폐기)는 판정과 다른 시간축이므로 이 화면에만 둔다.
-import {Data, esc} from './console';
+import { esc } from '../../shared/console';
 
 type Filter = 'all' | 'exposed' | 'overdue';
 

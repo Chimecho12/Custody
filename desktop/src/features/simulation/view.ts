@@ -1,11 +1,8 @@
+import type { Data } from '../../shared/types';
 // 참조 시나리오 화면: 보고서(itx/report/html.py)의 7개 섹션을 앱 안에서 그대로 재현한다.
 // 매트릭스는 simulation_matrix 한 번으로, 사건 상세는 선택할 때마다 simulation 한 건으로 받는다.
-import {
-  Data, esc, cls, st, short, absent, CV, pills, hopMapHtml, eqLabels, eqEdges, legendRowHtml, playControlsHtml,
-  computeLegs, makeSpan, Playback, PlayContext, timeBoxHtml, Mark, evidenceRowsHtml, codesHtml, checkChipsHtml,
-  gateColor, equationTableHtml, stripGridHtml, MODEL_LATENCY_MS, reducedMotion,
-} from './console';
-import { FlowData, flowCanvasHtml, flowLegs, mountFlow, footHtml, eqFromEquations, actionTone } from './flow';
+import { esc, cls, st, short, absent, CV, pills, hopMapHtml, eqLabels, eqEdges, legendRowHtml, playControlsHtml, computeLegs, makeSpan, Playback, PlayContext, timeBoxHtml, Mark, evidenceRowsHtml, codesHtml, checkChipsHtml, gateColor, equationTableHtml, stripGridHtml, MODEL_LATENCY_MS, reducedMotion,  } from '../../shared/console';
+import { FlowData, flowCanvasHtml, flowLegs, mountFlow, footHtml, eqFromEquations, actionTone } from '../../shared/flow';
 
 type Call = (operation: string, args?: Data) => Promise<any>;
 interface Matrix { generated_with: Data; scenarios: Data[]; rows: Data[]; q1_matrix: Data[]; summary: Data }

@@ -1,8 +1,9 @@
+import type { Data } from './types';
 // 실행 추적 3단 (Claude Design 'Workflow Canvas' 참고): 판정 배너 · 1단 라이프사이클 파이프라인 · 3단 스플릿 인스펙터.
 // 2단(홉 지도·패킷)은 flow.ts 의 그래프 캔버스가 맡고, 세 단은 재생 엔진의 한 시계(t)를 공유한다 —
 // 타임라인을 끌면 배너 톤·단계 진행 바·인스펙터가 같은 시점으로 되돌아간다.
 // 값은 전부 실제 실행 기록(record.checks · gate · t_verdict · timeline)에서 온다. 색은 판정에만 쓴다.
-import { Data, esc, short, cls, st, Leg, Playback } from './console';
+import { esc, short, cls, st, Leg, Playback } from './console';
 
 export interface TraceData {
   record: Data; status: Data | null; legs: Leg[];

@@ -1,6 +1,6 @@
 /* itx 경로검증 콘솔 공통 컴포넌트 — 데스크톱 앱(desktop/src/*.ts)과
    HTML 보고서(itx/report/assets/report.js)가 같은 화면을 그리므로 CSS 도 하나만 둔다.
-   앱 셸·폼처럼 데스크톱에만 있는 것은 desktop/src/style.css,
+   앱 셸·폼처럼 데스크톱에만 있는 것은 desktop/src/styles/app.css,
    문서 타이포그래피처럼 보고서에만 있는 것은 itx/report/assets/report.css 에 남긴다. */
 /* ---------- 콘솔 컨트롤 (경로검증 콘솔 1a) ---------- */
 .controls{display:flex;flex-direction:column;gap:10px;align-items:stretch}

@@ -118,18 +118,18 @@
 ---
 
 ## 4. 파일별 적용 지침
-1. **`ui/tokens.css`**: 글래스모피즘 토큰, 섀도우, 이징 커브를 한 곳에 둔다. 데스크톱 앱(`desktop/src/style.css` 의 @import)과
+1. **`itx/ui/tokens.css`**: 글래스모피즘 토큰, 섀도우, 이징 커브를 한 곳에 둔다. 데스크톱 앱(`desktop/src/styles/app.css` 의 @import)과
    HTML 보고서(`itx/report/html.py` 의 인라인)가 **같은 파일**을 읽으므로, 한쪽만 고쳐 두 콘솔이 갈라지는 일이 없다.
-   노드 펄스 키프레임을 비롯한 콘솔 컴포넌트는 `ui/console.css` 에 있다.
-2. **`desktop/src/console.ts`**: `Playback` 클래스에 스크러버 마우스 이벤트, 스텝 이동, 패킷 꼬리(Trail) 로직 추가.
-3. **`desktop/src/report.ts`**: 스텝 버튼 및 호버 인터랙션 연동.
+   노드 펄스 키프레임을 비롯한 콘솔 컴포넌트는 `itx/ui/console.css` 에 있다.
+2. **`desktop/src/shared/console.ts`**: `Playback` 클래스에 스크러버 마우스 이벤트, 스텝 이동, 패킷 꼬리(Trail) 로직 추가.
+3. **`desktop/src/features/simulation/view.ts`**: 스텝 버튼 및 호버 인터랙션 연동.
 
 ## Console v3 반영 (2026-09-16)
 
 편의성·가시성 기준으로 재구성한 `Console v3.dc.html` 을 데스크톱 앱에 적용했다. 기능은 하나도 빼지 않았다 — 목업의
 단순 SVG 홉 지도 대신 기존 그래프 캔버스(줌·팬·미니맵·상태 머신)를 「경로 상세」 접이식 섹션 안에 그대로 둔다.
 
-- **팔레트 — 대비 보강판.** `ui/tokens.css` 밝은 테마의 판정 색을 한 단계 어둡게 잡았다 (`--pass #047857` ·
+- **팔레트 — 대비 보강판.** `itx/ui/tokens.css` 밝은 테마의 판정 색을 한 단계 어둡게 잡았다 (`--pass #047857` ·
   `--fail #B91C1C` · `--warn #B45309`), 본문 `--body #334155`, 회색 `--muted #475569` · `--na #64748B`.
   흰 배경 기준 4.5:1 이상. 보고서(`itx/report`)도 같은 토큰을 읽으므로 함께 바뀐다.
 - **셸.** 밝은 사이드바, 목적별 4그룹(사용 · 검증·감사 · 운영 · 실험), 항목 옆 힌트(건수). 선택은 채움이 아니라

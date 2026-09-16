@@ -1,6 +1,7 @@
+import type { Data } from '../shared/types';
 // 브라우저 미리보기(Tauri 없음)에서만 쓰는 데이터 공급. 개발 서버의 /preview-data/* 를 읽는다.
 // 표본임을 화면에 항상 표시하며, 실행·서명·파일 저장이 필요한 작업은 거부한다.
-type Data = Record<string, any>;
+
 
 let bundle: Promise<Data | null> | null = null;
 let fixtures: Promise<Data | null> | null = null;

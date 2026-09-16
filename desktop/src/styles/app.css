@@ -2,9 +2,9 @@
    색은 판정에만 쓴다: pass / fail / warn / na. 캔버스·카드·텍스트는 슬레이트 중립색과 브랜드 네이비(--accent)만.
    종합 위험 점수 없음. 결손·미실행은 움직이지 않는다.
    표면 계층은 색이 아니라 명도·내부 하이라이트·그림자·유리 블러로만 나눈다(bg < sunken < card < glass). */
-/* 디자인 토큰과 경로검증 콘솔 컴포넌트는 보고서와 공유한다 (ui/). */
-@import '../../ui/tokens.css';
-@import '../../ui/console.css';
+/* 디자인 토큰과 경로검증 콘솔 컴포넌트는 보고서와 공유한다 (itx/ui/). */
+@import '../../../itx/ui/tokens.css';
+@import '../../../itx/ui/console.css';
 
 /* 유리 면: 떠 있는 표면(앱바·알림·고정 컨트롤·툴팁)과 카드에만 쓴다. 표·입력·버튼은 불투명 면에 둔다. */
 .glass{background:var(--card);-webkit-backdrop-filter:blur(var(--glass-blur));backdrop-filter:blur(var(--glass-blur))}

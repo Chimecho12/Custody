@@ -3,8 +3,8 @@
 명령 하나를 추가하려면 세 곳을 같이 고쳐야 한다.
 
     desktop/src-tauri/src/main.rs   Rust 가 통과시킬 명령 (OPS)
-    itx/runtime/desktop.py          Agent 가 받을 명령 (ALLOWED_OPERATIONS)
-    desktop/src/*.ts                화면이 실제로 부르는 명령
+    itx/runtime/desktop/operations.py Agent 가 받을 명령 (ALLOWED_OPERATIONS)
+    desktop/src/**/*.ts               화면이 실제로 부르는 명령
 
 한 곳을 빠뜨리면 **브라우저 미리보기에서는 멀쩡하고 설치형 앱에서만** 깨진다.
 미리보기는 previewCall 로 표본 데이터를 읽어서 Rust 를 거치지 않기 때문이다
@@ -37,10 +37,12 @@ def rust_operations() -> set[str]:
 def frontend_operations() -> set[str]:
     """화면이 call(...) 로 부르는 명령. 첫 인자가 문자열 리터럴인 것만 센다."""
     found: set[str] = set()
-    for path in SRC.glob("*.ts"):
+    for path in SRC.rglob("*.ts"):
         text = path.read_text(encoding="utf-8")
         # call('op'  ·  call<T>('op'  ·  this.call('op'  — 뒤가 ) 또는 , 인 것만
         found |= set(re.findall(r"\bcall(?:<[^>]*>)?\(\s*'([a-z_]+)'\s*[,)]", text))
+        # 공통 버튼 바인더도 실제 Agent 호출이다.
+        found |= set(re.findall(r"\baction\(\s*'[^']+'\s*,\s*'([a-z_]+)'", text))
     return found
 
 
@@ -70,7 +72,7 @@ class OperationAllowlists(unittest.TestCase):
 
     def test_every_agent_operation_is_actually_handled(self):
         """목록에만 있고 처리기가 없으면 통과시킨 뒤 조용히 None 을 돌려준다."""
-        source = (ROOT / "itx" / "runtime" / "desktop.py").read_text(encoding="utf-8")
+        source = (ROOT / "itx" / "runtime" / "desktop" / "controller.py").read_text(encoding="utf-8")
         body = source[source.index("def _execute"):source.index("def output_path")]
         for operation in sorted(AGENT_OPERATIONS):
             with self.subTest(operation):

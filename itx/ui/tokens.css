@@ -1,6 +1,6 @@
 /* itx 디자인 토큰 — 데스크톱 앱과 HTML 보고서가 함께 쓰는 단일 원본.
    근거: docs/unified-design-system-guide.md. 이 파일만 고치면 두 콘솔이 같이 바뀐다.
-   desktop/src/style.css 는 @import 로, itx/report/html.py 는 인라인으로 읽는다. */
+   desktop/src/styles/app.css 는 @import 로, itx/report/html.py 는 인라인으로 읽는다. */
 :root{
   /* 캔버스·카드 — Console v3 대비 보강판. --card 는 유리, --card-solid 는 표·입력처럼 글자가 얹히는 면 */
   --bg:#EEF1F5;--sunken:#F8FAFC;--card:rgba(255,255,255,.92);--card-solid:#FFFFFF;--chip:#F1F5F9;
