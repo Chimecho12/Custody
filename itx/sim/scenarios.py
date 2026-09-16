@@ -63,9 +63,11 @@ class Scenario:
         }
 
 
-def _gt(attack: bool, kind: str, harm: bool, detectable: bool, note: str = "") -> dict[str, Any]:
+def _gt(attack: bool, kind: str, harm: bool, detectable: bool, note: str = "",
+        pressure: str | None = None) -> dict[str, Any]:
+    # pressure: 가용성 압박 조건. 정상 요청이 이 조건에서도 서비스되는지를 지표(availability_under_pressure)가 따로 센다.
     return {"attack_present": attack, "attack_kind": kind, "harm_if_consumed": harm,
-            "detectable_by_evidence": detectable, "note": note}
+            "detectable_by_evidence": detectable, "note": note, "availability_pressure": pressure}
 
 
 SCENARIOS: list[Scenario] = [
@@ -140,9 +142,10 @@ SCENARIOS: list[Scenario] = [
     Scenario(
         "S09", "중개 증거 누락 (R 비협조)",
         "중개자가 진술을 내지 않는다. U+M 증거만으로 종단 무결성(E10)은 확립되지만 완전성은 gap 이다. "
-        "결손은 위반이 아니라 관측 상태로 표시되고 가해자를 단정하지 않는다.",
+        "결손은 위반이 아니라 관측 상태로 표시되고 가해자를 단정하지 않는다. 가용성 축: R 이 진술을 보류하는 것만으로 "
+        "정상 응답이 격리되면 그것은 R 이 쥔 서비스 거부 스위치다 — protect 는 U+M 증거로 계속해야 한다.",
         "evidence", relay=RelayBehavior(omit_statement=True),
-        ground_truth=_gt(False, "none", False, True, "정직하지만 비협조적인 중개자"),
+        ground_truth=_gt(False, "none", False, True, "정직하지만 비협조적인 중개자", pressure="relay_withholds_statement"),
         expected={"verdict": "passed", "completeness": "gap", "codes": ["D-GAP"], "protect": "accept"},
     ),
     Scenario(
@@ -150,14 +153,14 @@ SCENARIOS: list[Scenario] = [
         "제3자가 전체 요청 동안 죽어 있다. observe/protect 는 로컬 증거로 업무를 계속하고 증거는 큐에 남는다. "
         "strict 는 기한 내 판정을 못 얻어 명시적으로 거부한다. 복구 후 큐가 재제출되어 사후 판정이 나온다.",
         "availability", ts_down=True,
-        ground_truth=_gt(False, "none", False, True),
+        ground_truth=_gt(False, "none", False, True, pressure="t_down"),
         expected={"verdict": "passed", "protect": "accept", "strict": "reject_timeout", "late": True},
     ),
     Scenario(
         "S11", "T 등록 지연",
         "등록 지연 900ms. protect 는 영향 없음. strict 는 판정을 기다린 뒤 수용한다 (가용성 비용 측정).",
         "availability", ts_extra_delay_ms=900,
-        ground_truth=_gt(False, "none", False, True),
+        ground_truth=_gt(False, "none", False, True, pressure="t_delay"),
         expected={"verdict": "passed", "protect": "accept", "strict": "accept"},
     ),
     Scenario(
@@ -165,7 +168,7 @@ SCENARIOS: list[Scenario] = [
         "T 정지 중 큐 용량 2 로 4 번 요청. 오래된 증거가 버려져 복구 후에도 일부 요청은 gap 으로 남는다. "
         "비동기라는 말만으로 비용이 사라지지 않는다.",
         "availability", ts_down=True, queue_capacity=2, attempts=4,
-        ground_truth=_gt(False, "none", False, True),
+        ground_truth=_gt(False, "none", False, True, pressure="queue_saturation"),
         expected={"gaps_after_recovery": True},
     ),
     Scenario(

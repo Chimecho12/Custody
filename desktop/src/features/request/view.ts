@@ -10,7 +10,7 @@ import { TraceData, traceTopHtml, traceBottomHtml } from '../../shared/trace';
 
 export const STATE_NAMES: Record<string, string> = {accept: '검증 후 수용', accept_unverified: '미검증 수용', quarantine: '응답 격리', reject: '수용 거부', reject_timeout: 'T 판정 기한 초과', cancelled: '취소 · 미공개', interrupted: '종료로 중단 · 미공개', pending: '진행 중', error: '요청 오류'};
 export const CHECK_NAMES: Record<string, string> = {M_authority: 'M 발행자·역할 인증', R_authority: 'R 발행자·역할 인증', not_expired: '계약 유효기간', receipt_present: '모델 영수증', receipt_signature: '영수증 서명', nonce_match: 'nonce 결합', request_binding: '승인된 요청 결합', response_binding: '종단 응답 결합', attempt_match: '시도 ID 결합', model_hash_reference: '등록 기준 해시', route_allowed: '허용 모델 경로', tool_policy: '도구 실행 정책'};
-export const SCENARIO_NAMES: Record<string, string> = {normal: '정상 경로', response_tamper: 'R 의 응답 변조', request_tamper: 'R 의 요청 변조', missing_receipt: 'M 영수증 제거'};
+export const SCENARIO_NAMES: Record<string, string> = {normal: '정상 경로', response_tamper: 'R 의 응답 변조', request_tamper: 'R 의 요청 변조', missing_receipt: 'M 영수증 제거', missing_relay: 'R 의 진술 보류 (결손 · 위반 아님)'};
 /** 집행 정책 카드. 제목은 사람 말, 코드는 실제 값. 본문이 곧 이전 화면의 mode-help 였다. */
 export const MODES: {code: string; title: string; body: string}[] = [
   {code: 'protect', title: '기본 보호', body: '로컬 검증에 실패하면 응답을 업무에 넘기지 않고 격리합니다. T 가 연결되지 않아도 필수 로컬 증거와 유효한 정책이 있으면 계속합니다.'},

@@ -131,6 +131,22 @@ class EvidenceAndAvailabilityTest(unittest.TestCase):
         self.assertGreaterEqual(s["gate"]["waited_ms"], 900)
         self.assertLess(p["gate"]["waited_ms"], 50)
 
+    def test_availability_axis_separates_protect_from_strict_under_pressure(self):
+        """무결성 검사가 가용성 스위치가 되면 안 된다. R 진술 보류·T 정지·지연·큐 포화 아래의 정상 요청을
+        protect 는 전부 서비스하고, strict 는 T 없이는 거부한다 — 그 차이가 지표에 숫자로 남아야 한다."""
+        from itx.metrics import aggregate
+        _, s09 = _last("S09", "protect")
+        self.assertTrue(s09["metrics"]["served"])
+        self.assertEqual(s09["metrics"]["availability_pressure"], "relay_withholds_statement")
+        runs = [_run(sid, mode) for sid in ("S09", "S10", "S11", "S12") for mode in ("protect", "strict")]
+        summary = aggregate(runs)
+        protect, strict = summary["protect"]["availability_under_pressure"], summary["strict"]["availability_under_pressure"]
+        self.assertEqual(protect["den"], 7)
+        self.assertEqual(protect["num"], protect["den"])
+        self.assertLess(strict["num"], strict["den"])
+        self.assertEqual(protect["causes"], ["queue_saturation", "relay_withholds_statement", "t_delay", "t_down"])
+        self.assertEqual(summary["protect"]["availability_legit"]["denied"], {"gate_blocked": 0, "no_response": 0})
+
     def test_S12_queue_saturation_leaves_gaps(self):
         r = _run("S12", "protect")
         drops = sum(len(v) for v in r["ts"]["queue_drops"].values())

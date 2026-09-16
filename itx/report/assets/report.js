@@ -28,6 +28,7 @@ const CV = (name)=>`var(--${name})`;
   ${row('피해 노출 (공격 응답이 업무에 사용됨)', s=>`${s.harm_exposed.num}/${s.harm_exposed.den}`)}
   ${row('오차단 (정상인데 격리·거부)', s=>frac(s.false_block)+` <span class="muted small">무응답 제외 ${s.false_block.excluded_no_response}</span>`)}
   ${row('안전 완료 (정상 요청이 검증 후 수용)', s=>frac(s.safe_completion_legit))}
+  ${row('가용성 (정상 요청이 서비스됨 · 압박 조건: R 진술 보류·T 정지·지연·큐 포화)', s=>s.availability_legit ? frac(s.availability_legit)+` <span class="muted small">압박 조건 ${frac(s.availability_under_pressure)}</span>` : '<span class="absent">이 결과 파일에는 없음</span>')}
   ${row('증거 완전 (합의 증거 모두 등록)', s=>`${s.evidence_complete.num}/${s.evidence_complete.den}`)}
   ${row('결정 대기 ms (평균 / 최대)', s=>`${s.decision_wait_ms.mean ?? '-'} / ${s.decision_wait_ms.max ?? '-'}`)}
   ${row('왕복 지연 ms (평균 / 최대)', s=>`${s.rtt_ms.mean ?? '-'} / ${s.rtt_ms.max ?? '-'}`)}

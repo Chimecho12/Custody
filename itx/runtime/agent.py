@@ -89,6 +89,18 @@ class Agent:
         from .auditing import trust_from_config
         return trust_from_config(self.config)
 
+    def backlog_policy(self):
+        policy = self.config.get("evidence_backlog_policy", "bounded")
+        if policy not in ("bounded", "unbounded"):
+            raise ValueError("unknown evidence backlog policy")
+        return policy
+
+    def _enqueue(self, item):
+        capacity = self.config.get("queue_capacity", 256)
+        if self.backlog_policy() == "unbounded":
+            capacity = self.config.get("max_requests", 10000) * 4
+        self.store.enqueue(item, capacity=capacity)
+
     def remember_receipt(self, stmt, rc):
         self.store.put("receipt:" + stmt.statement_hash, {
             "receipt": rc.to_dict(), "statement_hash": stmt.statement_hash,
@@ -118,7 +130,9 @@ class Agent:
                 "epoch": self.config.get("epoch"), "deployment_hash": self.config.get("deployment_hash"),
                 "deployment_history": self.config.get("deployment_history", []),
                 "witness_configured": "W" in self.config["identities"],
-                "held_receipts": self.store.count("receipt:")}
+                "held_receipts": self.store.count("receipt:"),
+                "evidence_backlog_policy": self.backlog_policy(), "queue_capacity": self.config.get("queue_capacity", 256),
+                "require_relay_statement": bool(self.config.get("require_relay_statement", False))}
 
     def preflight(self):
         from itx.crypto import verify
@@ -182,8 +196,10 @@ class Agent:
             raise ValueError("정책과 신뢰 설정이 만료되었습니다. 새 설정을 등록하세요.")
         if self.store.count("request:") >= self.config.get("max_requests", 10000):
             raise ValueError("요청 보관 한도에 도달했습니다. 감사 자료 보관 후 새 배포 세대로 전환하세요.")
-        if len(self.store.pending()) > self.config.get("queue_capacity", 256) - 5:
-            raise RuntimeError("증거를 보관할 공간이 부족합니다. T 연결을 복구하세요.")
+        # 증거 적체 정책. bounded: 한도를 넘기면 새 요청을 거절한다 (기록할 수 없는 약속은 하지 않는다).
+        # unbounded: 요청 보관 한도(max_requests)까지 계속 쌓는다. 어느 쪽도 기존 증거를 버리지 않는다.
+        if self.backlog_policy() == "bounded" and len(self.store.pending()) > self.config.get("queue_capacity", 256) - 5:
+            raise RuntimeError("증거 보관 한도에 도달했습니다 (정책 bounded). T 연결을 복구하거나 정책을 unbounded 로 바꾸세요.")
         start_ns, start = time.monotonic_ns(), now_ms()
         sub, attempt = "urn:itx:req:" + secrets.token_hex(16), secrets.token_hex(16)
         salt, nonce = secrets.token_hex(32), secrets.token_hex(32)
@@ -207,9 +223,9 @@ class Agent:
         try:
             self.store.put("request:" + sub, record)
             event("U", "계약 서명 · 전송 전 기록")
-            self.store.enqueue({"statement": contract.to_dict()})
+            self._enqueue({"statement": contract.to_dict()})
             self.remember_private(private)
-            self.store.enqueue({"sub": sub, "private": private})
+            self._enqueue({"sub": sub, "private": private})
             if cancel.is_set():
                 raise InterruptedError("취소됨: 전송하지 않았습니다.")
             event("U", "R로 요청 전송")
@@ -226,6 +242,13 @@ class Agent:
             checks = {}
             m = r = None
             for role, field, ct in (("M", "receipt", CT_RECEIPT), ("R", "relay", CT_RELAY)):
+                if wire.get(field) is None:
+                    # 결손은 위반이 아니다. M 영수증 결손은 게이트의 필수 검사(receipt_present)가 격리하고,
+                    # R 진술 결손은 정책이 정한다 — 기본은 U+M 증거로 계속한다 (S09 와 같은 결론).
+                    # R 이 진술을 내지 않는 것만으로 모든 응답이 격리되면 그것은 R 이 쥔 서비스 거부 스위치다.
+                    checks[role + "_authority"] = {"result": "not_evaluable", "basis": CHECK_BASIS[role + "_authority"],
+                                                   "reason": f"{role} 진술이 응답에 동봉되지 않음 (비협조 또는 R 이 제거) — 결손이며 위반 아님"}
+                    continue
                 try:
                     stmt = authenticate(self.config, wire[field], role, ct, sub)
                     if stmt.payload["attempt_id"] != attempt:
@@ -242,10 +265,10 @@ class Agent:
             gate = UserGate(mode, {self.config["identities"]["M"]["kid"]: bytes.fromhex(self.config["identities"]["M"]["public_key"])},
                             self.config["model_hashes"])
             checks.update(gate.local_checks(contract.payload, received_commit, response, m, r, received_at))
-            # Network profile requires every configured check, including identity/route/reference.
-            for check in checks.values():
-                if check["result"] == "not_evaluable":
-                    check["result"] = "fail"
+            if r is None and self.config.get("require_relay_statement", False):
+                # 명시적 정책으로만 결손을 실패로 승격한다. 기본값이 아니다 — 가용성을 R 에게 맡기는 선택이기 때문이다.
+                checks["R_authority"] = {"result": "fail", "basis": CHECK_BASIS["R_authority"],
+                                         "reason": "정책 require_relay_statement 가 R 중계 진술을 필수로 요구함"}
             record["checks"] = checks
             observation = signed(self.config, self.key, CT_OBSERVATION, sub, observation_payload(
                 attempt_id=attempt, resp_commit=received_commit, received_at=received_at,
@@ -255,12 +278,14 @@ class Agent:
             self.remember_private(private)
             record["observation"] = observation.to_dict()
             self.store.put("request:" + sub, record)
-            self.store.enqueue({"statement": observation.to_dict()})
-            self.store.enqueue({"sub": sub, "private": private})
+            self._enqueue({"statement": observation.to_dict()})
+            self._enqueue({"sub": sub, "private": private})
             event("U", "서명과 요청·응답 결합 검사 완료")
             verdict_status = None
             deadline = time.monotonic() + self.config.get("strict_timeout_ms", 2500) / 1000
-            if mode == "strict" and all(v["result"] == "pass" for v in checks.values()):
+            # 로컬 검사가 이미 실패했으면 T 를 기다릴 이유가 없다. 결손(not_evaluable)은 실패가 아니므로
+            # 기다린다 — 시뮬레이션 U 와 같은 규칙이다. 필수 검사의 결손은 어차피 게이트가 격리한다.
+            if mode == "strict" and not any(v["result"] == "fail" for v in checks.values()):
                 event("T", "유효한 T 판정 대기")
                 while not cancel.is_set() and time.monotonic() < deadline:
                     try:

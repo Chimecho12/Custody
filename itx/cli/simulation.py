@@ -48,6 +48,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"  [{mode:7s}] detection {m['detection']['num']}/{m['detection']['den']}  "
               f"defense-before-use {m['defense_before_use']['num']}/{m['defense_before_use']['den']}  "
               f"false-block {m['false_block']['num']}/{m['false_block']['den']}  "
+              f"availability {m['availability_legit']['num']}/{m['availability_legit']['den']} "
+              f"(under pressure {m['availability_under_pressure']['num']}/{m['availability_under_pressure']['den']})  "
               f"wait mean {m['decision_wait_ms']['mean']} ms")
     print(f"written: {out / 'results.json'}, {out / 'summary.json'}, {out / 'log-export-S01.json'}")
     return 0
