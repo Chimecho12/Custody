@@ -124,6 +124,22 @@
 2. **`desktop/src/shared/console.ts`**: `Playback` 클래스에 스크러버 마우스 이벤트, 스텝 이동, 패킷 꼬리(Trail) 로직 추가.
 3. **`desktop/src/features/simulation/view.ts`**: 스텝 버튼 및 호버 인터랙션 연동.
 
+## 근거 종류 표기 규칙 (2026-09-16)
+
+화면에 나오는 모든 판정·수치는 네 가지 근거 중 하나이고, 그 종류를 값 옆에 적는다. 색은 여전히 판정에만 쓴다.
+
+| 종류 | 뜻 | 예 | 표기 |
+|---|---|---|---|
+| U 실측·계산 (`measured_locally`) | U 가 직접 잰 시각, 직접 계산·비교한 해시·서명·nonce | 전송·수신·공개 시각, `response_binding`, `receipt_signature` | 그대로 |
+| 서명된 자기보고 (`signed_self_report`) | 서명은 U 가 검증했지만 내용은 서명자의 주장 | `route_allowed`(M 의 model_id·R 의 폴백 선언), `model_hash_reference` | 근거 종류를 반드시 적는다. "해시 일치" 는 실행 증명이 아니다 |
+| 추정 (`estimate`) | 실측 사이를 시뮬레이션 상수 비율로 나눈 값 | 홉 지도 재생 구간, 'M 서명' 시점 | `· 추정` 을 붙인다. "실제 지연 비율" 같은 표현 금지 |
+| 평가 불가 (`not_evaluable`) | 증거가 없어 평가하지 않음 | R 진술 결손, 기준 해시 미등록 | 회색·점선. 위반이 아니다 |
+
+T 의 대조 등식(E1~E12)은 다섯 번째 축 `reconciled` 로, 로컬 검사와 **같은 자리에 놓이더라도 같은 주장이 아니다**.
+홉 지도의 검사 모드는 등식 번호 대신 `L-` 코드를 보인다 (`receipt_signature` 는 E4 자리에 있지만 승인 변환을 재계산한
+것이 아니라 서명을 확인한 것이다). 근거 종류의 진실은 `itx/enforce/user_gate.py` 의 `CHECK_BASIS` 이고, 화면은 검사가
+가진 `basis` 필드를 읽는다. `tests/test_report_assets.py` 가 검사·코드·이름표가 갈라지는 순간 실패한다.
+
 ## Console v3 반영 (2026-09-16)
 
 편의성·가시성 기준으로 재구성한 `Console v3.dc.html` 을 데스크톱 앱에 적용했다. 기능은 하나도 빼지 않았다 — 목업의

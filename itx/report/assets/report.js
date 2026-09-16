@@ -670,10 +670,11 @@ function renderDetail(){
   const evidenceRegs = { U: regContract, R: regRelay, M: regReceipt };
 
   // ---- 시점 타임라인 (정적 마크. 재생 바는 updatePacket 이 채운다) ------------------
-  // 원안의 마크: 전송 · M 서명 · 수신 · 사용 · T 판정(또는 판정 없음). 시각은 실제 값.
+  // 원안의 마크: 전송 · M 서명 · 수신 · 사용 · T 판정(또는 판정 없음). 전송·수신·사용·판정은 시뮬레이션 시계의 값이고
+  // M 서명은 그 사이를 상수 비율로 나눈 추정이다 — 표기를 다르게 한다.
   let marks = [
     {label:'전송', at:`${Math.round(a.sent_at)} ms`, pos:span(a.sent_at), color:'muted'},
-    {label:'M 서명', at:`${Math.round(legs[4].t1)} ms`, pos:span(legs[4].t1), color:'muted'},
+    {label:'M 서명', at:`${Math.round(legs[4].t1)} ms · 추정`, pos:span(legs[4].t1), color:'muted'},
     {label:'수신', at:`${Math.round(a.received_at)} ms`, pos:span(a.received_at), color:'accent'},
   ];
   if (consumedAt != null) marks.push({label:'사용', at:`${Math.round(consumedAt)} ms`, pos:span(consumedAt), color:'fail'});
@@ -1105,8 +1106,8 @@ function renderUncertainty(){
   const items = [
     {title:'그래프 캔버스 (Hopmap Console v2)', spec:'섹션 3 · Claude Design 원안', impl:true,
      body:'줌·팬 캔버스(휠·드래그·핏뷰) · 미니맵 뷰포트 드래그 · 커스텀 노드(포트 접기·펼치기, 핸들) · 인터랙티브 엣지(호버 툴팁·클릭 선택·라벨 칩) · 자동 레이아웃 전환 애니메이션(Dagre LR ↔ ELK 직교, 520ms) · 게이트 상태 머신 뷰. 원안의 대규모 노드 가상화 뷰는 넣지 않았다. 색은 판정에만 쓰고, 결손·미실행은 움직이지 않는다.'},
-    {title:'요청의 이동과 진술 발행', spec:'섹션 3 재생 · 실제 홉 지연 비례', impl:true,
-     body:'U→R→M→R→U 를 점 하나가 지난다. 구간 경계는 임의 데모 수치가 아니라 이 시도의 실제 sent_at/received_at 과 시뮬레이션 지연 상수(홉 20ms·중개 처리 5ms·서명 2ms)에서 역산한 것이다. 이동 구간은 정지에서 출발해 정지로 끝나므로 가감속을 주고, 노드를 드나드는 수직 구간을 넣어 꺾은선 위를 실제로 타고 돈다.'},
+    {title:'요청의 이동과 진술 발행', spec:'섹션 3 재생 · sent/received 사이를 상수 비율로 나눈 추정', impl:true,
+     body:'U→R→M→R→U 를 점 하나가 지난다. 구간 경계는 임의 데모 수치가 아니라 이 시도의 sent_at/received_at 과 시뮬레이션 지연 상수(홉 20ms·중개 처리 5ms·서명 2ms)에서 역산한 것이다 — 양 끝만 기록된 시각이고 그 사이 배분은 추정이며 패킷 캡처가 아니다. 이동 구간은 정지에서 출발해 정지로 끝나므로 가감속을 주고, 노드를 드나드는 수직 구간을 넣어 꺾은선 위를 실제로 타고 돈다.'},
     {title:'진행 방향 잔상', spec:'섹션 3 재생 · 20px 꼬리 + 글로우', impl:true,
      body:'점 뒤로 지나온 경로를 20px 만큼 되짚고, 꼬리 끝에서 패킷 앞단으로 불투명도가 증가하는 SVG 그라데이션을 적용한다. 패킷은 반경 6px 에 같은 색의 6px 글로우를 두르고, 꼬리는 경로의 꺾임과 구간 경계를 그대로 따라가며 노드에 머무는 동안 길이가 0 으로 줄어든다. 빠른 홉 구간에서는 프레임 간 이동량에 따라 최대 40px까지 늘린다.'},
     {title:'노드 도달 펄스', spec:'섹션 3 재생 · 1회성 fade', impl:true,

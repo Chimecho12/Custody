@@ -44,7 +44,7 @@
         <button class="v3-guide" type="button" data-guide="request" title="이 화면 설명" aria-expanded="false">ⓘ</button>
         <div class="v3-head-actions"><button id="lab-t" type="button" class="v3-btn" hidden>실험: T 중단</button><span id="policy-state" class="badge">정책 확인 중</span></div>
       </div>
-      <p class="v3-guide-text" data-guide-text="request" hidden>요청을 보내면 사용자(U) · 중개자(R) · 모델 운영자(M) 경로를 지나 사용자 쪽 집행 모듈이 응답을 검증합니다. 검증 통과 여부와 응답 공개 여부는 별개 항목이며, 아래 요약에서 두 줄로 나누어 보여줍니다. 전송 · 수신 · 공개 같은 사건은 중립색으로 표시하고, 색은 검증 판정에만 씁니다. 통신·검증 시간은 실측값이고 모형 모델은 결정적 텍스트를 반환합니다.</p>
+      <p class="v3-guide-text" data-guide-text="request" hidden>요청을 보내면 사용자(U) · 중개자(R) · 모델 운영자(M) 경로를 지나 사용자 쪽 집행 모듈이 응답을 검증합니다. 검증 통과 여부와 응답 공개 여부는 별개 항목이며, 아래 요약에서 두 줄로 나누어 보여줍니다. 전송 · 수신 · 공개 같은 사건은 중립색으로 표시하고, 색은 검증 판정에만 씁니다. 전송·수신·결정·공개 시각은 실측값이고, 홉 지도에서 그 사이를 나누는 구간은 시뮬레이션 상수 비율의 추정입니다. 모형 모델은 결정적 텍스트를 반환합니다.</p>
 
       <!-- 1) 요청 입력 -->
       <form id="request-form" class="v3-card">
@@ -86,7 +86,7 @@
       <section class="v3-card v3-collapsible" id="detail-card">
         <button type="button" class="v3-collapse-head" id="detail-toggle" aria-expanded="false" aria-controls="detail-body">
           <span class="v3-card-title">경로 상세 · 증거 · 시간선</span>
-          <span class="v3-meta">홉 20ms · 중개 처리 5ms · 서명 2ms · 추론 200ms — 실제 지연 비율</span>
+          <span class="v3-meta">실측은 전송·수신 시각 — 홉 사이 배분은 상수 비율의 추정</span>
           <span class="v3-caret" id="detail-label">펼치기 ▾</span>
         </button>
         <div id="detail-body" hidden>

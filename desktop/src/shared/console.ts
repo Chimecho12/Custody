@@ -514,19 +514,30 @@ export function codesHtml(discrepancies: Data[]): string {
     <div class="mono" style="font-weight:600;color:${CV(sevColor(d.severity))}">${esc(d.code)} <span style="font-weight:400;color:${CV('muted')}">· ${esc(d.severity)}</span></div>
     <div class="small">귀속 ${esc(d.attribution)} <span class="muted">— ${esc(d.attribution_basis)}</span></div></div>`).join('');
 }
+// 근거 종류. 같은 '통과' 라도 무엇으로 통과했는지가 다르다 — 화면은 이 다섯을 섞지 않는다.
+//   measured_locally   U 가 직접 계산·비교 (해시·서명·nonce·시각·본문)
+//   signed_self_report 서명은 검증했지만 내용은 서명자의 주장 (모델 id·해시·폴백 선언)
+//   estimate           실측 사이를 시뮬레이션 상수 비율로 나눈 값 (홉 지도 재생 구간)
+//   not_evaluable      증거가 없어 평가하지 않음 — 위반이 아니다
+//   reconciled         T 가 여러 당사자의 서명 진술을 대조한 등식 (E1~E12)
+// 값은 itx/enforce/user_gate.py 의 CHECK_BASIS 와 같다.
+export const BASIS_LABEL: Record<string, string> = {measured_locally: 'U 실측·계산', signed_self_report: '서명된 자기보고', estimate: '추정', not_evaluable: '평가 불가', reconciled: 'T 대조 등식'};
+export const basisOf = (v: any): string => !v ? 'not_evaluable' : v.result === 'not_evaluable' ? 'not_evaluable' : (v.basis || 'measured_locally');
+export const basisLabel = (v: any): string => BASIS_LABEL[basisOf(v)] || String(basisOf(v));
 export function checkChipsHtml(checks: Data): string {
   return `<div class="chips">` + Object.entries(checks || {}).map(([k, v]: [string, any]) =>
-    `<span class="chip ${v.result === 'fail' ? 'fail' : v.result === 'not_evaluable' ? 'na' : ''}" data-eq="${esc(k)}" title="${esc(v.reason)}">${esc(k)}</span>`).join('') + `</div>`;
+    `<span class="chip ${v.result === 'fail' ? 'fail' : v.result === 'not_evaluable' ? 'na' : ''}" data-eq="${esc(k)}" data-basis="${esc(basisOf(v))}" title="${esc(basisLabel(v))} — ${esc(v.reason)}">${esc(k)}</span>`).join('') + `</div>`;
 }
 export const gateColor = (action: string) => action === 'accept' ? 'pass' : action === 'accept_unverified' ? 'warn' : action === 'no_response' ? 'na' : 'fail';
 export function equationTableHtml(eq: Data): string {
   const rows = Object.entries(eq || {}).map(([k, e]: [string, any]) => `<tr data-eq="${esc(k)}"><td><b>${esc(k)}</b> ${esc(e.title)}<div class="small muted">${esc(e.hop)}</div></td><td class="${cls(e.result)}">${esc(e.result)}</td><td>${esc(e.reason)}</td><td class="small">${(e.compared || []).map(esc).join('<br>')}</td><td class="small muted">${esc(e.trust_grade)}</td></tr>`).join('');
   return `<div class="tablewrap"><table><thead><tr><th>등식</th><th>결과</th><th>사유</th><th>비교 대상</th><th>신뢰 등급</th></tr></thead><tbody>${rows || '<tr><td colspan="5" class="absent">등식 결과 없음</td></tr>'}</tbody></table></div>`;
 }
+// 로컬 검사 표. 결과 옆에 근거 종류를 따로 적는다 — '일치' 가 U 의 계산인지 서명자의 자기보고인지 읽는 사람이 구별해야 한다.
 export function checksTableHtml(checks: Data, names: Record<string, string>): string {
   const rows = Object.entries(checks || {}).map(([key, v]: [string, any]) =>
-    `<tr data-eq="${esc(key)}"><td>${esc(names[key] || v.title || key)}<div class="small mono muted">${esc(key)}</div></td><td class="${v.result === 'pass' ? 'good' : v.result === 'fail' ? 'bad' : 'muted'}">${v.result === 'pass' ? '일치' : v.result === 'fail' ? '실패' : '미확인'}</td><td class="muted">${esc(v.reason)}</td></tr>`).join('');
-  return `<div class="tablewrap"><table class="checks"><thead><tr><th>검사 항목</th><th>결과</th><th>근거</th></tr></thead><tbody>${rows || '<tr><td colspan="3" class="absent">검사 결과 없음</td></tr>'}</tbody></table></div>`;
+    `<tr data-eq="${esc(key)}"><td>${esc(names[key] || v.title || key)}<div class="small mono muted">${esc(key)}</div></td><td class="${v.result === 'pass' ? 'good' : v.result === 'fail' ? 'bad' : 'muted'}">${v.result === 'pass' ? '일치' : v.result === 'fail' ? '실패' : '미확인'}</td><td class="small ${basisOf(v) === 'signed_self_report' ? 'warn' : 'muted'}">${esc(basisLabel(v))}</td><td class="muted">${esc(v.reason)}</td></tr>`).join('');
+  return `<div class="tablewrap"><table class="checks"><thead><tr><th>검사 항목</th><th>결과</th><th>근거 종류</th><th>사유</th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="absent">검사 결과 없음</td></tr>'}</tbody></table></div>`;
 }
 export function stripGridHtml(cells: {k: string; v: string; color?: string}[]): string {
   return `<div class="stripgrid">` + cells.map(c => `<div class="stripcell"><div class="k">${esc(c.k)}</div><div class="v"${c.color ? ` style="color:${CV(c.color)}"` : ''}>${c.v}</div></div>`).join('') + `</div>`;

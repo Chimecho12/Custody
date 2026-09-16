@@ -89,8 +89,28 @@ class ConsoleParity(unittest.TestCase):
         runtime_view = (DESKTOP / "features" / "request" / "view.ts").read_text(encoding="utf-8")
         self.assertEqual(emitted - set(_js_object(runtime_view, "CHECK_NAMES")), set(),
                          "runtime-view.ts CHECK_NAMES 에 이름이 없는 검사가 있다")
-        self.assertEqual(emitted - set(_js_object(self.flow_ts, "CHECK_TO_EQ")), set(),
-                         "flow.ts CHECK_TO_EQ 에 등식 자리가 없는 검사가 있다")
+        self.assertEqual(emitted - set(_js_object(self.flow_ts, "CHECK_SLOT")), set(),
+                         "flow.ts CHECK_SLOT 에 홉 지도 자리가 없는 검사가 있다")
+        self.assertEqual(emitted - set(_js_object(self.flow_ts, "CHECK_CODE")), set(),
+                         "flow.ts CHECK_CODE 에 L- 코드가 없는 검사가 있다 — 등식 번호로 그려져 T 등식처럼 읽힌다")
+
+    def test_every_check_has_a_basis_and_the_screen_can_name_it(self):
+        """검사 모드의 행은 등식이 아니다. 검사마다 근거 종류가 있어야 하고 화면은 그 이름을 가져야 한다.
+        route_allowed·model_hash_reference 는 서명자의 자기보고를 기준값과 맞춘 것이지 U 의 계산이 아니다."""
+        from itx.enforce.user_gate import B_ATTESTED, CHECK_BASIS
+        gate = (ROOT / "itx" / "enforce" / "user_gate.py").read_text(encoding="utf-8")
+        emitted = set(re.findall(r'put\("([a-z_]+)"', gate))
+        self.assertEqual(emitted - set(CHECK_BASIS), set(), "CHECK_BASIS 에 근거 종류가 없는 검사가 있다")
+        self.assertEqual(CHECK_BASIS["route_allowed"], B_ATTESTED)
+        self.assertEqual(CHECK_BASIS["model_hash_reference"], B_ATTESTED)
+        labels = _js_object(self.console_ts, "BASIS_LABEL")
+        self.assertEqual(set(CHECK_BASIS.values()) - set(labels), set(), "console.ts BASIS_LABEL 에 이름이 없는 근거 종류가 있다")
+        for required in ("estimate", "not_evaluable", "reconciled"):
+            self.assertIn(required, labels)
+        self.assertNotIn("1:1", self.flow_ts, "로컬 검사와 등식이 1:1 이라는 주장이 다시 들어왔다")
+        view = (DESKTOP / "features" / "request" / "view.ts").read_text(encoding="utf-8")
+        for text in (view, (ROOT / "desktop" / "index.html").read_text(encoding="utf-8"), self.report_js):
+            self.assertNotIn("실제 지연 비율", text, "추정인 홉 배분을 실측처럼 적었다")
 
 
 class ReportDocument(unittest.TestCase):

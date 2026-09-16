@@ -4,13 +4,19 @@
 //   · 게이트 상태 머신 뷰. 원안의 상수·배치·로직을 그대로 쓰고, 원안이 합성했던 값만 실제 데이터로 채운다.
 // 색은 판정에만 쓴다. 결손·미실행은 움직이지 않는다. 재생(패킷·꼬리·증거선)은 console.Playback 이 맡고,
 // 이 모듈은 재생 프레임 이벤트를 받아 도달 링과 상태 머신만 갱신한다.
-import { esc, CV, cls, st, computeLegs, reducedMotion, playControlsHtml, HopLabel, Leg, NodeKey, Pt, Playback } from './console';
+import { esc, CV, cls, st, computeLegs, reducedMotion, playControlsHtml, BASIS_LABEL, HopLabel, Leg, NodeKey, Pt, Playback } from './console';
 
 export const EQ_TITLE: Record<string, string> = {E1: '자기 정합', E2: '요청 U→R', E3: '진술 R↔M', E4: '승인 변환 재계산', E5: 'nonce 결합', E6: '응답 M→R',
   E7: '응답 R→U', E8: '승인 경로', E9: '아티팩트', E10: '종단 응답 결합', E11: '시도 결합', E12: '유효기간'};
-// U 로컬 검사 ↔ 등식은 1:1 이다 (검사 이름은 itx/enforce/user_gate.py 의 키). 원안의 등식 행에 검사 결과를 얹는다.
-export const CHECK_TO_EQ: Record<string, string> = {not_expired: 'E12', tool_policy: 'E1', nonce_match: 'E5', route_allowed: 'E8', model_hash_reference: 'E9',
+// U 로컬 검사를 홉 지도의 행 자리에 놓는 배치표. 등식과의 동일성이 아니다 — '어느 홉·당사자에 관한 검사인가' 만 정한다.
+// 예: receipt_signature 는 R 행의 E4 자리에 놓이지만 E4(승인 변환 재계산)를 확인한 것이 아니라 영수증 서명을 확인한 것이다.
+// 그래서 검사 모드에서는 등식 번호 대신 L- 코드를 보이고 근거 종류(basis)를 함께 적는다 (itx/enforce/user_gate.py 의 CHECK_BASIS).
+export const CHECK_SLOT: Record<string, string> = {not_expired: 'E12', tool_policy: 'E1', nonce_match: 'E5', route_allowed: 'E8', model_hash_reference: 'E9',
   attempt_match: 'E11', request_binding: 'E2', R_authority: 'E3', receipt_signature: 'E4', M_authority: 'E6', receipt_present: 'E7', response_binding: 'E10'};
+export const CHECK_CODE: Record<string, string> = {not_expired: 'L-EXP', tool_policy: 'L-TOOL', nonce_match: 'L-NONCE', route_allowed: 'L-ROUTE', model_hash_reference: 'L-HASH',
+  attempt_match: 'L-ATT', request_binding: 'L-REQ', R_authority: 'L-RSIG', receipt_signature: 'L-MSIG', M_authority: 'L-MAUTH', receipt_present: 'L-RCPT', response_binding: 'L-RESP'};
+// 옛 기록(basis 필드 이전)을 그릴 때의 대체값. 새 기록은 검사 자체가 basis 를 갖는다.
+const CHECK_BASIS_FALLBACK: Record<string, string> = {route_allowed: 'signed_self_report', model_hash_reference: 'signed_self_report'};
 const NODE_DEF: Record<NodeKey, {label: string; name: string; sub: string; rows: string[]}> = {
   U: {label: 'U', name: '사용자 · 집행 모듈', sub: '로컬 검증 · 격리', rows: ['E12', 'E2', 'E10', 'E1']},
   R: {label: 'R', name: '중개자 (클라우드 대행)', sub: '중계 진술 서명', rows: ['E3', 'E4', 'E7']},
@@ -37,11 +43,12 @@ const SM: Record<string, [string, string, string][]> = {
 const eqGlyph = (r: string) => r === 'pass' ? '✓' : r === 'fail' ? '✗' : '–';
 const colOf = (r: string) => CV(cls(r));
 
-export interface EqInfo { result: string; reason?: string; compared?: string[]; trust_grade?: string; title?: string }
+export interface EqInfo { result: string; reason?: string; compared?: string[]; trust_grade?: string; title?: string; basis?: string }
 export interface FlowData {
   key: string;
-  eq: Record<string, EqInfo>;            // 등식 id → 결과 (검사 모드면 CHECK_TO_EQ 로 옮겨 넣는다)
+  eq: Record<string, EqInfo>;            // 행 id → 결과 (검사 모드면 CHECK_SLOT 자리에 검사 결과를 놓는다)
   rowTitle?: Record<string, string>;     // 행 이름 덮어쓰기 (검사 모드: 검사 이름)
+  rowId?: Record<string, string>;        // 행 id 표기 덮어쓰기 (검사 모드: L- 코드. 등식 번호를 보이지 않는다)
   regs: Record<string, number | null>;   // U/R/M 증거 등록 시각 (없으면 null = 결손)
   sent: number; received: number; latency: number;
   sm: {mode: string; gateAction: string; decidedAt: number; consumedAt: number | null; verdictAt: number | null} | null;
@@ -49,18 +56,22 @@ export interface FlowData {
   foot: string;                           // 하단 패널: 스크러버 + 증거 행 (컨트롤은 dock 에 들어간다)
   controls?: string;                      // 재생 컨트롤 마크업 (없으면 빈 dock — 정적 컨트롤을 옮겨 붙인다)
 }
-// 검사 결과(검사 이름 키)를 원안의 등식 행에 얹는다.
-export function eqFromChecks(checks: Record<string, any>, names: Record<string, string>): {eq: Record<string, EqInfo>; rowTitle: Record<string, string>} {
-  const eq: Record<string, EqInfo> = {}, rowTitle: Record<string, string> = {};
-  for (const [k, v] of Object.entries(checks || {})) { const id = CHECK_TO_EQ[k]; if (!id) continue; eq[id] = {result: v.result, reason: v.reason, title: names[k]}; rowTitle[id] = names[k] || k; }
-  return {eq, rowTitle};
+// 검사 결과(검사 이름 키)를 홉 지도의 행 자리에 놓는다. 행 id 는 L- 코드, 근거는 검사가 가진 basis 다.
+export function eqFromChecks(checks: Record<string, any>, names: Record<string, string>): {eq: Record<string, EqInfo>; rowTitle: Record<string, string>; rowId: Record<string, string>} {
+  const eq: Record<string, EqInfo> = {}, rowTitle: Record<string, string> = {}, rowId: Record<string, string> = {};
+  for (const [k, v] of Object.entries(checks || {})) {
+    const id = CHECK_SLOT[k]; if (!id) continue;
+    const basis = v.result === 'not_evaluable' ? 'not_evaluable' : (v.basis || CHECK_BASIS_FALLBACK[k] || 'measured_locally');
+    eq[id] = {result: v.result, reason: v.reason, title: names[k], basis}; rowTitle[id] = names[k] || k; rowId[id] = CHECK_CODE[k] || k;
+  }
+  return {eq, rowTitle, rowId};
 }
 export function eqFromEquations(equations: Record<string, any>): Record<string, EqInfo> {
   const eq: Record<string, EqInfo> = {};
-  for (const [k, e] of Object.entries(equations || {})) eq[k] = {result: e.result, reason: e.reason, compared: e.compared, trust_grade: e.trust_grade, title: e.title};
+  for (const [k, e] of Object.entries(equations || {})) eq[k] = {result: e.result, reason: e.reason, compared: e.compared, trust_grade: e.trust_grade, title: e.title, basis: 'reconciled'};
   return eq;
 }
-export const labelsToEq = (labels: HopLabel[]): Record<string, EqInfo> => Object.fromEntries(labels.map(l => [CHECK_TO_EQ[l.id] || l.id, {result: l.result, title: l.tail}]));
+export const labelsToEq = (labels: HopLabel[]): Record<string, EqInfo> => Object.fromEntries(labels.map(l => [CHECK_SLOT[l.id] || l.id, {result: l.result, title: l.tail}]));
 
 // ---------- 기하 (원안 그대로) ----------
 interface Geo { posA: PosMap; posB: PosMap | null; lt: number; axisA: Axis; axisB: Axis | null; open: Record<NodeKey, boolean> }
@@ -149,7 +160,7 @@ export function flowCanvasHtml(d: FlowData, view: 'map' | 'sm' = 'map', layout =
     <div class="flowc-canvas" data-fc-canvas>
       <div class="flowc-world" data-fc-world>${view === 'sm' ? smWorldHtml(d) : mapWorldHtml(d, g, null)}</div>
       <div class="flowc-tip" data-fc-tip hidden></div>
-      <div class="flowc-legend"><span class="pass">✓ pass</span><span class="fail">✗ fail</span><span class="na">– not_evaluable</span><span>휠 줌 · 드래그 팬 · 엣지 클릭 선택</span></div>
+      <div class="flowc-legend"><span class="pass">✓ pass</span><span class="fail">✗ fail</span><span class="na">– not_evaluable</span>${d.rowId ? '<span>L- = U 로컬 검사 (T 등식 아님) · 근거 종류는 행 선택 시 표시</span>' : '<span>E- = T 가 서명 진술을 대조한 등식</span>'}<span>휠 줌 · 드래그 팬 · 엣지 클릭 선택</span></div>
       <div class="flowc-mini" data-fc-minimap${showMinimap ? '' : ' hidden'}><svg data-fc-minisvg viewBox="0 0 ${W.w} ${W.h}" preserveAspectRatio="xMidYMid meet"><g data-fc-minishapes>${miniShapesHtml(d, g, view)}</g><rect class="mmview" data-fc-miniview x="0" y="0" width="${W.w}" height="${W.h}"/></svg><span class="mmtag">MINIMAP</span></div>
       <div class="flowc-sel" data-fc-sel hidden><div class="h"><span class="id" data-fc-selid></span><span class="ti" data-fc-seltitle></span><button type="button" class="x" data-fc-clear>닫기</button></div><div class="reason" data-fc-selreason></div><div class="cmp" data-fc-selcmp></div></div>
     </div>
@@ -160,6 +171,7 @@ function mapWorldHtml(d: FlowData, g: Geo, sel: string | null, t = Infinity, pla
   const key = d.key, ax = gAxis(g), P = gPos(g);
   const res = (id: string) => (d.eq[id] || {}).result || 'not_evaluable';
   const title = (id: string) => d.rowTitle?.[id] || EQ_TITLE[id] || '';
+  const idl = (id: string) => d.rowId?.[id] || id;  // 검사 모드에서는 등식 번호를 보이지 않는다
   const mkFlow = (id: string, a: NodeKey, b: NodeKey, frac: number) => { const [p, q] = ends(g, a, b, frac), r = res(id);
     return {id, d: smoothstep(p[0], p[1], q[0], q[1], ax), color: colOf(r), dash: 'none', marker: `url(#${key}-ar)`, res: r, mid: [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2] as Pt, ev: ''}; };
   const edges = [mkFlow('E2', 'U', 'R', .3), mkFlow('E3', 'R', 'M', .3), mkFlow('E6', 'M', 'R', .72), mkFlow('E7', 'R', 'U', .72)];
@@ -172,11 +184,11 @@ function mapWorldHtml(d: FlowData, g: Geo, sel: string | null, t = Infinity, pla
             <path class="edge-hit" d="M ${p[0]} ${p[1]} L ${q[0]} ${q[1]}" data-fc-ev="${k}"/>`; }).join('');
   const paths = edges.map(e => `<path class="edge${sel === e.id ? ' on' : ''}" data-edge-path="${e.id}" d="${e.d}" fill="none" stroke="${e.color}" stroke-width="2.5" stroke-dasharray="${e.dash}" stroke-linecap="round" marker-end="${e.marker}"/>`).join('')
     + edges.map(e => `<path class="edge-hit" d="${e.d}" data-eq="${e.id}" data-fc-pick="${e.id}"/>`).join('');
-  const labels = edges.map(e => `<div class="fclabel${sel === e.id ? ' sel' : ''}" data-eq="${e.id}" data-fc-pick="${e.id}" style="left:${e.mid[0].toFixed(1)}px;top:${e.mid[1].toFixed(1)}px;color:${e.color}">${eqGlyph(e.res)} ${e.id} ${esc(title(e.id))}</div>`).join('');
+  const labels = edges.map(e => `<div class="fclabel${sel === e.id ? ' sel' : ''}" data-eq="${e.id}" data-fc-pick="${e.id}" style="left:${e.mid[0].toFixed(1)}px;top:${e.mid[1].toFixed(1)}px;color:${e.color}">${eqGlyph(e.res)} ${esc(idl(e.id))} ${esc(title(e.id))}</div>`).join('');
   const nodes = (Object.keys(NODE_DEF) as NodeKey[]).map(id => {
     const n = NODE_DEF[id], open = g.open[id], isT = id === 'T';
     const rows = n.rows.map(eid => { const r = res(eid);
-      return `<div class="fcrow${sel === eid ? ' sel' : ''}" data-eq="${eid}" data-fc-pick="${eid}"><span class="g" style="color:${colOf(r)}">${eqGlyph(r)}</span><span class="i" style="color:${colOf(r)}">${eid}</span><span class="n">${esc(title(eid))}</span><span class="d" style="background:${colOf(r)}"></span></div>`; }).join('');
+      return `<div class="fcrow${sel === eid ? ' sel' : ''}" data-eq="${eid}" data-fc-pick="${eid}"><span class="g" style="color:${colOf(r)}">${eqGlyph(r)}</span><span class="i" style="color:${colOf(r)}">${esc(idl(eid))}</span><span class="n">${esc(title(eid))}</span><span class="d" style="background:${colOf(r)}"></span></div>`; }).join('');
     const handles = (ax === 'h' ? ['left:-5px;top:30%', 'left:-5px;top:72%', 'right:-5px;top:30%', 'right:-5px;top:72%'] : ['top:-5px;left:30%', 'top:-5px;left:72%', 'bottom:-5px;left:30%', 'bottom:-5px;left:72%'])
       .map(s => `<span class="handle" style="${s}"></span>`).join('');
     return `<div class="fcnode${isT ? ' t' : ''}${open ? '' : ' closed'}" data-node="${id}" style="left:${P[id][0].toFixed(1)}px;top:${P[id][1].toFixed(1)}px">
@@ -293,9 +305,12 @@ export class FlowCanvas {
     this.el.querySelectorAll(`[data-edge-path="${CSS.escape(id)}"]`).forEach(n => n.classList.add('on'));
     const e = this.d.eq[id] || {result: 'not_evaluable'}, r = e.result || 'not_evaluable';
     const sid = this.$('[data-fc-selid]')!, stt = this.$('[data-fc-seltitle]')!, rs = this.$('[data-fc-selreason]')!, cmp = this.$('[data-fc-selcmp]')!;
-    sid.textContent = id; sid.style.color = colOf(r); stt.textContent = this.d.rowTitle?.[id] || EQ_TITLE[id] || e.title || '';
+    sid.textContent = this.d.rowId?.[id] || id; sid.style.color = colOf(r); stt.textContent = this.d.rowTitle?.[id] || EQ_TITLE[id] || e.title || '';
     rs.textContent = e.reason || `결과 ${r} — 사유는 등식 표에서 확인한다.`;
-    cmp.textContent = `비교 대상 · ${(e.compared || []).join(' · ') || id} · trust_grade=${e.trust_grade || '—'} · 판정 ${r}`;
+    // 근거 종류를 항상 적는다. 로컬 검사는 T 등식과 다른 주장이고, 서명된 자기보고는 U 의 계산이 아니다.
+    cmp.textContent = this.d.rowId
+      ? `근거 ${BASIS_LABEL[e.basis || 'measured_locally'] || e.basis} · U 로컬 검사 (T 등식 ${id} 자리에 놓았을 뿐 그 등식을 확인한 것이 아님) · 결과 ${r}`
+      : `비교 대상 · ${(e.compared || []).join(' · ') || id} · trust_grade=${e.trust_grade || '—'} · 근거 ${BASIS_LABEL.reconciled} · 판정 ${r}`;
     panel.hidden = false;
   }
   private setLayout(k: string) {
@@ -350,7 +365,7 @@ export class FlowCanvas {
     el.addEventListener('mouseover', e => {
       const t = e.target as HTMLElement; if (!t.closest('[data-fc-canvas]')) return;
       const pk = t.closest<HTMLElement>('[data-fc-pick]');
-      if (pk) { const id = pk.dataset.fcPick!; this.tip(`${id} ${this.d.rowTitle?.[id] || EQ_TITLE[id] || ''} — ${(this.d.eq[id] || {}).result || 'not_evaluable'}`); return; }
+      if (pk) { const id = pk.dataset.fcPick!, e = this.d.eq[id] || {} as EqInfo; this.tip(`${this.d.rowId?.[id] || id} ${this.d.rowTitle?.[id] || EQ_TITLE[id] || ''} — ${e.result || 'not_evaluable'}${e.basis ? ` · ${BASIS_LABEL[e.basis] || e.basis}` : ''}`); return; }
       const ev = t.closest<HTMLElement>('[data-fc-ev]');
       if (ev) { const k = ev.dataset.fcEv!, reg = this.d.regs[k]; this.tip(`${EV_NAME[k]} 제출 — ${reg == null ? '결손 (등록 없음)' : this.t >= reg ? '등록 ≤ ' + reg + ' ms' : '대기'}`); return; }
       this.tip(null);

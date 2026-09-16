@@ -8,6 +8,7 @@ from pathlib import Path
 from itx import CHECKER_VERSION
 from itx.crypto import canonical_json, content_hash_hex
 from itx.enforce import UserGate
+from itx.enforce.user_gate import CHECK_BASIS
 from itx.statements import CT_CONTRACT, CT_OBSERVATION, CT_POLICY, CT_RECEIPT, CT_RELAY, CT_VERDICT, SignedStatement
 from itx.statements.schemas import contract_payload, observation_payload
 from itx.ts import RegistrationReceipt, verify_receipt
@@ -233,9 +234,11 @@ class Agent:
                         m = stmt
                     else:
                         r = stmt
-                    checks[role + "_authority"] = {"result": "pass", "reason": "고정된 발행자·역할·유형·서명·요청 결합 확인"}
+                    checks[role + "_authority"] = {"result": "pass", "reason": "고정된 발행자·역할·유형·서명·요청 결합 확인",
+                                                   "basis": CHECK_BASIS[role + "_authority"]}
                 except (ValueError, KeyError, TypeError):
-                    checks[role + "_authority"] = {"result": "fail", "reason": "필수 증거가 없거나 발행자·서명·요청 결합이 올바르지 않음"}
+                    checks[role + "_authority"] = {"result": "fail", "reason": "필수 증거가 없거나 발행자·서명·요청 결합이 올바르지 않음",
+                                                   "basis": CHECK_BASIS[role + "_authority"]}
             gate = UserGate(mode, {self.config["identities"]["M"]["kid"]: bytes.fromhex(self.config["identities"]["M"]["public_key"])},
                             self.config["model_hashes"])
             checks.update(gate.local_checks(contract.payload, received_commit, response, m, r, received_at))
