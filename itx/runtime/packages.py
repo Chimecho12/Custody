@@ -80,6 +80,7 @@ def build_package(agent, include_private=False):
             "private_by_hash": versions, "private_included": include_private,
             "anchors": [] if old is None else [{"tree_size": old["tree_size"], "root_hash": old["root_hash"], "anchored_at": old["time"]}],
             "witness_receipts": [v for _, v in agent.store.items("witness:")],
+            "held_receipts": agent.held_receipts(),
             "deployment_history": agent.config.get("deployment_history", []),
             "deployment_bundle": read_document(agent.config["deployment_file"]) if agent.config.get("deployment_file") else None}
     return {"body": body, "u_signature": agent.key.sign(canonical_json(body)).hex()}
@@ -110,7 +111,8 @@ def verify_package(value, trust, expected_fingerprint, recipient_directory=None)
             raise ValueError("deployment history differs from the pinned audit trust")
         epochs = len(config["deployment_history"])
     report = verify_export(body["log_export"], trust, anchors=body["anchors"],
-                           private=body["private_by_sub"], private_by_hash=body["private_by_hash"])
+                           private=body["private_by_sub"], private_by_hash=body["private_by_hash"],
+                           held_receipts=body.get("held_receipts", []))
     if body.get("witness_receipts"):
         from .witness import verify_witness_receipt
         tree = __import__('itx.ts', fromlist=['MerkleTree']).MerkleTree()

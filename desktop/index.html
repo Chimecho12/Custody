@@ -44,7 +44,7 @@
         <button class="v3-guide" type="button" data-guide="request" title="이 화면 설명" aria-expanded="false">ⓘ</button>
         <div class="v3-head-actions"><button id="lab-t" type="button" class="v3-btn" hidden>실험: T 중단</button><span id="policy-state" class="badge">정책 확인 중</span></div>
       </div>
-      <p class="v3-guide-text" data-guide-text="request" hidden>요청을 보내면 사용자(U) · 중개자(R) · 모델 운영자(M) 경로를 지나 사용자 쪽 집행 모듈이 응답을 검증합니다. 검증 통과 여부와 응답 공개 여부는 별개 항목이며, 아래 요약에서 두 줄로 나누어 보여줍니다. 전송 · 수신 · 공개 같은 사건은 중립색으로 표시하고, 색은 검증 판정에만 씁니다. 통신·검증 시간은 실측값이고 모형 모델은 결정적 텍스트를 반환합니다.</p>
+      <p class="v3-guide-text" data-guide-text="request" hidden>요청을 보내면 사용자(U) · 중개자(R) · 모델 운영자(M) 경로를 지나 사용자 쪽 집행 모듈이 응답을 검증합니다. 검증 통과 여부와 응답 공개 여부는 별개 항목이며, 아래 요약에서 두 줄로 나누어 보여줍니다. 전송 · 수신 · 공개 같은 사건은 중립색으로 표시하고, 색은 검증 판정에만 씁니다. 전송·수신·결정·공개 시각은 실측값이고, 홉 지도에서 그 사이를 나누는 구간은 시뮬레이션 상수 비율의 추정입니다. 모형 모델은 결정적 텍스트를 반환합니다.</p>
 
       <!-- 1) 요청 입력 -->
       <form id="request-form" class="v3-card">
@@ -55,7 +55,7 @@
           <div class="v3-grid2">
             <div><label>모델</label><div class="v3-field mono" id="model-field">연결 전</div>
               <label style="margin-top:12px">실험 조건</label>
-              <select id="scenario" class="v3-sr" aria-label="실험 조건"><option value="normal">정상 경로</option><option value="response_tamper">R의 응답 변조 · S03 대응</option><option value="request_tamper">R의 요청 변조 · S02 대응</option><option value="missing_receipt">M 영수증 제거</option></select>
+              <select id="scenario" class="v3-sr" aria-label="실험 조건"><option value="normal">정상 경로</option><option value="response_tamper">R의 응답 변조 · S03 대응</option><option value="request_tamper">R의 요청 변조 · S02 대응</option><option value="missing_receipt">M 영수증 제거</option><option value="missing_relay">R 진술 보류 · S09 대응</option></select>
               <div class="v3-pills" id="scenario-pills" role="radiogroup" aria-label="실험 조건"></div>
               <p class="field-help" id="scenario-help">연결 모드에서는 공격을 주입할 수 없어 정상 경로만 선택됩니다.</p></div>
             <div><label for="mode">집행 정책</label>
@@ -86,7 +86,7 @@
       <section class="v3-card v3-collapsible" id="detail-card">
         <button type="button" class="v3-collapse-head" id="detail-toggle" aria-expanded="false" aria-controls="detail-body">
           <span class="v3-card-title">경로 상세 · 증거 · 시간선</span>
-          <span class="v3-meta">홉 20ms · 중개 처리 5ms · 서명 2ms · 추론 200ms — 실제 지연 비율</span>
+          <span class="v3-meta">실측은 전송·수신 시각 — 홉 사이 배분은 상수 비율의 추정</span>
           <span class="v3-caret" id="detail-label">펼치기 ▾</span>
         </button>
         <div id="detail-body" hidden>
@@ -226,6 +226,9 @@
         <h2>4. Q1 — 협조 집합별 탐지 가능성</h2>
         <p class="small muted">같은 위반을 협조 집합 {U, U+M, U+R, U+R+M} 에서 실행했다. 'insufficient_evidence' 는 위반이 없다는 뜻이 아니라 증거로 확립할 수 없다는 뜻이다. R 만 협조하고 M 이 없으면 종단 무결성(E10)을 세울 수 없다.</p>
         <div id="rpt-q1" class="tablewrap"></div>
+        <h3>4b. T 가 실제로 더해 주는 것 — U 로컬 검증만 vs U+T</h3>
+        <p class="small muted">같은 사건을 (a) T 없이 U 로컬 검증만, (b) U+T protect, (c) U+T strict 로 돌려 나란히 놓는다. 사용 전 차단은 U 의 로컬 검증이 맡으므로 (a)와 (b)는 같아야 정상이다. T 가 더하는 것이 이 표에 없으면 "제3자가 필요하다" 는 주장은 근거가 없다.</p>
+        <div id="rpt-tcontrib" class="tablewrap"></div>
 
         <h2>5. 판정 불확실성을 어떻게 보여줄 것인가</h2>
         <p class="small muted">증거가 협조 수준만큼만 있을 때 '위반 없음'과 '위반을 확인할 수 없음'을 같은 칸에 섞으면 안 된다. 같은 사건을 세 가지 표현으로 비교한다 — 경로검증 콘솔 옵션 1d.</p>

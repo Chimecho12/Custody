@@ -131,6 +131,22 @@ class EvidenceAndAvailabilityTest(unittest.TestCase):
         self.assertGreaterEqual(s["gate"]["waited_ms"], 900)
         self.assertLess(p["gate"]["waited_ms"], 50)
 
+    def test_availability_axis_separates_protect_from_strict_under_pressure(self):
+        """무결성 검사가 가용성 스위치가 되면 안 된다. R 진술 보류·T 정지·지연·큐 포화 아래의 정상 요청을
+        protect 는 전부 서비스하고, strict 는 T 없이는 거부한다 — 그 차이가 지표에 숫자로 남아야 한다."""
+        from itx.metrics import aggregate
+        _, s09 = _last("S09", "protect")
+        self.assertTrue(s09["metrics"]["served"])
+        self.assertEqual(s09["metrics"]["availability_pressure"], "relay_withholds_statement")
+        runs = [_run(sid, mode) for sid in ("S09", "S10", "S11", "S12") for mode in ("protect", "strict")]
+        summary = aggregate(runs)
+        protect, strict = summary["protect"]["availability_under_pressure"], summary["strict"]["availability_under_pressure"]
+        self.assertEqual(protect["den"], 7)
+        self.assertEqual(protect["num"], protect["den"])
+        self.assertLess(strict["num"], strict["den"])
+        self.assertEqual(protect["causes"], ["queue_saturation", "relay_withholds_statement", "t_delay", "t_down"])
+        self.assertEqual(summary["protect"]["availability_legit"]["denied"], {"gate_blocked": 0, "no_response": 0})
+
     def test_S12_queue_saturation_leaves_gaps(self):
         r = _run("S12", "protect")
         drops = sum(len(v) for v in r["ts"]["queue_drops"].values())
@@ -167,6 +183,66 @@ class ThirdPartyTest(unittest.TestCase):
         self.assertEqual(a["final_verdict"]["verification_status"], "passed")
         self.assertEqual(a["gate"]["local_checks"]["tool_policy"]["result"], "fail")
         self.assertEqual(a["gate"]["action"], "quarantine")
+
+    def test_S18_omitted_entries_are_seen_only_through_held_receipts(self):
+        """T 가 항목을 빼고 재서명한 로그는 스스로 일관적이다. 영수증을 버린 감사는 통과하고,
+        영수증을 보관한 감사만 누락을 본다. 이 차이를 기대 결과로 고정한다."""
+        r, a = _last("S18", "protect")
+        self.assertEqual(a["gate"]["action"], "accept")  # 사용자 쪽 사건은 정상이었다
+        self.assertTrue(r["ts"]["omitted_indexes"])
+        without = r["audit_without_held_receipts"]
+        self.assertTrue(without["ok"])  # 트리·헤드·앵커·재실행 전부 일관 — 누락이 보이지 않는다
+        self.assertEqual(without["subs_checked"], 0)
+        audit = r["audit"]
+        self.assertTrue(audit["tree_recomputed_matches_head"] and audit["head_signature_valid"])
+        self.assertTrue(all(x["ok"] for x in audit["anchors"]))
+        self.assertFalse(audit["ok"])
+        held = audit["held_receipts"]
+        self.assertEqual(held["held"], r["ts"]["held_receipts"])
+        self.assertGreater(len(held["missing"]), 0)
+        self.assertEqual(held["included"] + len(held["missing"]), held["held"])
+        self.assertIn(a["sub"], {m["sub"] for m in held["missing"]})
+        self.assertFalse(all(c["ok"] for c in held["receipt_checkpoints"]))
+
+    def test_S01_held_receipts_are_all_included(self):
+        r, _ = _last("S01", "protect")
+        held = r["audit"]["held_receipts"]
+        self.assertGreater(held["held"], 0)
+        self.assertEqual(held["included"], held["held"])
+        self.assertEqual(held["missing"], [])
+        self.assertTrue(all(c["ok"] for c in held["receipt_checkpoints"]))
+
+
+class TContributionTest(unittest.TestCase):
+    """'제3자가 실제로 무엇을 더해 주는가' 에 대한 답을 고정한다. 사용 전 차단은 U 로컬 검증의 몫이라
+    T 없이도 같아야 하고, T 는 실행 전 거부·서명된 탐지 기록·감사 발견을 더한다. strict 는 차단을
+    더하지 못하고 가용성만 잃는다 — 이 결과가 바뀌면 문서의 주장도 같이 바꿔야 한다."""
+
+    @classmethod
+    def setUpClass(cls):
+        from itx.sim import run_t_contribution, summarize_t_contribution
+        cls.rows = {r["scenario_id"]: r for r in run_t_contribution(seed=42)}
+        cls.summary = summarize_t_contribution(list(cls.rows.values()))
+
+    def test_defense_before_use_does_not_depend_on_t(self):
+        self.assertEqual(self.summary["defense_same_without_t"], self.summary["scenarios"])
+        self.assertEqual(self.summary["attacks_blocked_local_only"], self.summary["attacks_blocked_with_t_protect"])
+        self.assertEqual(self.summary["strict_block"], [])
+
+    def test_what_t_adds(self):
+        self.assertEqual(self.summary["pre_execution_refusal"], ["S17"])
+        self.assertEqual(self.summary["audit_finding"], ["S13", "S14", "S18"])
+        self.assertEqual(set(self.summary["signed_detection_record"]), {"S02", "S03", "S05", "S06", "S08", "S17"})
+        s17 = self.rows["S17"]
+        self.assertFalse(s17["local_only"]["model_refused_before_execution"])  # T 없이는 변조 요청이 실행된 뒤 격리된다
+        self.assertTrue(s17["with_t_protect"]["model_refused_before_execution"])
+        self.assertIsNone(s17["local_only"]["detected_by_verdict"])  # T 가 없으면 탐지 기록은 '0' 이 아니라 '없음'
+        self.assertIsNone(s17["local_only"]["audit_finding"])
+
+    def test_strict_costs_availability_without_adding_defense(self):
+        for sid in ("S10", "S12"):
+            self.assertEqual(self.rows[sid]["with_t_strict"]["gate_action"], "reject_timeout")
+            self.assertEqual(self.rows[sid]["local_only"]["gate_action"], "accept")
 
 
 class Q1MatrixTest(unittest.TestCase):

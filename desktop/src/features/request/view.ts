@@ -5,12 +5,12 @@ import type { Data } from '../../shared/types';
 //   3) 경로 상세 — 홉 지도(flow.ts 그래프 캔버스) · 추적 3단 · 로컬 검사 · T 판정 · 시간선. 기본 화면은 결론이고 이것은 근거다.
 // U 가 실측한 것은 전송·수신·결정·공개 시각뿐이다. R·M 내부 구간은 비율 추정이며 그렇게 표기한다.
 import { esc, short, CV, makeSpan, PlayContext, timeBoxHtml, Mark, evidenceRowsHtml, stripGridHtml, checksTableHtml, equationTableHtml, codesHtml, gateColor, checkChipsHtml, st, playControlsHtml,  } from '../../shared/console';
-import { FlowData, flowCanvasHtml, flowLegs, footHtml, eqFromChecks, eqFromEquations, actionTone, toneOf } from '../../shared/flow';
+import { FlowData, CHECK_SLOT, CHECK_CODE, flowCanvasHtml, flowLegs, footHtml, eqFromChecks, eqFromEquations, actionTone, toneOf } from '../../shared/flow';
 import { TraceData, traceTopHtml, traceBottomHtml } from '../../shared/trace';
 
 export const STATE_NAMES: Record<string, string> = {accept: '검증 후 수용', accept_unverified: '미검증 수용', quarantine: '응답 격리', reject: '수용 거부', reject_timeout: 'T 판정 기한 초과', cancelled: '취소 · 미공개', interrupted: '종료로 중단 · 미공개', pending: '진행 중', error: '요청 오류'};
 export const CHECK_NAMES: Record<string, string> = {M_authority: 'M 발행자·역할 인증', R_authority: 'R 발행자·역할 인증', not_expired: '계약 유효기간', receipt_present: '모델 영수증', receipt_signature: '영수증 서명', nonce_match: 'nonce 결합', request_binding: '승인된 요청 결합', response_binding: '종단 응답 결합', attempt_match: '시도 ID 결합', model_hash_reference: '등록 기준 해시', route_allowed: '허용 모델 경로', tool_policy: '도구 실행 정책'};
-export const SCENARIO_NAMES: Record<string, string> = {normal: '정상 경로', response_tamper: 'R 의 응답 변조', request_tamper: 'R 의 요청 변조', missing_receipt: 'M 영수증 제거'};
+export const SCENARIO_NAMES: Record<string, string> = {normal: '정상 경로', response_tamper: 'R 의 응답 변조', request_tamper: 'R 의 요청 변조', missing_receipt: 'M 영수증 제거', missing_relay: 'R 의 진술 보류 (결손 · 위반 아님)'};
 /** 집행 정책 카드. 제목은 사람 말, 코드는 실제 값. 본문이 곧 이전 화면의 mode-help 였다. */
 export const MODES: {code: string; title: string; body: string}[] = [
   {code: 'protect', title: '기본 보호', body: '로컬 검증에 실패하면 응답을 업무에 넘기지 않고 격리합니다. T 가 연결되지 않아도 필수 로컬 증거와 유효한 정책이 있으면 계속합니다.'},
@@ -39,7 +39,8 @@ export interface RouteCard { html: string; ctx: PlayContext | null; flow: FlowDa
 
 // 실행 전 상태: 모든 검사가 회색이다. 부재를 사건처럼 그리지 않는다.
 export function idleRouteHtml(status: Data | null): RouteCard {
-  const flow: FlowData = {key: 'req', eq: {}, rowTitle: Object.fromEntries(Object.entries(CHECK_NAMES).map(([k, v]) => [checkEq(k), v])),
+  const flow: FlowData = {key: 'req', eq: {}, rowTitle: Object.fromEntries(Object.entries(CHECK_NAMES).map(([k, v]) => [CHECK_SLOT[k] || k, v])),
+    rowId: Object.fromEntries(Object.keys(CHECK_NAMES).map(k => [CHECK_SLOT[k] || k, CHECK_CODE[k] || k])),
     regs: {U: null, R: null, M: null}, sent: 0, received: 1, latency: 200, sm: null,
     info: {id: status ? esc(status.source) : '연결 전', title: '아직 실행한 요청이 없다', verdict: '대기', verdictTone: 'na', action: '—', actionTone: 'na', note: 'evaluation'},
     foot: '<p class="small muted" style="margin:0">첫 요청 뒤 U 의 로컬 검사 결과가 이 지도에 표시된다.</p>'};
@@ -47,7 +48,7 @@ export function idleRouteHtml(status: Data | null): RouteCard {
     ${flowCanvasHtml(flow)}`;
   return {html, ctx: null, flow, trace: null};
 }
-const checkEq = (k: string) => ({not_expired: 'E12', tool_policy: 'E1', nonce_match: 'E5', route_allowed: 'E8', model_hash_reference: 'E9', attempt_match: 'E11', request_binding: 'E2', R_authority: 'E3', receipt_signature: 'E4', M_authority: 'E6', receipt_present: 'E7', response_binding: 'E10'} as Record<string, string>)[k] || k;
+
 
 export function routeCard(record: Data, status: Data | null, mode: MapMode): RouteCard {
   const mm = moments(record);
@@ -63,7 +64,7 @@ export function routeCard(record: Data, status: Data | null, mode: MapMode): Rou
   const verdictAt = typeof record.t_verdict?.issued_at === 'number' && record.t_verdict.issued_at > record.started_at ? record.t_verdict.issued_at - record.started_at : null;
   const harmExposed = attack && released !== null;
   const useEq = mode === 'equations' && !!v;
-  const eqInfo = useEq ? {eq: eqFromEquations(v.equations), rowTitle: undefined as Record<string, string> | undefined} : eqFromChecks(checks, CHECK_NAMES);
+  const eqInfo = useEq ? {eq: eqFromEquations(v.equations), rowTitle: undefined as Record<string, string> | undefined, rowId: undefined as Record<string, string> | undefined} : eqFromChecks(checks, CHECK_NAMES);
   const canPlay = mm.sent !== null && received > sent;
   const legs = canPlay ? flowLegs(sent, received, 200) : null;
 
@@ -93,7 +94,7 @@ export function routeCard(record: Data, status: Data | null, mode: MapMode): Rou
     {key: 'R', name: 'R 중계 진술', detail: '전달 해시 · 변환 선언', reg: null, present: checks.R_authority?.result === 'pass'},
     {key: 'M', name: 'M 응답 영수증', detail: '응답 커밋 · 시도 ID 서명', reg: null, present: checks.M_authority?.result === 'pass'},
   ]);
-  const flow: FlowData = {key: 'req', eq: eqInfo.eq, rowTitle: eqInfo.rowTitle, regs: {U: null, R: null, M: null},
+  const flow: FlowData = {key: 'req', eq: eqInfo.eq, rowTitle: eqInfo.rowTitle, rowId: eqInfo.rowId, regs: {U: null, R: null, M: null},
     sent, received: canPlay ? received : sent + 1, latency: 200,
     sm: g ? {mode: record.mode, gateAction: g.action, decidedAt: decided ?? received, consumedAt: released, verdictAt} : null,
     info: {id: String(record.sub || '').split(':').pop() || String(record.sub || ''),
@@ -104,11 +105,11 @@ export function routeCard(record: Data, status: Data | null, mode: MapMode): Rou
     foot: footHtml(timebox, evidence), controls: ctx ? playControlsHtml() : ''};
   // 추적 3단(배너·파이프라인·인스펙터)은 재생 구간이 있을 때만 한 시계로 묶인다.
   const trace: TraceData | null = legs && ctx ? {record, status, legs, sent, received, decided: decided ?? received, released, verdictAt, tEnd: ctx.tEnd} : null;
-  const toggle = v ? `<div class="tabs" data-map-toggle><button type="button" class="pill${!useEq ? ' on' : ''}" data-map="checks">U 로컬 검사</button><button type="button" class="pill${useEq ? ' on' : ''}" data-map="equations">T 등식 E1~E12</button></div>` : '';
+  const toggle = v ? `<div class="tabs" data-map-toggle><button type="button" class="pill${!useEq ? ' on' : ''}" data-map="checks" title="U 가 응답 공개 전에 직접 확인한 항목. T 의 등식과 다른 주장이다">U 로컬 검사 (L-)</button><button type="button" class="pill${useEq ? ' on' : ''}" data-map="equations" title="T 가 세 당사자의 서명 진술을 대조한 등식">T 대조 등식 (E1~E12)</button></div>` : '';
   const html = `<div class="card-head"><h3>경로 — 업무 데이터 경로(실선)와 T 의 증거·통제 경로(점선)</h3>
       <div class="badges"><span>${esc(record.source)}</span><span>evaluation</span><span>${record.lab_scenario ? '실험 조건 · ' + esc(SCENARIO_NAMES[record.lab_scenario] || record.lab_scenario) : '연결 모드 · 공격 주입 없음'}</span></div></div>
     ${trace ? traceTopHtml(trace) : ''}
-    <div class="wf-sec"><h3>2단 — 홉 지도 · 패킷 트래커</h3><span class="wf-hint">홉 20ms · 중개 처리 5ms · 서명 2ms · 추론 200ms — 실제 지연 비율</span></div>
+    <div class="wf-sec"><h3>2단 — 홉 지도 · 패킷 트래커</h3><span class="wf-hint">실측은 전송·수신·결정·공개 시각뿐 — 홉 사이 배분은 시뮬레이션 상수(홉 20ms · 중개 처리 5ms · 서명 2ms · 추론 200ms) 비율의 추정이며 패킷 캡처가 아니다</span></div>
     ${toggle ? `<div style="margin:0 0 10px">${toggle}</div>` : ''}
     ${flowCanvasHtml(flow)}
     <p class="small muted" style="margin:10px 0 0">${timeNote(record, mm, g, decided, released, verdictAt, attack)} 등록 시각은 T 의 원장에만 있다. 제출 대기 ${status ? status.pending_evidence : '—'}건 · 사후 판정은 '제3자 검증'에서 갱신한다.</p>
@@ -169,7 +170,7 @@ export function summaryHtml(record: Data | null, busy = false): string {
 
   let vTitle: string, vBody: string;
   if (vt === 'wait') { vTitle = busy ? '검증 진행 중' : '아직 실행한 요청이 없습니다'; vBody = busy ? '응답과 영수증이 아직 집행 모듈에 도착하지 않았습니다. 이 단계에서는 어떤 판정도 확정하지 않습니다.' : '요청을 실행하면 검증 결과와 응답 공개 여부가 여기에 두 줄로 나뉘어 표시됩니다.'; }
-  else if (vt === 'pass') { vTitle = '검증 통과'; vBody = `M 이 서명한 응답 해시와 받은 응답 해시가 같습니다. 승인 경로·모델·시도 결합까지 로컬에서 확인했습니다.${v ? ` T 사후 판정 ${esc(v.verification_status)} · 완전성 ${esc(v.completeness)}.` : ' T 사후 판정은 아직 조회하지 않았습니다.'}`; }
+  else if (vt === 'pass') { vTitle = '검증 통과'; vBody = `M 이 서명한 응답 해시와 받은 응답 해시가 같습니다 (U 계산). 시도·nonce 결합도 로컬에서 계산했고, 경로·모델 해시는 M 이 서명한 자기보고를 기준값과 맞춰 본 것입니다 — 실행 증명은 아닙니다.${v ? ` T 사후 판정 ${esc(v.verification_status)} · 완전성 ${esc(v.completeness)}.` : ' T 사후 판정은 아직 조회하지 않았습니다.'}`; }
   else if (vt === 'fail') {
     const names = failed.map(([k]) => CHECK_NAMES[k] || k);
     const reasons = failed.map(([, c]: [string, any]) => c.reason).filter(Boolean);
@@ -231,7 +232,7 @@ export function bodyHtml(record: Data): string {
 export function detailHtml(record: Data): string {
   const v = record.t_verdict?.payload;
   const g = record.gate;
-  return `<div class="v3-sub"><div class="v3-sub-head"><span class="v3-card-title">집행 · 로컬 검사</span><span class="v3-meta">응답 공개 전 U 가 직접 확인한 항목</span></div>
+  return `<div class="v3-sub"><div class="v3-sub-head"><span class="v3-card-title">집행 · 로컬 검사</span><span class="v3-meta">응답 공개 전 U 가 확인한 항목 · 근거 종류(실측·계산 / 서명된 자기보고 / 평가 불가)를 함께 표시 · T 등식이 아님</span></div>
     ${g ? `<div class="small" style="margin-bottom:8px"><span class="mono" style="font-weight:700;color:${CV(gateColor(g.action))}">${esc(g.action)}</span> · ${(g.reasons || []).map(esc).join(' · ')}</div>${checkChipsHtml(g.local_checks || {})}` : ''}
     ${checksTableHtml(record.checks || {}, CHECK_NAMES)}
     <div class="result-actions"><button type="button" class="v3-btn" data-refresh>T 사후 판정 갱신</button><span class="badge ${v ? (v.verification_status === 'passed' ? 'green' : 'red') : 'amber'}">${v ? 'T: ' + esc(v.verification_status) : 'T: 사후 판정 대기'}</span></div></div>

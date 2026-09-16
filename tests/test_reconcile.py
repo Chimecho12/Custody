@@ -304,6 +304,17 @@ class GateUnverifiableBindingTest(unittest.TestCase):
         self.assertEqual(checks["request_binding"]["result"], "fail")
         self.assertEqual(gate.decide(checks, 100, 101, verdict_status="passed").action, "quarantine")
 
+    def test_every_local_check_declares_its_basis(self):
+        """로컬 계산과 서명자의 자기보고는 다른 주장이다. 검사마다 근거 종류가 붙어야 화면이 섞지 않는다."""
+        from itx.enforce.user_gate import B_ATTESTED, B_LOCAL, CHECK_BASIS
+        _, checks = self._checks(("identity",), {})
+        for name, check in checks.items():
+            self.assertIn(check["basis"], (B_LOCAL, B_ATTESTED), name)
+            self.assertEqual(check["basis"], CHECK_BASIS[name])
+        self.assertEqual(checks["response_binding"]["basis"], B_LOCAL)
+        self.assertEqual(checks["model_hash_reference"]["basis"], B_ATTESTED)  # 해시 일치 ≠ 실행 증명
+        self.assertEqual(checks["route_allowed"]["basis"], B_ATTESTED)
+
 
 if __name__ == "__main__":
     unittest.main()

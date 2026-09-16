@@ -5,6 +5,9 @@
 - 피해 노출: 공격 응답이 업무에 소비됐는가 (관찰 모드의 '수신 즉시 소비' 포함).
 - 오차단: 공격이 없는데 격리·거부했는가. 응답 자체가 없던 경우(no_response)는 차단이 아니다.
 - 안전 완료: 검증을 통과해 수용됐는가 (accept_unverified 는 아님).
+- 가용성: 정상 요청이 실제로 서비스됐는가 (accept·accept_unverified). 거부 원인(게이트 차단·무응답)을 따로 센다.
+  압박 조건(R 진술 보류·T 정지·등록 지연·큐 포화)에 놓인 정상 요청은 별도 분모로 집계한다 — 무결성 검사가
+  가용성 스위치가 되는지(예: R 이 진술을 안 내면 전부 격리되는지)를 이 축이 잰다.
 - 가용성 비용: 왕복 지연, 결정 대기.
 분모와 제외 건수를 함께 보고한다. 표본이 작으므로 비율은 시나리오 비교용이다.
 """
@@ -37,6 +40,9 @@ def attempt_metrics(ground_truth: dict[str, Any], gate: dict[str, Any], verdict:
         "false_block": (not attack) and blocked,
         "safe_completion": action == "accept",
         "consumed_before_decision": consumed_before,
+        "served": action in ("accept", "accept_unverified"),
+        "denied_legit": (not attack) and action in (*BLOCKING, "no_response"),
+        "availability_pressure": ground_truth.get("availability_pressure"),
         "rtt_ms": (received_at - sent_at) if received_at is not None else None,
         "decision_wait_ms": gate.get("waited_ms"),
         "evidence_complete": verdict["completeness"] == "complete",
@@ -59,6 +65,7 @@ def aggregate(results: list[dict[str, Any]]) -> dict[str, Any]:
         detectable = [m for m in attacks if m["detectable_by_evidence"]]
         legit = [m for m in rows if not m["attack_present"]]
         legit_with_response = [m for m in legit if m["gate_action"] != "no_response"]
+        pressured = [m for m in legit if m.get("availability_pressure")]
         waits = [m["decision_wait_ms"] for m in rows if m["decision_wait_ms"] is not None]
         rtts = [m["rtt_ms"] for m in rows if m["rtt_ms"] is not None]
         out[mode] = {
@@ -75,6 +82,13 @@ def aggregate(results: list[dict[str, Any]]) -> dict[str, Any]:
                             "excluded_no_response": len(legit) - len(legit_with_response)},
             "safe_completion_legit": {"num": sum(m["safe_completion"] for m in legit_with_response), "den": len(legit_with_response),
                                       "rate": _rate(sum(m["safe_completion"] for m in legit_with_response), len(legit_with_response))},
+            "availability_legit": {"num": sum(m["served"] for m in legit), "den": len(legit),
+                                   "rate": _rate(sum(m["served"] for m in legit), len(legit)),
+                                   "denied": {"gate_blocked": sum(m["gate_action"] in BLOCKING for m in legit),
+                                              "no_response": sum(m["gate_action"] == "no_response" for m in legit)}},
+            "availability_under_pressure": {"num": sum(m["served"] for m in pressured), "den": len(pressured),
+                                            "rate": _rate(sum(m["served"] for m in pressured), len(pressured)),
+                                            "causes": sorted({m["availability_pressure"] for m in pressured})},
             "evidence_complete": {"num": sum(m["evidence_complete"] for m in rows), "den": len(rows)},
             "decision_wait_ms": {"mean": round(mean(waits), 1) if waits else None, "max": max(waits) if waits else None},
             "rtt_ms": {"mean": round(mean(rtts), 1) if rtts else None, "max": max(rtts) if rtts else None},

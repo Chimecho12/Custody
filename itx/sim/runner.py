@@ -81,6 +81,14 @@ def run_scenario(scenario: Scenario, mode: str, seed: int = 42,
     for a in U.attempts:
         stmt = T.finalize(a.sub, a.expected_parties, ctx.now())
         final_verdicts[a.sub] = stmt.payload
+
+    omitted_indexes = None
+    if scenario.ts_omit_request_before_anchor:
+        # 앵커·감사 이전에 T 가 첫 요청의 항목을 전부 빼고 로그를 다시 꾸민다 (S18). 트리와 헤드는 다시
+        # 계산되므로 스스로는 깨지지 않고, 그 요청의 판정도 사라져 재실행할 것도 없다.
+        target = U.attempts[0].sub
+        omitted_indexes = T.log.drop_sub(target)
+        ctx.record("T", "log_entries_omitted", target, indexes=omitted_indexes, note="운영자가 요청 항목을 누락하고 재서명 (모사)")
     anchor_rec = T.checkpoint(ctx.now())
 
     tampered_index = None
@@ -98,10 +106,19 @@ def run_scenario(scenario: Scenario, mode: str, seed: int = 42,
                 break
 
     export = T.log.export(ctx.now())
-    audit = replay_audit(export, T.anchor.records, {s: p.to_dict() for s, p in T.private.items()},
-                         T.expected_parties, ref)
+    private_by_sub = {s: p.to_dict() for s, p in T.private.items()}
+    # 감사자는 U 가 보관한 등록 영수증을 받아 '약속된 항목이 지금도 로그에 있는가' 를 같이 검사한다.
+    audit = replay_audit(export, T.anchor.records, private_by_sub, T.expected_parties, ref, held_receipts=U.queue.held)
     ctx.record("auditor", "replay_audit", ok=audit["ok"], mismatches=len(audit["verdict_mismatches"]),
-               anchors_ok=all(a["ok"] for a in audit["anchors"]))
+               anchors_ok=all(a["ok"] for a in audit["anchors"]), receipts_missing=len(audit["held_receipts"]["missing"]))
+    audit_without_receipts = None
+    if scenario.ts_omit_request_before_anchor:
+        # 대조군: 영수증을 버린 감사자. 같은 내보내기가 어떻게 읽히는지 나란히 남긴다.
+        without = replay_audit(export, T.anchor.records, private_by_sub, T.expected_parties, ref)
+        audit_without_receipts = {"ok": without["ok"], "subs_checked": without["subs_checked"],
+                                  "tree_recomputed_matches_head": without["tree_recomputed_matches_head"],
+                                  "head_signature_valid": without["head_signature_valid"],
+                                  "anchors_ok": all(a["ok"] for a in without["anchors"])}
 
     attempts_out = []
     for idx, a in enumerate(U.attempts):
@@ -142,10 +159,13 @@ def run_scenario(scenario: Scenario, mode: str, seed: int = 42,
             **T.self_audit(),
             "down_during_run": scenario.ts_down, "extra_delay_ms": scenario.ts_extra_delay_ms,
             "queue_drops": {"U": U.queue.dropped, "R": R.queue.dropped, "M": M.queue.dropped},
-            "anchor_record": anchor_rec, "tampered_index": tampered_index,
+            "anchor_record": anchor_rec, "tampered_index": tampered_index, "omitted_indexes": omitted_indexes,
+            "held_receipts": len(U.queue.held),
         },
         "audit": audit,
+        "audit_without_held_receipts": audit_without_receipts,
         "log_export": export,
+        "held_receipts": U.queue.held,  # U 가 보관한 등록 영수증. 내보내기와 함께 감사 재현용으로 남긴다
     }
 
 
@@ -170,6 +190,72 @@ def run_q1_matrix(seed: int = 42, mode: str = "protect") -> list[dict[str, Any]]
     return rows
 
 
+def _contribution_cell(r: dict[str, Any], has_t: bool) -> dict[str, Any]:
+    a = r["attempts"][-1]
+    m = a["metrics"]
+    refused = any(e["kind"] == "refused" and e["actor"] == "M" for e in r["timeline"])
+    return {
+        "gate_action": a["gate"]["action"], "blocked_before_use": m["blocked_before_use"],
+        "harm_exposed": m["harm_exposed"], "served": m["served"], "decision_wait_ms": m["decision_wait_ms"],
+        "model_refused_before_execution": refused,
+        # T 가 없으면 아래 셋은 존재하지 않는다. 0 이나 False 가 아니라 None 이다 — 없는 것을 있는 척하지 않는다.
+        "detected_by_verdict": m["detected_by_verdict"] if has_t else None,
+        "completeness": a["final_verdict"]["completeness"] if has_t else None,
+        "audit_finding": (not r["audit"]["ok"]) if has_t else None,
+    }
+
+
+def run_t_contribution(seed: int = 42) -> list[dict[str, Any]]:
+    """Q1 보조 실험: 'T 가 실제로 무엇을 더해 주는가'.
+
+    같은 사건을 (a) T 없이 U 로컬 검증만(protect, T 정지·미복구), (b) U+T protect, (c) U+T strict 로 돌려
+    나란히 놓는다. 사용 전 차단은 U 의 로컬 검증이 맡으므로 (a)와 (b)의 방어 결과는 같아야 정상이다.
+    T 가 더하는 것은 그 밖의 것 — M 의 실행 전 거부(계약을 T 에서 조회, S17), 서명·등록된 탐지 기록,
+    감사 발견(S13·S14·S18), 증거 완전성 — 이고, 이 표가 비어 있으면 '제3자가 필요하다' 는 주장은 근거가 없다.
+    """
+    rows = []
+    for sc in SCENARIOS:
+        local = run_scenario(replace(sc, ts_down=True, ts_recover_before_close=False), "protect", seed)
+        protect = run_scenario(sc, "protect", seed)
+        strict = run_scenario(sc, "strict", seed)
+        a, b, c = _contribution_cell(local, False), _contribution_cell(protect, True), _contribution_cell(strict, True)
+        adds = []
+        if b["model_refused_before_execution"] and not a["model_refused_before_execution"]:
+            adds.append("pre_execution_refusal")
+        if b["detected_by_verdict"]:
+            adds.append("signed_detection_record")
+        if b["audit_finding"]:
+            adds.append("audit_finding")
+        if b["completeness"] == "complete":
+            adds.append("complete_evidence")
+        if c["blocked_before_use"] and not a["blocked_before_use"]:
+            adds.append("strict_block")
+        rows.append({
+            "scenario_id": sc.id, "title": sc.title, "category": sc.category,
+            "attack_present": bool(protect["attempts"][-1]["ground_truth"]["attack_present"]),
+            "local_only": a, "with_t_protect": b, "with_t_strict": c,
+            "same_defense_without_t": a["blocked_before_use"] == b["blocked_before_use"] and a["harm_exposed"] == b["harm_exposed"],
+            "t_adds": adds,
+        })
+    return rows
+
+
+def summarize_t_contribution(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    attacks = [r for r in rows if r["attack_present"]]
+    return {
+        "scenarios": len(rows),
+        "defense_same_without_t": sum(r["same_defense_without_t"] for r in rows),
+        "attacks_blocked_local_only": sum(r["local_only"]["blocked_before_use"] for r in attacks),
+        "attacks_blocked_with_t_protect": sum(r["with_t_protect"]["blocked_before_use"] for r in attacks),
+        "attack_attempts": len(attacks),
+        "pre_execution_refusal": [r["scenario_id"] for r in rows if "pre_execution_refusal" in r["t_adds"]],
+        "signed_detection_record": [r["scenario_id"] for r in rows if "signed_detection_record" in r["t_adds"]],
+        "audit_finding": [r["scenario_id"] for r in rows if "audit_finding" in r["t_adds"]],
+        "strict_block": [r["scenario_id"] for r in rows if "strict_block" in r["t_adds"]],
+        "note": "사용 전 차단은 U 로컬 검증의 몫이다. T 는 실행 전 거부·서명된 탐지 기록·감사 발견·완전성을 더한다. 모의 결과(mock_result).",
+    }
+
+
 def run_all(out_dir: Path, seed: int = 42, modes: tuple[str, ...] = MODES) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
     results = []
@@ -177,21 +263,27 @@ def run_all(out_dir: Path, seed: int = 42, modes: tuple[str, ...] = MODES) -> di
         for mode in modes:
             results.append(run_scenario(sc, mode, seed))
     q1 = run_q1_matrix(seed)
+    contribution = run_t_contribution(seed)
     summary = aggregate(results)
     bundle = {
         "generated_with": {"itx_version": __version__, "checker_version": CHECKER_VERSION, "seed": seed,
                            "crypto_backend": BACKEND, "claim_status": "mock_result",
                            "note": "결정적 모형 모델·시뮬레이션 시계 기반. 실제 네트워크·LLM 성능이 아니다."},
         "scenarios": [s.to_dict() for s in SCENARIOS],
-        "results": [{k: v for k, v in r.items() if k != "log_export"} for r in results],
+        "results": [{k: v for k, v in r.items() if k not in ("log_export", "held_receipts")} for r in results],
         "q1_matrix": q1,
+        "t_contribution": contribution,
+        "t_contribution_summary": summarize_t_contribution(contribution),
         "summary": summary,
     }
     (out_dir / "results.json").write_text(json.dumps(bundle, ensure_ascii=False, indent=1), encoding="utf-8")
-    (out_dir / "summary.json").write_text(json.dumps({"summary": summary, "q1_matrix": q1}, ensure_ascii=False, indent=1), encoding="utf-8")
+    (out_dir / "summary.json").write_text(json.dumps({"summary": summary, "q1_matrix": q1, "t_contribution": contribution,
+                                                       "t_contribution_summary": bundle["t_contribution_summary"]},
+                                                      ensure_ascii=False, indent=1), encoding="utf-8")
     # S01 의 로그 전체를 감사 재생용 예시로 남긴다.
     for r in results:
         if r["run"]["scenario_id"] == "S01" and r["run"]["mode"] == "protect":
             (out_dir / "log-export-S01.json").write_text(json.dumps(r["log_export"], ensure_ascii=False, indent=1), encoding="utf-8")
             (out_dir / "anchors-S01.json").write_text(json.dumps(r["ts"]["anchors"], ensure_ascii=False, indent=1), encoding="utf-8")
+            (out_dir / "receipts-S01.json").write_text(json.dumps(r["held_receipts"], ensure_ascii=False, indent=1), encoding="utf-8")
     return bundle

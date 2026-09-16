@@ -5,7 +5,7 @@ import { esc, cls, st, short, absent, CV, pills, hopMapHtml, eqLabels, eqEdges, 
 import { FlowData, flowCanvasHtml, flowLegs, mountFlow, footHtml, eqFromEquations, actionTone } from '../../shared/flow';
 
 type Call = (operation: string, args?: Data) => Promise<any>;
-interface Matrix { generated_with: Data; scenarios: Data[]; rows: Data[]; q1_matrix: Data[]; summary: Data }
+interface Matrix { generated_with: Data; scenarios: Data[]; rows: Data[]; q1_matrix: Data[]; summary: Data; t_contribution?: Data[]; t_contribution_summary?: Data }
 const MODES = ['observe', 'protect', 'strict'];
 const COOPS = ['U', 'U+M', 'U+R', 'U+R+M'];
 
@@ -80,7 +80,7 @@ export class ReportView {
       this.matrix = await this.call('simulation_matrix');
       status.hidden = true;
       this.$('rpt-body').hidden = false;
-      this.renderBadges(); this.renderCards(); this.renderSummary(); this.renderMatrix(); this.renderQ1(); this.renderUncertainty();
+      this.renderBadges(); this.renderCards(); this.renderSummary(); this.renderMatrix(); this.renderQ1(); this.renderContribution(); this.renderUncertainty();
       await this.onSelectionChanged();
     } catch (e) {
       status.innerHTML = `<div class="empty-glyph">✗</div><h3>참조 시나리오를 실행하지 못했습니다</h3><p>${esc(e instanceof Error ? e.message : e)}</p>`;
@@ -387,6 +387,19 @@ export class ReportView {
     const rows = this.matrix!.q1_matrix; const sids = [...new Set(rows.map(r => r.scenario_id))];
     const cell = (r: Data | undefined) => r ? `<div class="${st(r.verification_status)}">${esc(r.verification_status)}</div><div class="small">${r.codes.length ? r.codes.map(esc).join('<br>') : '<span class="absent">코드 없음</span>'}</div><div class="small muted">완전성 ${esc(r.completeness)} · 게이트 ${esc(r.gate_action)}</div>` : '-';
     this.$('rpt-q1').innerHTML = `<table><thead><tr><th>위반 시나리오</th>${COOPS.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>${sids.map(s => { const t = rows.find(r => r.scenario_id === s)!.title; return `<tr><td><b>${esc(s)}</b><div class="small">${esc(t)}</div></td>${COOPS.map(c => `<td>${cell(rows.find(r => r.scenario_id === s && r.cooperation === c))}</td>`).join('')}</tr>`; }).join('')}</tbody></table>`;
+  }
+
+  // 4b T 기여: 같은 사건을 T 없이(U 로컬만) · U+T protect · U+T strict 로 나란히. 없는 값(T 부재)은 없음으로 그린다.
+  private renderContribution() {
+    const el = this.$('rpt-tcontrib'); if (!el) return;
+    const rows: Data[] = this.matrix!.t_contribution || [], sum = this.matrix!.t_contribution_summary;
+    if (!rows.length || !sum) { el.innerHTML = '<p class="small absent">이 결과에는 T 기여 실험이 없다.</p>'; return; }
+    const ADD: Record<string, string> = {pre_execution_refusal: '실행 전 거부 (M 이 T 에서 계약 조회)', signed_detection_record: '서명·등록된 탐지 기록', audit_finding: '감사 발견 (T 오판·재작성·누락)', complete_evidence: '증거 완전성 complete', strict_block: 'strict 추가 차단'};
+    const gate = (c: Data) => `<span class="mono ${['quarantine', 'reject', 'reject_timeout'].includes(c.gate_action) ? 'fail' : c.gate_action === 'no_response' ? 'na' : c.gate_action === 'accept' ? 'pass' : 'warn'}">${esc(c.gate_action)}</span>`;
+    const yn = (v: unknown) => v === null || v === undefined ? '<span class="absent">없음</span>' : v ? '<span class="pass">✓</span>' : '<span class="na">–</span>';
+    const cell = (c: Data, t: boolean) => `${gate(c)}<div class="small">사용 전 차단 ${yn(c.blocked_before_use)} · 실행 전 거부 ${yn(c.model_refused_before_execution)}</div>${t ? `<div class="small muted">탐지 기록 ${yn(c.detected_by_verdict)} · 완전성 ${esc(c.completeness)} · 감사 발견 ${yn(c.audit_finding)}</div>` : '<div class="small muted">판정·감사 없음 (T 부재)</div>'}`;
+    el.innerHTML = `<p class="small">공격 ${sum.attack_attempts}건 중 사용 전 차단: 로컬만 <b>${sum.attacks_blocked_local_only}</b> · U+T protect <b>${sum.attacks_blocked_with_t_protect}</b> (방어 동일 ${sum.defense_same_without_t}/${sum.scenarios}). T 가 더한 것 — 실행 전 거부 ${sum.pre_execution_refusal.join(', ') || '없음'} · 서명된 탐지 기록 ${sum.signed_detection_record.length}건 · 감사 발견 ${sum.audit_finding.join(', ') || '없음'} · strict 추가 차단 ${sum.strict_block.join(', ') || '없음'}.</p>
+      <table><thead><tr><th>사건</th><th>(a) U 로컬만 · T 없음</th><th>(b) U+T protect</th><th>(c) U+T strict</th><th>T 가 더한 것</th></tr></thead><tbody>${rows.map(r => `<tr><td><b>${esc(r.scenario_id)}</b>${r.attack_present ? ' <span class="fail small">공격</span>' : ''}<div class="small">${esc(r.title)}</div></td><td>${cell(r.local_only, false)}</td><td>${cell(r.with_t_protect, true)}</td><td>${cell(r.with_t_strict, true)}</td><td class="small">${r.t_adds.length ? r.t_adds.map((a: string) => esc(ADD[a] || a)).join('<br>') : '<span class="absent">없음</span>'}</td></tr>`).join('')}</tbody></table>`;
   }
 
   // 1d 판정 불확실성 표현 3종

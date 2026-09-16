@@ -6,7 +6,7 @@
 from .context import SimContext, Timeline
 from .model import DEFAULT_MODELS, MockModel, reference_hashes
 from .parties import EvidenceQueue, ModelOperator, Relay, RelayBehavior, ThirdParty, User
-from .runner import run_all, run_q1_matrix, run_scenario
+from .runner import run_all, run_q1_matrix, run_scenario, run_t_contribution, summarize_t_contribution
 from .scenarios import COOPERATION_SETS, Q1_SCENARIO_IDS, SCENARIOS, Scenario, scenario_by_id
 
 __all__ = [
@@ -27,6 +27,8 @@ __all__ = [
     "reference_hashes",
     "run_all",
     "run_q1_matrix",
+    "run_t_contribution",
+    "summarize_t_contribution",
     "run_scenario",
     "scenario_by_id",
 ]

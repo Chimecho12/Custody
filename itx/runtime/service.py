@@ -274,7 +274,7 @@ class Service:
             scenario = p.get("scenario", "normal")
             if scenario != "normal" and not self.config.get("lab"):
                 raise ValueError("fault injection is available only in the local lab")
-            if scenario not in ("normal", "response_tamper", "request_tamper", "missing_receipt"):
+            if scenario not in ("normal", "response_tamper", "request_tamper", "missing_receipt", "missing_relay"):
                 raise ValueError("unknown lab scenario")
             outgoing = dict(body)
             if scenario == "request_tamper":
@@ -291,9 +291,10 @@ class Service:
                 resp_in_commit=digest(incoming, salt), resp_out_commit=digest(response, salt),
                 response_transform_id="identity", policy_version="network-v1", policy_decision="forwarded",
                 nonce_forwarded=c["nonce"], salt_forwarded=True, relay_seq=1))
-            self.queue(stmt)
+            if scenario != "missing_relay":  # 비협조 R: 진술을 동봉하지도, T 에 제출하지도 않는다 (S09 의 런타임판)
+                self.queue(stmt)
             result = {"body": response, "receipt": None if scenario == "missing_receipt" else m.to_dict(),
-                      "relay": stmt.to_dict(), "model_kind": upstream["model_kind"]}
+                      "relay": None if scenario == "missing_relay" else stmt.to_dict(), "model_kind": upstream["model_kind"]}
         self.store.put(execution_key, {"binding": binding, "status": "completed", "result": result})
         return result
 

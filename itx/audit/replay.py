@@ -11,11 +11,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from itx import CHECKER_VERSION
-from itx.crypto import canonical_json
+from itx.crypto import canonical_json, verify
 from itx.reconcile import PrivateEvidence, ReconciliationEngine
 from itx.reconcile.engine import REQUIRED_FOR_PASS
 from itx.statements import CT_POLICY, CT_VERDICT, SignedStatement
-from itx.ts import CheckpointAnchor, MerkleTree, TransparencyLog
+from itx.ts import CheckpointAnchor, MerkleTree, RegistrationReceipt, TransparencyLog, leaf_hash
 from itx.ts.log import TS_CONTENT_TYPES
 
 
@@ -71,6 +71,56 @@ def _verdict_envelope_problem(stmt: SignedStatement, export: dict[str, Any], ts_
     return None
 
 
+def verify_held_receipts(tree: MerkleTree, entries: list[_Entry], held: list[dict[str, Any]],
+                         ts_pub: bytes, log_id: str) -> dict[str, Any]:
+    """제출자가 보관한 등록 영수증을 현재 내보내기와 대조한다 (RFC 9162 §11.3 의 '포함 검사').
+
+    T 가 항목을 빼고 트리·헤드를 다시 서명하면 트리는 스스로 일관되고 재실행할 판정도 사라진다.
+    그때 누락을 드러내는 것은 로그 안의 무엇도 아니고, T 가 등록 시점에 서명해 준 영수증뿐이다.
+    영수증은 두 가지를 말한다 — (1) 이 잎이 이 자리에 있었다, (2) 그 시점의 루트가 이것이었다.
+    (1) 은 잎 대조로, (2) 는 체크포인트 일관성으로 검사한다. 영수증이 없으면 이 검사는 성립하지
+    않으므로 '보관 0건' 을 '누락 0건' 과 구별해 적는다."""
+    missing: list[dict[str, Any]] = []
+    unverifiable: list[dict[str, Any]] = []
+    included = 0
+    checkpoints: dict[int, dict[str, Any]] = {}
+    for item in held:
+        try:
+            rc = RegistrationReceipt.from_dict(item["receipt"])
+        except (KeyError, TypeError):
+            unverifiable.append({**{k: item.get(k) for k in ("sub", "content_type")}, "reason": "영수증 형식 오류"})
+            continue
+        ident = {"sub": item.get("sub"), "content_type": item.get("content_type"),
+                 "leaf_index": rc.leaf_index, "leaf_hash": rc.leaf_hash, "registered_at": rc.registered_at}
+        if rc.log_id != log_id or not verify(ts_pub, rc.signed_bytes(), bytes.fromhex(rc.signature or "00")):
+            unverifiable.append({**ident, "reason": "영수증 서명이 T 키로 검증되지 않거나 다른 로그의 영수증"})
+            continue
+        checkpoints.setdefault(rc.tree_size, {"tree_size": rc.tree_size, "root_hash": rc.root_hash, "anchored_at": rc.registered_at})
+        entry = entries[rc.leaf_index] if 0 <= rc.leaf_index < len(entries) else None
+        if entry is not None and leaf_hash(entry.statement.leaf_bytes()).hex() == rc.leaf_hash:
+            included += 1
+            continue
+        # 잎이 다른 자리에 있으면 '재배열' 이다 — 앞선 항목이 빠졌다는 뜻이므로 역시 약속 위반이다.
+        elsewhere = next((e.index for e in entries if leaf_hash(e.statement.leaf_bytes()).hex() == rc.leaf_hash), None)
+        if elsewhere is not None:
+            missing.append({**ident, "reason": "잎은 남아 있으나 자리가 바뀜 (앞선 항목 누락 후 재배열)", "found_at": elsewhere})
+        elif entry is None:
+            missing.append({**ident, "reason": "영수증의 잎 위치가 현재 로그 밖에 있음 (항목 삭제 또는 꼬리 절단)"})
+        else:
+            missing.append({**ident, "reason": "그 자리의 잎이 영수증의 잎과 다름 (항목 교체 또는 누락)",
+                            "found_sub": entry.statement.sub, "found_content_type": entry.statement.content_type})
+    checkpoint_results = CheckpointAnchor.verify_tree(tree, sorted(checkpoints.values(), key=lambda c: c["tree_size"]))
+    return {
+        "held": len(held),
+        "included": included,
+        "missing": missing,
+        "unverifiable": unverifiable,
+        "receipt_checkpoints": checkpoint_results,
+        "ok": not missing and all(c["ok"] for c in checkpoint_results),
+        "scope": "none" if not held else "submitter_receipts",
+    }
+
+
 def replay_audit(
     export: dict[str, Any],
     anchor_records: list[dict[str, Any]],
@@ -78,6 +128,7 @@ def replay_audit(
     expected_parties_by_sub: dict[str, list[str]],
     reference_model_hashes: dict[str, str],
     private_by_hash: dict[str, dict[str, Any]] | None = None,
+    held_receipts: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     entries = [_Entry(e["index"], e["registered_at"], SignedStatement.from_dict(e["statement"])) for e in export["entries"]]
     ts_pub = bytes.fromhex(export["ts_public_key"])
@@ -112,6 +163,11 @@ def replay_audit(
 
     # 3. 앵커 --------------------------------------------------------------------
     anchors = CheckpointAnchor.verify_tree(tree, anchor_records)
+
+    # 3b. 보관 영수증 포함 검사 -------------------------------------------------------
+    # 앵커는 '과거를 바꿨는가' 를 보고, 영수증은 '약속한 항목이 지금도 있는가' 를 본다. 첫 감사에는
+    # 앵커가 없으므로 영수증이 유일한 외부 기준점이다.
+    receipts = verify_held_receipts(tree, entries, held_receipts or [], ts_pub, export["log_id"])
 
     # 4. 판정 재실행 -------------------------------------------------------------
     issuer_content_types: dict[str, tuple[str, ...]] = {}
@@ -174,13 +230,14 @@ def replay_audit(
         checked.append(record)
 
     ok = (tree_ok and head_sig_ok and not problems and all(a["ok"] for a in anchors)
-          and not mismatches and not unauthenticated_verdicts)
+          and not mismatches and not unauthenticated_verdicts and receipts["ok"])
     return {
         "ok": ok,
         "tree_recomputed_matches_head": tree_ok,
         "head_signature_valid": head_sig_ok,
         "policy_problems": problems,
         "anchors": anchors,
+        "held_receipts": receipts,
         "subs_checked": len(checked),
         "compared_without": sorted(compared_without),
         "verdicts_checked": checked,

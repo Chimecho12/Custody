@@ -28,6 +28,7 @@ const CV = (name)=>`var(--${name})`;
   ${row('피해 노출 (공격 응답이 업무에 사용됨)', s=>`${s.harm_exposed.num}/${s.harm_exposed.den}`)}
   ${row('오차단 (정상인데 격리·거부)', s=>frac(s.false_block)+` <span class="muted small">무응답 제외 ${s.false_block.excluded_no_response}</span>`)}
   ${row('안전 완료 (정상 요청이 검증 후 수용)', s=>frac(s.safe_completion_legit))}
+  ${row('가용성 (정상 요청이 서비스됨 · 압박 조건: R 진술 보류·T 정지·지연·큐 포화)', s=>s.availability_legit ? frac(s.availability_legit)+` <span class="muted small">압박 조건 ${frac(s.availability_under_pressure)}</span>` : '<span class="absent">이 결과 파일에는 없음</span>')}
   ${row('증거 완전 (합의 증거 모두 등록)', s=>`${s.evidence_complete.num}/${s.evidence_complete.den}`)}
   ${row('결정 대기 ms (평균 / 최대)', s=>`${s.decision_wait_ms.mean ?? '-'} / ${s.decision_wait_ms.max ?? '-'}`)}
   ${row('왕복 지연 ms (평균 / 최대)', s=>`${s.rtt_ms.mean ?? '-'} / ${s.rtt_ms.max ?? '-'}`)}
@@ -670,10 +671,11 @@ function renderDetail(){
   const evidenceRegs = { U: regContract, R: regRelay, M: regReceipt };
 
   // ---- 시점 타임라인 (정적 마크. 재생 바는 updatePacket 이 채운다) ------------------
-  // 원안의 마크: 전송 · M 서명 · 수신 · 사용 · T 판정(또는 판정 없음). 시각은 실제 값.
+  // 원안의 마크: 전송 · M 서명 · 수신 · 사용 · T 판정(또는 판정 없음). 전송·수신·사용·판정은 시뮬레이션 시계의 값이고
+  // M 서명은 그 사이를 상수 비율로 나눈 추정이다 — 표기를 다르게 한다.
   let marks = [
     {label:'전송', at:`${Math.round(a.sent_at)} ms`, pos:span(a.sent_at), color:'muted'},
-    {label:'M 서명', at:`${Math.round(legs[4].t1)} ms`, pos:span(legs[4].t1), color:'muted'},
+    {label:'M 서명', at:`${Math.round(legs[4].t1)} ms · 추정`, pos:span(legs[4].t1), color:'muted'},
     {label:'수신', at:`${Math.round(a.received_at)} ms`, pos:span(a.received_at), color:'accent'},
   ];
   if (consumedAt != null) marks.push({label:'사용', at:`${Math.round(consumedAt)} ms`, pos:span(consumedAt), color:'fail'});
@@ -1105,8 +1107,8 @@ function renderUncertainty(){
   const items = [
     {title:'그래프 캔버스 (Hopmap Console v2)', spec:'섹션 3 · Claude Design 원안', impl:true,
      body:'줌·팬 캔버스(휠·드래그·핏뷰) · 미니맵 뷰포트 드래그 · 커스텀 노드(포트 접기·펼치기, 핸들) · 인터랙티브 엣지(호버 툴팁·클릭 선택·라벨 칩) · 자동 레이아웃 전환 애니메이션(Dagre LR ↔ ELK 직교, 520ms) · 게이트 상태 머신 뷰. 원안의 대규모 노드 가상화 뷰는 넣지 않았다. 색은 판정에만 쓰고, 결손·미실행은 움직이지 않는다.'},
-    {title:'요청의 이동과 진술 발행', spec:'섹션 3 재생 · 실제 홉 지연 비례', impl:true,
-     body:'U→R→M→R→U 를 점 하나가 지난다. 구간 경계는 임의 데모 수치가 아니라 이 시도의 실제 sent_at/received_at 과 시뮬레이션 지연 상수(홉 20ms·중개 처리 5ms·서명 2ms)에서 역산한 것이다. 이동 구간은 정지에서 출발해 정지로 끝나므로 가감속을 주고, 노드를 드나드는 수직 구간을 넣어 꺾은선 위를 실제로 타고 돈다.'},
+    {title:'요청의 이동과 진술 발행', spec:'섹션 3 재생 · sent/received 사이를 상수 비율로 나눈 추정', impl:true,
+     body:'U→R→M→R→U 를 점 하나가 지난다. 구간 경계는 임의 데모 수치가 아니라 이 시도의 sent_at/received_at 과 시뮬레이션 지연 상수(홉 20ms·중개 처리 5ms·서명 2ms)에서 역산한 것이다 — 양 끝만 기록된 시각이고 그 사이 배분은 추정이며 패킷 캡처가 아니다. 이동 구간은 정지에서 출발해 정지로 끝나므로 가감속을 주고, 노드를 드나드는 수직 구간을 넣어 꺾은선 위를 실제로 타고 돈다.'},
     {title:'진행 방향 잔상', spec:'섹션 3 재생 · 20px 꼬리 + 글로우', impl:true,
      body:'점 뒤로 지나온 경로를 20px 만큼 되짚고, 꼬리 끝에서 패킷 앞단으로 불투명도가 증가하는 SVG 그라데이션을 적용한다. 패킷은 반경 6px 에 같은 색의 6px 글로우를 두르고, 꼬리는 경로의 꺾임과 구간 경계를 그대로 따라가며 노드에 머무는 동안 길이가 0 으로 줄어든다. 빠른 홉 구간에서는 프레임 간 이동량에 따라 최대 40px까지 늘린다.'},
     {title:'노드 도달 펄스', spec:'섹션 3 재생 · 1회성 fade', impl:true,
@@ -1140,6 +1142,19 @@ function renderUncertainty(){
   const rows = D.q1_matrix; const coops = ['U','U+M','U+R','U+R+M']; const sids = [...new Set(rows.map(r=>r.scenario_id))];
   const cell = (r)=>r?`<div class="${st(r.verification_status)}">${r.verification_status}</div><div class="small">${r.codes.length?r.codes.map(esc).join('<br>'):'<span class="absent">코드 없음</span>'}</div><div class="small muted">완전성 ${r.completeness} · 게이트 ${esc(r.gate_action)}</div>`:'-';
   $('#q1').innerHTML = `<table><thead><tr><th>위반 시나리오</th>${coops.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${sids.map(s=>{const t=rows.find(r=>r.scenario_id===s).title;return `<tr><td><b>${s}</b><div class="small">${esc(t)}</div></td>${coops.map(c=>`<td>${cell(rows.find(r=>r.scenario_id===s&&r.cooperation===c))}</td>`).join('')}</tr>`;}).join('')}</tbody></table>`;
+})();
+
+// ---------- 4b T 기여: U 로컬 검증만 vs U+T ----------
+(function(){
+  const el = $('#tcontrib'); if (!el) return;
+  const rows = D.t_contribution || [], sum = D.t_contribution_summary;
+  if (!rows.length){ el.innerHTML = '<p class="small absent">이 결과 파일에는 T 기여 실험이 없다 (python run.py run 을 다시 실행).</p>'; return; }
+  const ADD = {pre_execution_refusal:'실행 전 거부 (M 이 T 에서 계약 조회)', signed_detection_record:'서명·등록된 탐지 기록', audit_finding:'감사 발견 (T 오판·재작성·누락)', complete_evidence:'증거 완전성 complete', strict_block:'strict 추가 차단'};
+  const gate = (c)=>`<span class="mono ${['quarantine','reject','reject_timeout'].includes(c.gate_action)?'fail':c.gate_action==='no_response'?'na':c.gate_action==='accept'?'pass':'warn'}">${esc(c.gate_action)}</span>`;
+  const yn = (v)=>v===null||v===undefined?'<span class="absent">없음</span>':v?'<span class="pass">✓</span>':'<span class="na">–</span>';
+  const cell = (c, t)=>`${gate(c)}<div class="small">사용 전 차단 ${yn(c.blocked_before_use)} · 실행 전 거부 ${yn(c.model_refused_before_execution)}</div>${t?`<div class="small muted">탐지 기록 ${yn(c.detected_by_verdict)} · 완전성 ${esc(c.completeness)} · 감사 발견 ${yn(c.audit_finding)}</div>`:'<div class="small muted">판정·감사 없음 (T 부재)</div>'}`;
+  el.innerHTML = `<p class="small">공격 ${sum.attack_attempts}건 중 사용 전 차단: 로컬만 <b>${sum.attacks_blocked_local_only}</b> · U+T protect <b>${sum.attacks_blocked_with_t_protect}</b> (방어 동일 ${sum.defense_same_without_t}/${sum.scenarios}). T 가 더한 것 — 실행 전 거부 ${sum.pre_execution_refusal.join(', ')||'없음'} · 서명된 탐지 기록 ${sum.signed_detection_record.length}건 · 감사 발견 ${sum.audit_finding.join(', ')||'없음'} · strict 추가 차단 ${sum.strict_block.join(', ')||'없음'}.</p>
+  <table><thead><tr><th>사건</th><th>(a) U 로컬만 · T 없음</th><th>(b) U+T protect</th><th>(c) U+T strict</th><th>T 가 더한 것</th></tr></thead><tbody>${rows.map(r=>`<tr><td><b>${esc(r.scenario_id)}</b>${r.attack_present?' <span class="fail small">공격</span>':''}<div class="small">${esc(r.title)}</div></td><td>${cell(r.local_only,false)}</td><td>${cell(r.with_t_protect,true)}</td><td>${cell(r.with_t_strict,true)}</td><td class="small">${r.t_adds.length?r.t_adds.map(a=>esc(ADD[a]||a)).join('<br>'):'<span class="absent">없음</span>'}</td></tr>`).join('')}</tbody></table>`;
 })();
 
 // ---------- 등식 라벨 <-> 등식표·집행 칩 양방향 연동, 해시 복사 ----------

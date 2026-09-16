@@ -4,7 +4,7 @@
   test              단위 테스트
   run [--out DIR]   시나리오 17종 × 모드 3종 실행 + Q1 매트릭스 → artifacts/
   report [--out DIR] artifacts/results.json → artifacts/report.html
-  audit [--out DIR] artifacts/log-export-S01.json 을 독립 재실행해 판정·앵커 검증
+  audit [--out DIR] artifacts/log-export-S01.json 을 독립 재실행해 판정·앵커·보관 영수증 포함 검증
   all               run + report + audit
 """
 from __future__ import annotations
@@ -48,7 +48,13 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"  [{mode:7s}] detection {m['detection']['num']}/{m['detection']['den']}  "
               f"defense-before-use {m['defense_before_use']['num']}/{m['defense_before_use']['den']}  "
               f"false-block {m['false_block']['num']}/{m['false_block']['den']}  "
+              f"availability {m['availability_legit']['num']}/{m['availability_legit']['den']} "
+              f"(under pressure {m['availability_under_pressure']['num']}/{m['availability_under_pressure']['den']})  "
               f"wait mean {m['decision_wait_ms']['mean']} ms")
+    t = bundle["t_contribution_summary"]
+    print(f"  T 기여 (U 로컬만 vs U+T): 공격 {t['attack_attempts']}건 중 사용 전 차단 로컬만 {t['attacks_blocked_local_only']} / "
+          f"U+T protect {t['attacks_blocked_with_t_protect']} · 실행 전 거부 {t['pre_execution_refusal']} · "
+          f"서명된 탐지 기록 {len(t['signed_detection_record'])}건 · 감사 발견 {t['audit_finding']} · strict 추가 차단 {t['strict_block']}")
     print(f"written: {out / 'results.json'}, {out / 'summary.json'}, {out / 'log-export-S01.json'}")
     return 0
 
@@ -85,13 +91,21 @@ def cmd_audit(args: argparse.Namespace) -> int:
     anchors = json.loads(anchors_path.read_text(encoding="utf-8")) if anchors_path.exists() else []
     # 앵커 파일은 verify 결과 형식이므로 원 기록 형식으로 바꾼다.
     anchor_records = [{"tree_size": a["tree_size"], "root_hash": a["anchored_root"], "anchored_at": a["anchored_at"]} for a in anchors]
+    # 제출자(U)가 보관한 등록 영수증. 있으면 "약속된 항목이 지금도 로그에 있는가" 를 함께 검사한다.
+    receipts_path = out / "receipts-S01.json"
+    held = json.loads(receipts_path.read_text(encoding="utf-8")) if receipts_path.exists() else []
     # 비공개 증거가 없는 공개 감사자 관점: E1 은 평가 불가로 남으므로 비교에서 제외하고 나머지를 재계산한다.
     report = replay_audit(export, anchor_records, private_by_sub={}, expected_parties_by_sub={},
-                          reference_model_hashes=reference_hashes())
+                          reference_model_hashes=reference_hashes(), held_receipts=held)
     print(f"log {export['log_id']}: entries={len(export['entries'])} tree_size={export['head']['tree_size']}")
     print(f"  트리 재계산 == 헤드: {report['tree_recomputed_matches_head']}")
     print(f"  헤드 서명 유효: {report['head_signature_valid']}")
     print(f"  앵커 {len(report['anchors'])}건 중 일치 {sum(a['ok'] for a in report['anchors'])}건")
+    hr = report["held_receipts"]
+    print(f"  보관 영수증 {hr['held']}건: 포함 {hr['included']}건 · 누락 {len(hr['missing'])}건 · 검증 불가 {len(hr['unverifiable'])}건"
+          + ("" if hr["held"] else " (영수증이 없으면 누락은 검사할 수 없다)"))
+    for m in hr["missing"]:
+        print(f"    - #{m['leaf_index']} {m['sub']} {m['content_type']}: {m['reason']}")
     print(f"  요청 {report['subs_checked']}건 재실행, T 판정과 불일치 {len(report['verdict_mismatches'])}건 "
           f"(비교 제외 등식: {', '.join(report['compared_without']) or '없음'})")
     for m in report["verdict_mismatches"]:
