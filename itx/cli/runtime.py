@@ -96,6 +96,9 @@ SPEC: list[tuple[str, str, list[tuple[str, dict]]]] = [
     ("conformance", "CBOR·COSE·Merkle 적합성 벡터를 실행한다 (설정 불필요)", [
         ("--output", {}),
         ("--group", {"nargs": "+", "help": "일부 묶음만: cose cbor scitt merkle tee gossip"})]),
+    ("key-inventory", "서명 키의 보관처·평문 노출·회전 기한을 낸다", [
+        ("--config", _REQ),
+        ("--output", {})]),
 ]
 
 

@@ -32,6 +32,24 @@
 [v0.3 설치·검증 결과와 한계](docs/desktop-runtime-v0.3.md), [운영자 배포·키 교체·SDK·외부 감사](docs/operator-deployment.md)를 제공한다.
 원격 호스트·실제 독립 운영자·실제 LLM·새 PC 설치·외부 배포 서명은 별도 환경 검증 항목이다. 실제 체인 게시 기능은 포함하지 않는다.
 
+## 표준 적합성과 키 보관
+
+같은 진술을 자체 JSON 프로파일과 **RFC 9052 COSE_Sign1**(alg -8 EdDSA, CWT 클레임은 RFC 9597 라벨 15,
+본문은 RFC 8949 결정적 CBOR)로 나란히 낸다. 적합성은 주장이 아니라 **실행한 벡터 수**로 적는다.
+
+서명 키는 보관처가 아니라 **평문 노출 여부**로 판단한다. `itx.keys.CommandSigner` 로 외부
+서명자(KMS·HSM·스마트카드)에 위임하면 사설키가 이 프로세스에 들어오지 않는다. 다만 순수
+Ed25519 는 메시지 전체에 서명하므로 「해시만 전송」은 prehash 방식에서만 참이고, 무엇을 보내는지는
+화면에 그대로 표시된다.
+
+외부 도구(`pyscitt`·`cbor2`·`cosign`) 검증은 **이 저장소에서 실행하지 않았다.** 명령과 `.cose`
+파일만 내보내고 결과는 '미실행' 으로 남긴다. 자세한 범위는 [docs/limits.md](docs/limits.md) 한계 13·14.
+
+```powershell
+python runtime.py conformance          # CBOR·COSE·Merkle 적합성 벡터 실행 (설정 불필요)
+python runtime.py key-inventory --config <U 설정>   # 키 보관처·평문 노출·회전 기한
+```
+
 ## 기존 시뮬레이션 실행
 
 Python 3.10 이상, 추가 패키지 없음. (`cryptography` 가 설치돼 있으면 서명에 자동으로 사용한다.)
@@ -128,6 +146,8 @@ Pproject/
 │   ├── ts/                    RFC 9162 Merkle 트리·포함/일관성 증명, 추가 전용 로그·등록 정책·영수증, 앵커, 장애 주입
 │   ├── reconcile/             등식 E1~E12, 불일치 D-코드, 완전성, 승인 변환, 대조 엔진
 │   ├── enforce/               사용자 게이트 (observe / protect / strict)
+│   ├── cose/                  결정적 CBOR(RFC 8949) · COSE_Sign1(RFC 9052) · 적합성 벡터
+│   ├── keys/                  서명 키 보관처·평문 노출·회전·계보, 외부 서명자 어댑터
 │   ├── sim/                   시뮬레이션 시계·모형 모델·당사자(U/R/M/T)·시나리오·실행기
 │   ├── runtime/               실제 TLS 통신 런타임: 역할별 서비스·에이전트·배포 합의·감사 패키지
 │   ├── audit/                 독립 판정 재실행

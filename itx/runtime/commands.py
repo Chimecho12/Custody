@@ -48,6 +48,13 @@ def execute(args):
             write_document(args.output, report)
             report = {**report, "path": args.output}
         return report
+    if c == "key-inventory":
+        from itx import keys as keystore
+        view = keystore.build(load_config(args.config))
+        if args.output:
+            write_document(args.output, view)
+            view = {**view, "path": args.output}
+        return view
     agent = Agent(args.config)
     try:
         if c == "audit-export":
