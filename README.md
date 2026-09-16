@@ -52,6 +52,7 @@ pip install -e .[conformance]          # 교차 검증용 cbor2 · pycose (선�
 python runtime.py conformance          # 적합성 벡터 + 제3자 구현 교차 검증
 python runtime.py conformance --no-external   # 우리 벡터만
 python runtime.py key-inventory --config <U 설정>   # 키 보관처·평문 노출·회전 기한
+python runtime.py proxy --data-dir <폴더> --lab      # OpenAI 호환 루프백 게이트웨이 (base_url 만 바꿔 붙는다, 스트리밍 거부)
 ```
 
 ## 기존 시뮬레이션 실행
@@ -195,6 +196,10 @@ Pproject/
 화면은 두 곳(데스크톱 TypeScript, 보고서 `report.js`)에 있지만 **CSS 는 `itx/ui/` 하나**이고,
 두 구현이 공유해야 하는 상수·표(홉 지연, 등식 이름, 검사↔등식 대응)는
 `tests/test_report_assets.py` 가 값이 갈라지는 순간 실패한다.
+
+**확장 모듈의 상태 (정확한 표현):** 스트리밍 청크 체인 검증기(`itx/enforce/streaming_gate.py`)와 RFC 3161 TSA
+앵커(`itx/audit/anchor_tsa.py`)는 **모듈과 테스트는 있으나 기본 경로에 연결되어 있지 않다.** 프록시는 `stream: true`
+를 거부하고, 기본 앵커는 파일 모사다. "구현했다" 가 아니라 "모듈은 있고 경로 연결은 남았다" 다 (`docs/limits.md` 9).
 
 모듈 책임과 의존 방향, 변경 전후 경로, 검증 방법은 [docs/architecture.md](docs/architecture.md)에 있다.
 기존 `python run.py`, `python runtime.py`, `itx.sim.parties`, `itx.runtime.desktop` 진입점은 유지한다.
