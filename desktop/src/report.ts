@@ -5,6 +5,7 @@ import {
   computeLegs, makeSpan, Playback, PlayContext, timeBoxHtml, Mark, evidenceRowsHtml, codesHtml, checkChipsHtml,
   gateColor, equationTableHtml, stripGridHtml, MODEL_LATENCY_MS, reducedMotion,
 } from './console';
+import { FlowData, flowCanvasHtml, flowLegs, mountFlow, footHtml, eqFromEquations, actionTone } from './flow';
 
 type Call = (operation: string, args?: Data) => Promise<any>;
 interface Matrix { generated_with: Data; scenarios: Data[]; rows: Data[]; q1_matrix: Data[]; summary: Data }
@@ -26,14 +27,14 @@ const KIND_LABEL: Record<string, string> = {
 const ANIM_NOTES = [
   {title: '요청의 이동과 진술 발행', spec: '사건 상세 재생 · 실제 홉 지연 비례', impl: true,
    body: 'U→R→M→R→U 를 점 하나가 지난다. 구간 경계는 임의 데모 수치가 아니라 이 시도의 실제 sent_at/received_at 과 시뮬레이션 지연 상수(홉 20ms·중개 처리 5ms·서명 2ms)에서 역산한 것이다. 이동 구간은 정지에서 출발해 정지로 끝나므로 가감속을 주고, 노드를 드나드는 수직 구간을 넣어 꺾은선 위를 실제로 타고 돈다.'},
-  {title: '진행 방향 잔상', spec: '사건 상세 재생 · 18px 꼬리', impl: true,
-   body: '점 뒤로 지나온 경로를 18px 만큼 되짚은 반투명 꼬리를 그린다 (Hubble 의 흐름 표시와 같은 목적). 꼬리는 경로의 꺾임과 구간 경계를 그대로 따라가며, 노드에 도착해 머무는 동안에는 길이가 0 으로 줄어든다. 속도를 읽게 할 뿐 어떤 판정도 나타내지 않는다.'},
+  {title: '진행 방향 잔상', spec: '사건 상세 재생 · 20px 꼬리 + 글로우', impl: true,
+   body: '점 뒤로 지나온 경로를 20px 만큼 되짚고, 꼬리 끝에서 패킷 앞단으로 불투명도가 증가하는 SVG 그라데이션을 적용한다. 패킷은 반경 6px 에 같은 색의 6px 글로우를 두르고, 꼬리는 경로의 꺾임과 구간 경계를 그대로 따라가며 노드에 도착해 머무는 동안에는 길이가 0 으로 줄어든다. 홉 구간은 추론 구간보다 10배 짧아 한 프레임에 크게 건너뛰므로 재생 중에는 그 간격만큼(최대 40px) 꼬리를 늘린다.'},
   {title: '노드 도달 펄스', spec: '사건 상세 재생 · 1회성 fade', impl: true,
-   body: '패킷이 U/R/M 상자에 닿는 순간 그 상자에만 1회성 테두리 fade 를 낸다 (620ms, 흐름 색). 반복·점멸하지 않고 잔상도 남기지 않는다. 뒤로 이동하면 다시 낼 수 있게 초기화되고, 선택을 바꿔 최종 상태로 들어올 때는 내지 않는다 — 방금 일어난 일이 아니기 때문이다.'},
+   body: '패킷이 U/R/M 상자에 닿는 순간 그 상자 바깥에만 4px 링이 300ms 동안 잦아든다 (흐름 색 accent-glow). 반복·점멸하지 않고 잔상도 남기지 않는다. 뒤로 이동하면 다시 낼 수 있게 초기화되고, 선택을 바꿔 최종 상태로 들어올 때는 내지 않는다 — 방금 일어난 일이 아니기 때문이다.'},
   {title: '변조의 순간', spec: '사건 상세 재생 · 색 전이만', impl: true,
    body: '요청 변조(E4 실패)는 R→M 구간에서, 응답 변조(E10 실패)는 M→R 구간부터 점과 꼬리의 색이 파랑에서 빨강으로 바뀐다. 폭발·흔들림 없이 색과 라벨만 바꾼다. 실제로 실패한 등식에서 색을 가져오므로 시나리오마다 자동으로 맞다.'},
   {title: '증거 등록의 도달', spec: '증거 패널 · 200~320ms 페이드', impl: true,
-   body: '재생 시점이 각 진술의 등록 시각(상한)을 지나면 그 행과 T 로 가는 점선이 대기색에서 pass 색으로 넘어간다. 프레임마다 인라인 색을 쓰지 않고 상태 클래스만 바꿔 전이가 끊기지 않게 했다. 결손 행은 전이 대상에서 제외한다 — 부재는 어떤 경우에도 움직이지 않는다.'},
+   body: '재생 시점이 각 진술의 등록 시각(상한)을 지나면 그 행과 T 로 가는 점선이 대기색에서 흐름 색(accent)으로 넘어간다. 등록 완료는 무결성 검증 통과를 뜻하지 않는다. 프레임마다 인라인 색을 쓰지 않고 상태 클래스만 바꿔 전이가 끊기지 않게 했다. 결손 행은 전이 대상에서 제외한다.'},
   {title: '탐지와 소비의 간격', spec: '시점 타임라인 + 스윔레인(1b) 하단', impl: true,
    body: '소비 지점에서 T 판정 등록 지점까지 붉은 막대가 실제 시간 비율대로 자란다. 막대가 길수록 나쁜 것이 아니라 "무엇이 그 사이에 실행되었는가" 를 묻게 만드는 장치다.'},
   {title: '임의 시점 탐색', spec: '시점 타임라인 · 스크러버', impl: true,
@@ -157,6 +158,9 @@ export class ReportView {
 
   // ---------- 사건 상세: 홉 지도 · 시점 · 증거 · 결론 · 집행 · 비교 · 등식 · 원장 · 감사 · 스윔레인 · 시간선 ----------
   private renderDetail(r: Data) {
+    // 이전 렌더에서 캔버스 하단에 도킹한 재생 컨트롤을 원래 자리(정책 모드 줄)로 되돌린다 — innerHTML 교체로 사라지지 않게.
+    { const pc = this.root.querySelector<HTMLElement>('.playctl'); const home = this.$('rpt-mode-tabs')?.parentElement;
+      if (pc && home && pc.closest('#rpt-detail')) home.appendChild(pc); }
     const a = r.attempts[Math.min(this.cur.attempt, r.attempts.length - 1)];
     const sc = r.scenario, fv = a.final_verdict, eq = fv.equations, g = a.gate;
     const c = a.contract.payload, o = a.observation ? a.observation.payload : null,
@@ -172,21 +176,21 @@ export class ReportView {
     const harmExposed: boolean = a.metrics.harm_exposed;
 
     const modelId = (m && m.model_id) || (rl && rl.upstream_model) || c.requested_model;
-    const legs = computeLegs(a.sent_at, a.received_at, MODEL_LATENCY_MS[modelId] ?? 200);
+    const legs = flowLegs(a.sent_at, a.received_at, MODEL_LATENCY_MS[modelId] ?? 200);
     const breakpoint = Math.max(60, Math.round(a.received_at * 1.4 / 10) * 10);
     const tEnd = Math.max(breakpoint + 40, a.sent_at, a.received_at, g.decided_at, consumedAt || 0, verdictAt || 0) * 1.08;
     const span = makeSpan(breakpoint, tEnd);
     const ctx: PlayContext = {legs, tEnd, span, reqFail: (eq.E4 || {}).result === 'fail', respFail: (eq.E10 || {}).result === 'fail', consumedAt, verdictAt, harmExposed, detectable};
 
+    // 원안의 마크: 전송 · M 서명 · 수신 · 사용 · T 판정(또는 판정 없음). 시각은 실제 값.
     const marks: Mark[] = [
-      {label: '요청 전송', at: `${a.sent_at} ms`, pos: span(a.sent_at), color: 'muted'},
-      {label: a.error ? '응답 없음' : 'U 수신', at: `${a.received_at} ms`, pos: span(a.received_at), color: 'muted'},
-      {label: '게이트 결정', at: `${g.decided_at} ms`, pos: span(g.decided_at), color: 'pass'},
-      consumedAt === null ? {label: '업무 사용', at: 'null (격리)', pos: span(g.decided_at) + 2, color: 'na'}
-                          : {label: '업무 사용', at: `${consumedAt} ms`, pos: span(consumedAt), color: harmExposed ? 'fail' : 'muted'},
+      {label: '전송', at: `${Math.round(a.sent_at)} ms`, pos: span(a.sent_at), color: 'muted'},
+      {label: 'M 서명', at: `${Math.round(legs[4].t1)} ms`, pos: span(legs[4].t1), color: 'muted'},
+      {label: '수신', at: `${Math.round(a.received_at)} ms`, pos: span(a.received_at), color: 'accent'},
     ];
-    if (!detectable && attack) marks.push({label: 'T 판정', at: '탐지 불가로 분류', pos: verdictAt != null ? span(verdictAt) : 90, color: 'na'});
-    else if (verdictAt != null) marks.push({label: 'T 판정 등록', at: `${verdictAt} ms`, pos: span(verdictAt), color: 'pass'});
+    if (consumedAt != null) marks.push({label: '사용', at: `${Math.round(consumedAt)} ms`, pos: span(consumedAt), color: 'fail'});
+    marks.push(verdictAt != null ? {label: 'T 판정', at: `${Math.round(verdictAt)} ms`, pos: span(verdictAt), color: 'pass'}
+                                 : {label: '판정 없음', at: '기한 초과', pos: span(tEnd), color: 'na'});
     const harmNote = (attack && !detectable)
       ? '탐지 불가로 분류된 사건이다. 탐지율 분모에서 제외하고 그 수를 따로 적는다 — 통과 배지로 표시하지 않는다.'
       : consumedAt === null
@@ -195,12 +199,18 @@ export class ReportView {
           ? `소비 ${consumedAt} ms · T 판정 등록 ${verdictAt} ms. 그 사이 ${Math.max(0, verdictAt - consumedAt)} ms 동안 피해가 노출되었다. 탐지는 성공, 이 피해의 방어는 실패다.`
           : `정상 요청이 기한 내 완료되었다. 대기 비용 ${g.decided_at - g.received_at} ms.`;
 
+    // 원안의 증거 3행 (등록 시각은 실제 원장 값).
     const evidence = evidenceRowsHtml([
-      {key: 'U', name: 'U 요청 계약', detail: 'contract · 허용 모델·변환·폴백·만료 서명', reg: regContract ? regContract.registered_at : null},
-      {key: 'R', name: 'R 중계 진술', detail: 'relay · in/out 커밋, 선언 변환, 상류 모델', reg: regRelay ? regRelay.registered_at : null},
-      {key: 'M', name: 'M 추론 영수증', detail: 'receipt · 요청/응답 커밋, eat_nonce, model_id', reg: regReceipt ? regReceipt.registered_at : null},
-      {key: 'O', name: 'U 수신 진술', detail: 'observation · 실제 받은 응답의 커밋', reg: regObs ? regObs.registered_at : null},
+      {key: 'U', name: 'U 요청 진술', detail: 'contract · nonce · 허용 모델 집합', reg: regContract ? regContract.registered_at : null},
+      {key: 'R', name: 'R 중계 진술', detail: '전달 해시 · 변환 선언', reg: regRelay ? regRelay.registered_at : null},
+      {key: 'M', name: 'M 응답 영수증', detail: '응답 커밋 · 시도 ID · 서명', reg: regReceipt ? regReceipt.registered_at : null},
     ]);
+    void regObs;
+    const flow: FlowData = {key: 'rpt', eq: eqFromEquations(eq), regs: {U: regContract ? regContract.registered_at : null, R: regRelay ? regRelay.registered_at : null, M: regReceipt ? regReceipt.registered_at : null},
+      sent: a.sent_at, received: a.received_at, latency: MODEL_LATENCY_MS[modelId] ?? 200,
+      sm: {mode: g.mode, gateAction: g.action, decidedAt: g.decided_at, consumedAt, verdictAt},
+      info: {id: sc.id, title: sc.title, verdict: fv.verification_status, verdictTone: st(fv.verification_status), action: g.action, actionTone: actionTone(g.action), note: `${fv.completeness} · ${fv.established_assurance}`},
+      foot: footHtml(timeBoxHtml(marks), evidence)};
 
     const eqr = (id: string) => (eq[id] || {}).result;
     const isFail = (id: string) => eqr(id) === 'fail';
@@ -249,18 +259,14 @@ export class ReportView {
       <p class="small" style="margin:10px 0 0"><b>시뮬레이터 사실:</b> 공격 ${attack ? `있음 (${esc(a.ground_truth.attack_kind)})` : '없음'} · 증거로 탐지 ${detectable ? '가능' : '<b class="warn">불가 (설계상 한계)</b>'} ${a.ground_truth.note ? '· ' + esc(a.ground_truth.note) : ''}</p>
     </div>
     <div class="card"><h3>경로 — 업무 데이터 경로(실선)와 T 의 증거·통제 경로(점선)</h3>
-      ${hopMapHtml('rpt', eqLabels(eq), eqEdges(eq), `홉 정합 지도 — ${sc.id}`)}
-      ${legendRowHtml()}
-      <h3>시점 — 검증 전에 무엇이 소비되었는가</h3>
-      ${timeBoxHtml(marks)}
-      <p class="small muted" style="margin-top:6px">${harmNote}</p>
+      ${flowCanvasHtml(flow)}
+      <p class="small muted" style="margin-top:10px">${harmNote}</p>
       <div style="margin-top:14px">${stripGridHtml([
         {k: '정책 해시', v: short(fv.policy_hash)}, {k: '검사기', v: esc(fv.checker_version)}, {k: '신뢰 키 집합', v: esc(fv.trust_keys_version)},
         {k: '독립 재실행', v: au.ok ? '일치' : '불일치', color: au.ok ? 'pass' : 'fail'}])}</div>
       <div class="small muted" style="margin-top:7px">판정은 이 네 값에 고정된다. 감사자는 로그 내보내기와 앵커만으로 같은 판정을 재계산할 수 있어야 하며, 재계산이 T 와 다르면 그 사실이 위 칸에 남는다.</div>
     </div>
     <div class="grid">
-      <div class="card"><h3>증거 — 누가 무엇을 서명해 등록했는가</h3>${evidence}</div>
       <div class="card"><h3>결론 — 사실·모순·부족을 섞지 않는다</h3>
         <p style="margin:0 0 6px"><span class="mono" style="font-weight:700;font-size:14px;color:${CV(st(fv.verification_status))}">${esc(fv.verification_status)}</span>
           <span class="small muted" style="margin-left:10px">완전성 <b style="color:${fv.completeness === 'complete' ? CV('muted') : CV('na')}">${esc(fv.completeness)}</b></span>
@@ -293,6 +299,9 @@ export class ReportView {
     ${this.swimlaneCard(r, a, consumedAt, verdictAt, harmExposed, detectable, attack, g)}
     ${this.ledgerCard(r, a)}
     <div class="card"><h3>시간선 (시뮬레이션 ms). 붉은 행 = 업무 사용, 녹색 행 = 게이트 결정</h3><div class="scroll"><table class="tl"><thead><tr><th>#</th><th>t</th><th>주체</th><th>사건</th><th>세부</th></tr></thead><tbody>${tl}</tbody></table></div></div>`;
+    // 캔버스(줌·팬·미니맵·상태 머신)를 붙이고, 원안대로 재생 컨트롤을 캔버스 하단 패널에 도킹한다 (정적 DOM 을 옮겨 리스너를 유지).
+    mountFlow(this.$('rpt-detail'), flow, this.play);
+    { const pc = this.root.querySelector<HTMLElement>('.playctl'), dock = this.$('rpt-detail').querySelector<HTMLElement>('[data-fc-dock]'); if (pc && dock) dock.appendChild(pc); }
     this.play.set(ctx);
   }
 

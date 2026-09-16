@@ -14,7 +14,9 @@ export const short = (h: unknown) => h
   : '<span class="absent">없음</span>';
 export const absent = (v: unknown) => (v === null || v === undefined) ? '<span class="absent">null</span>' : esc(v);
 export const CV = (name: string) => `var(--${name})`;
-export const reducedMotion = (() => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; } })();
+const motionPreference = typeof window === 'undefined' ? null : window.matchMedia('(prefers-reduced-motion: reduce)');
+export let reducedMotion = motionPreference?.matches ?? false;
+motionPreference?.addEventListener('change', e => { reducedMotion = e.matches; });
 
 export function pills(container: HTMLElement, items: {v: string; label: string; title?: string}[], isOn: (v: string) => boolean, onPick: (v: string) => void) {
   container.innerHTML = items.map(it => `<button type="button" class="pill${isOn(it.v) ? ' on' : ''}" data-v="${esc(it.v)}"${it.title ? ` title="${esc(it.title)}"` : ''}>${esc(it.label)}</button>`).join('');
@@ -75,9 +77,12 @@ export function hopMapHtml(key: string, labels: HopLabel[], edges: HopEdges, ari
     return `<div class="hoplabel" data-eq="${esc(l.id)}" style="left:${(l.x / 820 * 100).toFixed(2)}%;top:${(l.y / 360 * 100).toFixed(2)}%;transform:${tx};font:${l.big ? 600 : 400} ${size}px var(--mono);color:${col(l.result)}">${glyph(l.result)} ${esc(l.id)} ${esc(l.tail)}</div>`;
   }).join('');
   // 노드 상자의 도달 펄스는 별도 halo 사각형으로 낸다. 판정 색을 쓰지 않고 흐름 색(accent)만 쓴다.
-  const halo = (id: string, x: number) => `<rect class="nodehalo" id="${key}-halo-${id}" x="${x}" y="118" width="120" height="52" rx="6" fill="none" stroke="${CV('accent')}" stroke-width="2"/>`;
+  const halo = (id: string, x: number) => `<rect class="nodehalo" id="${key}-halo-${id}" x="${x}" y="118" width="120" height="52" rx="6" fill="none" stroke="${CV('accent-glow')}" stroke-width="8"/>`;
   const svg = `<svg viewBox="0 0 820 360" role="img" aria-label="${esc(aria)}">
-    <defs><marker id="${key}-ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="${CV('muted')}"/></marker></defs>
+    <defs><marker id="${key}-ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="${CV('muted')}"/></marker>
+      <linearGradient id="${key}-trail-gradient" gradientUnits="userSpaceOnUse" x1="100" y1="118" x2="120" y2="118" style="color:${CV('accent')}">
+        <stop offset="0" stop-color="currentColor" stop-opacity="0"/><stop offset="1" stop-color="currentColor" stop-opacity=".65"/>
+      </linearGradient></defs>
     <line x1="150" y1="92" x2="390" y2="92" stroke="${col(edges.ur)}" stroke-width="2.5" marker-end="url(#${key}-ar)"/>
     <line x1="470" y1="92" x2="670" y2="92" stroke="${col(edges.rm)}" stroke-width="2.5" marker-end="url(#${key}-ar)"/>
     <line x1="670" y1="188" x2="470" y2="188" stroke="${col(edges.mr)}" stroke-width="2.5" marker-end="url(#${key}-ar)"/>
@@ -94,26 +99,27 @@ export function hopMapHtml(key: string, labels: HopLabel[], edges: HopEdges, ari
     <text x="700" y="157" text-anchor="middle" font-size="11" fill="${CV('muted')}">${esc(roles.m)}</text>
     ${halo('U', 60)}${halo('R', 370)}${halo('M', 640)}
     <rect x="330" y="306" width="160" height="44" rx="6" fill="${CV('card')}" stroke="${CV('accent')}" stroke-dasharray="5 3"/>
-    <rect class="nodehalo" id="${key}-halo-T" x="330" y="306" width="160" height="44" rx="6" fill="none" stroke="${CV('accent')}" stroke-width="2"/>
+    <rect class="nodehalo" id="${key}-halo-T" x="330" y="306" width="160" height="44" rx="6" fill="none" stroke="${CV('accent-glow')}" stroke-width="8"/>
     <text x="410" y="324" text-anchor="middle" font-size="12" font-weight="700" fill="${CV('accent')}">${esc(roles.t)}</text>
     <text x="410" y="339" text-anchor="middle" font-size="10.5" fill="${CV('muted')}">${esc(roles.tSub)}</text>
-    <line id="${key}-evU" class="evline" x1="120" y1="170" x2="340" y2="306" stroke="${CV('line')}" stroke-width="1.5" stroke-dasharray="4 4"/>
-    <line id="${key}-evR" class="evline" x1="430" y1="170" x2="410" y2="306" stroke="${CV('line')}" stroke-width="1.5" stroke-dasharray="4 4"/>
-    <line id="${key}-evM" class="evline" x1="700" y1="170" x2="480" y2="306" stroke="${CV('line')}" stroke-width="1.5" stroke-dasharray="4 4"/>
-    ${[1, 2, 3].map(i => `<polyline id="${key}-trail${i}" class="packettrail" points="" fill="none" stroke="${CV('accent')}" stroke-width="${9 - i}" stroke-linecap="round" stroke-linejoin="round" opacity="0"/>`).join('')}
-    <circle id="${key}-packet" class="packet" cx="120" cy="118" r="8" fill="${CV('accent')}"/>
+    <line id="${key}-evU" class="evline" x1="120" y1="170" x2="340" y2="306" stroke="${CV('line')}" stroke-width="1.5" stroke-dasharray="4 6"/>
+    <line id="${key}-evR" class="evline" x1="430" y1="170" x2="410" y2="306" stroke="${CV('line')}" stroke-width="1.5" stroke-dasharray="4 6"/>
+    <line id="${key}-evM" class="evline" x1="700" y1="170" x2="480" y2="306" stroke="${CV('line')}" stroke-width="1.5" stroke-dasharray="4 6"/>
+    <polyline id="${key}-trail" class="packettrail" points="" fill="none" stroke="url(#${key}-trail-gradient)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0"/>
+    <circle id="${key}-packet" class="packet" cx="120" cy="118" r="6" fill="${CV('accent')}"/>
   </svg>`;
   return `<div class="hopwrap">${svg}${labelHtml}<div class="packetlabel" data-packetlabel hidden></div></div>`;
 }
 export const legendRowHtml = (extra = '') =>
   `<div class="legend-row"><span class="pass">✓ pass</span><span class="fail">✗ fail</span><span class="na">– not_evaluable (사유는 표에)</span>${extra}</div>`;
+// 순서는 가이드 3.2 그대로: [|◀ 처음] [◀ 이전 홉] [▶ 재생 / ❚❚ 일시정지] [다음 홉 ▶] [배속]
 export const playControlsHtml = () =>
   `<div class="playctl" tabindex="-1">
-    <button type="button" class="itx-btn itx-btn-step" data-step="-1" title="이전 홉 (←)" aria-label="이전 홉">|◀</button>
+    <button type="button" class="itx-btn itx-btn-step" data-reset title="처음으로 (R · Home)">|◀ 처음</button>
+    <button type="button" class="itx-btn itx-btn-step" data-step="-1" title="이전 홉 (←)">◀ 이전 홉</button>
     <button type="button" class="itx-btn itx-btn-accent" data-play title="재생·정지 (Space)">▶ 재생</button>
-    <button type="button" class="itx-btn itx-btn-step" data-step="1" title="다음 홉 (→)" aria-label="다음 홉">▶|</button>
-    <button type="button" class="itx-btn" data-reset title="처음으로 (R · Home)">처음으로</button>
-    <button type="button" class="itx-btn itx-btn-speed" data-speed title="재생 속도" aria-label="재생 속도">×1</button>
+    <button type="button" class="itx-btn itx-btn-step" data-step="1" title="다음 홉 (→)">다음 홉 ▶</button>
+    <button type="button" class="itx-btn itx-btn-speed" data-speed title="재생 속도 (0.5× · 1× · 2×)" aria-label="재생 속도">1×</button>
     <span class="tlabel" data-tlabel>t = 0 ms</span>
   </div>`;
 
@@ -124,7 +130,13 @@ export const MODEL_LATENCY_MS: Record<string, number> = {'model-A': 200, 'model-
 export type NodeKey = 'U' | 'R' | 'M' | 'T';
 export type Pt = [number, number];
 // 구간은 꺾은선(pts)으로 둔다. 노드를 드나드는 수직 구간이 있어야 패킷이 선 위를 실제로 타고 도는 것처럼 보인다.
-export interface Leg { t0: number; t1: number; pts: Pt[]; label: string; work: boolean; arrive?: NodeKey }
+// arrive 는 이동 구간이 닿는 노드, at 은 머무는 구간이 속한 노드다 (노드 활성 상태 표시에 쓴다).
+export interface Leg { t0: number; t1: number; pts: Pt[]; label: string; work: boolean; arrive?: NodeKey; at?: NodeKey }
+// 기본 꼴은 옛 SVG 좌표계(820×360)다. flow.ts 는 그래프 배치에서 뽑은 꼴을 넘겨 같은 시간 배분을 쓴다.
+export const DEFAULT_SHAPE: Pt[][] = [
+  [[120, 118], [120, 100], [430, 100]], [[430, 100]], [[430, 100], [700, 100]], [[700, 100], [700, 118]],
+  [[700, 118]], [[700, 118], [700, 196], [430, 196]], [[430, 196]], [[430, 196], [120, 196], [120, 170]],
+];
 
 const seg = (a: Pt, b: Pt) => Math.hypot(b[0] - a[0], b[1] - a[1]);
 function cumulative(pts: Pt[]): number[] { const c = [0]; for (let i = 1; i < pts.length; i++) c.push(c[i - 1] + seg(pts[i - 1], pts[i])); return c; }
@@ -144,17 +156,17 @@ function atDist(pts: Pt[], c: number[], d: number): Pt {
 const easeInOut = (f: number) => f < .5 ? 2 * f * f : 1 - Math.pow(-2 * f + 2, 2) / 2;
 const settle = (f: number) => 1 - Math.pow(1 - Math.min(1, f / 0.28), 3);
 
-export function computeLegs(sentAt: number, receivedAt: number, latency = 200): Leg[] {
+export function computeLegs(sentAt: number, receivedAt: number, latency = 200, shape: Pt[][] = DEFAULT_SHAPE): Leg[] {
   const raw: Leg[] = []; let t = 0;
-  const push = (dt: number, pts: Pt[], label: string, work: boolean, arrive?: NodeKey) => { raw.push({t0: t, t1: t + dt, pts, label, work, arrive}); t += dt; };
-  push(HOP_MS, [[120, 118], [120, 100], [430, 100]], '요청 전송 U→R', false, 'R');
-  push(PROC_MS, [[430, 100]], 'R 중개자 처리', true);
-  push(HOP_MS, [[430, 100], [700, 100]], '요청 전달 R→M', false, 'M');
-  push(latency, [[700, 100], [700, 118]], 'M 추론', true);
-  push(SIGN_MS, [[700, 118]], 'M 영수증 서명', true);
-  push(HOP_MS, [[700, 118], [700, 196], [430, 196]], '응답 전달 M→R', false, 'R');
-  push(SIGN_MS, [[430, 196]], 'R 중계 진술 서명', true);
-  push(HOP_MS, [[430, 196], [120, 196], [120, 170]], '응답 전송 R→U', false, 'U');
+  const push = (dt: number, pts: Pt[], label: string, work: boolean, arrive?: NodeKey, at?: NodeKey) => { raw.push({t0: t, t1: t + dt, pts, label, work, arrive, at}); t += dt; };
+  push(HOP_MS, shape[0], '요청 전송 U→R', false, 'R');
+  push(PROC_MS, shape[1], 'R 중개자 처리', true, undefined, 'R');
+  push(HOP_MS, shape[2], '요청 전달 R→M', false, 'M');
+  push(latency, shape[3], 'M 추론', true, undefined, 'M');
+  push(SIGN_MS, shape[4], 'M 영수증 서명', true, undefined, 'M');
+  push(HOP_MS, shape[5], '응답 전달 M→R', false, 'R');
+  push(SIGN_MS, shape[6], 'R 중계 진술 서명', true, undefined, 'R');
+  push(HOP_MS, shape[7], '응답 전송 R→U', false, 'U');
   const scale = (t > 0 && receivedAt > sentAt) ? (receivedAt - sentAt) / t : 1;
   return raw.map(L => ({...L, t0: sentAt + L.t0 * scale, t1: sentAt + L.t1 * scale}));
 }
@@ -167,6 +179,9 @@ export function packetPos(t: number, legs: Leg[]) {
   const f = L.work ? settle(raw) : easeInOut(raw);
   const c = cumulative(L.pts), p = atDist(L.pts, c, f * c[c.length - 1]);
   return {x: p[0], y: p[1], leg: L, index, f};
+}
+function packetLabel(t: number, legs: Leg[]): string {
+  return t < legs[0].t0 ? '전송 전' : t >= legs[legs.length - 1].t1 ? '응답 수신 후' : packetPos(t, legs).leg.label;
 }
 // 노드에 머무는 구간에서는 잔상이 구간 앞 30% 안에 0 으로 줄어든다 — 도착해서 멈췄다는 사실을 남긴다.
 export function trailLength(t: number, legs: Leg[], base = 18): number {
@@ -218,7 +233,8 @@ export interface PlayContext {
 const SPEEDS = [0.5, 1, 2];
 export class Playback {
   private t = 0; private playing = false; private raf = 0; private last: number | null = null; private ctx: PlayContext | null = null;
-  private speed = 1; private fired = new Set<number>(); private fill = ''; private scrub: HTMLElement | null = null;
+  private speed = 1; private fired = new Set<number>(); private fill = '';
+  private scrub: {box: HTMLElement; pointerId: number} | null = null;
   private prev: {x: number; y: number} | null = null;
   private evFired = new Set<string>(); private primed = false;
   constructor(private root: HTMLElement, private key: string) {
@@ -233,19 +249,34 @@ export class Playback {
     // 시점 타임라인 스크러버: 누른 자리로 바로 이동하고 드래그로 따라간다.
     root.addEventListener('pointerdown', e => {
       const box = (e.target as HTMLElement).closest<HTMLElement>('[data-scrub]');
-      if (!box || !this.ctx) return;
-      e.preventDefault(); this.stop(); this.scrub = box; box.setPointerCapture(e.pointerId); box.focus();
-      this.seekAt(box, e.clientX);
+      if (!box || !this.ctx || e.button !== 0 || !e.isPrimary || this.scrub) return;
+      e.preventDefault(); this.stop(); this.scrub = {box, pointerId: e.pointerId};
+      box.setPointerCapture(e.pointerId); box.focus();
+      this.seekAt(box, e.clientX); this.tip(box, e.clientX);
     });
-    root.addEventListener('pointermove', e => { if (this.scrub) this.seekAt(this.scrub, e.clientX); });
-    const end = (e: PointerEvent) => { if (!this.scrub) return; try { this.scrub.releasePointerCapture(e.pointerId); } catch { /* 이미 해제됨 */ } this.scrub = null; };
-    root.addEventListener('pointerup', end);
+    // 커서가 타임라인 위에 있으면 그 자리의 시점·홉 상태를 툴팁으로 보인다. 드래그 중에는 재생 헤드가 그 자리다.
+    root.addEventListener('pointermove', e => {
+      if (this.scrub) {
+        if (e.pointerId === this.scrub.pointerId) { this.seekAt(this.scrub.box, e.clientX); this.tip(this.scrub.box, e.clientX); }
+        return;
+      }
+      if (!e.isPrimary) return;
+      const box = (e.target as HTMLElement).closest<HTMLElement>('[data-scrub]');
+      if (box) this.tip(box, e.clientX); else this.tip(null);
+    });
+    root.addEventListener('pointerleave', () => { if (!this.scrub) this.tip(null); });
+    const end = (e: PointerEvent) => { if (this.scrub?.pointerId === e.pointerId) this.endScrub(); };
+    root.addEventListener('pointerup', e => {
+      if (this.scrub?.pointerId === e.pointerId) { this.seekAt(this.scrub.box, e.clientX); this.endScrub(); }
+    });
     root.addEventListener('pointercancel', end);
+    root.addEventListener('lostpointercapture', end);
     // 키보드: 스크러버나 재생 컨트롤에 초점이 있을 때만 받는다. 입력란의 방향키를 빼앗지 않는다.
     root.addEventListener('keydown', e => {
       const target = e.target as HTMLElement;
+      if (e.defaultPrevented || e.isComposing || e.altKey || e.ctrlKey || e.metaKey) return;
       if (!target.closest('[data-scrub]') && !target.closest('.playctl')) return;
-      if (e.key === ' ' || e.key === 'Spacebar') { if (target.closest('button')) return; e.preventDefault(); this.toggle(); }
+      if (e.key === ' ' || e.key === 'Spacebar') { if (target.closest('button')) return; e.preventDefault(); if (!e.repeat) this.toggle(); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); this.stop(); this.step(-1); }
       else if (e.key === 'ArrowRight') { e.preventDefault(); this.stop(); this.step(1); }
       else if (e.key === 'Home' || e.key === 'r' || e.key === 'R') { e.preventDefault(); this.stop(); this.seek(0); }
@@ -254,15 +285,22 @@ export class Playback {
   }
   // 선택이 바뀌면 완결된 최종 상태에서 시작한다. 이때는 도달 펄스를 내지 않는다 — 방금 일어난 일이 아니다.
   set(ctx: PlayContext | null) {
-    this.stop(); this.ctx = ctx; this.t = ctx ? ctx.tEnd : 0; this.fill = '';
+    this.endScrub(); this.stop(); this.ctx = ctx; this.t = ctx ? ctx.tEnd : 0; this.fill = '';
     this.fired = new Set(ctx ? ctx.legs.map((_, i) => i) : []);
     this.evFired.clear(); this.primed = false; this.prev = null;
     this.button(); this.update();
   }
-  stop() { this.playing = false; if (this.raf) cancelAnimationFrame(this.raf); this.raf = 0; this.last = null; this.prev = null; this.button(); }
+  // 캔버스가 노드를 접거나 배치를 바꾸면 같은 시점에서 새 기하로 다시 그린다.
+  setLegs(legs: Leg[]) { if (!this.ctx) return; this.ctx.legs = legs; this.fill = ''; this.prev = null; this.update(); }
+  stop() {
+    this.playing = false; if (this.raf) cancelAnimationFrame(this.raf);
+    this.raf = 0; this.last = null; this.prev = null;
+    this.root.querySelectorAll('.flowing, .pulse, .settling').forEach(el => el.classList.remove('flowing', 'pulse', 'settling'));
+    this.tip(null); this.button();
+  }
   toggle() {
     if (!this.ctx) return;
-    if (reducedMotion) { this.seek(this.ctx.tEnd); return; } // 축소 모션: 최종 상태로 즉시 점프
+    if (reducedMotion) { this.stop(); this.seek(this.ctx.tEnd); return; } // 축소 모션: 최종 상태로 즉시 점프
     if (this.playing) { this.stop(); return; }
     if (this.t >= this.ctx.tEnd) this.seek(0);
     this.playing = true; this.last = null; this.button();
@@ -289,8 +327,30 @@ export class Playback {
     if (r.width <= 0) return;
     this.seek(this.ctx.span.inv(((clientX - r.left) / r.width) * 100));
   }
+  private endScrub() {
+    const active = this.scrub; this.scrub = null;
+    if (active?.box.hasPointerCapture(active.pointerId)) active.box.releasePointerCapture(active.pointerId);
+    this.tip(null);
+  }
+  // 툴팁은 커서 아래 시점을 말한다: 어느 구간인지, 전송 전인지, 수신 후인지. 판정은 말하지 않는다.
+  private tip(box: HTMLElement | null, clientX = 0) {
+    if (!box || !this.ctx) { this.root.querySelectorAll<HTMLElement>('[data-scrubtip]').forEach(el => { el.hidden = true; }); return; }
+    const el = box.querySelector<HTMLElement>('[data-scrubtip]');
+    if (!el) return;
+    const r = box.getBoundingClientRect();
+    if (r.width <= 0) { el.hidden = true; return; }
+    const pct = Math.max(0, Math.min(100, ((clientX - r.left) / r.width) * 100));
+    const t = this.scrub ? this.t : this.ctx.span.inv(pct);
+    el.textContent = `t = ${Math.round(t)} ms · ${packetLabel(t, this.ctx.legs)}`;
+    el.hidden = false;
+    const half = el.offsetWidth / 2 + 4;
+    const x = (this.scrub ? this.ctx.span(t) : pct) / 100 * r.width;
+    el.style.left = Math.max(half, Math.min(r.width - half, x)).toFixed(1) + 'px';
+  }
   private step2(ts: number) {
     if (!this.playing || !this.ctx) return;
+    if (this.root.hidden || !this.root.isConnected) { this.stop(); return; }
+    if (reducedMotion) { this.stop(); this.seek(this.ctx.tEnd); return; }
     const dt = this.last != null ? Math.min(64, ts - this.last) : 16; this.last = ts;
     const base = Math.max(0.05, this.ctx.tEnd / 3200); // 실측 길이와 무관하게 ×1 재생은 약 3초, 구간 비율은 실제 값 그대로
     let nt = this.t + dt * base * this.speed;
@@ -300,12 +360,13 @@ export class Playback {
   }
   private button() {
     const b = this.root.querySelector<HTMLButtonElement>('button[data-play]');
-    if (b) b.textContent = this.playing ? '⏸ 일시정지' : '▶ 재생';
+    if (b) { b.textContent = this.playing ? '❚❚ 일시정지' : '▶ 재생'; b.setAttribute('aria-pressed', String(this.playing)); }
     const s = this.root.querySelector<HTMLButtonElement>('button[data-speed]');
-    if (s) s.textContent = '×' + this.speed;
+    if (s) s.textContent = this.speed + '×';
   }
   private pulse(node: NodeKey) {
-    const el = this.root.querySelector<SVGElement>(`#${this.key}-halo-${node}`);
+    // flow.ts 의 HTML 노드가 있으면 그 노드에, 없으면(옛 SVG 지도) halo 사각형에 1회성 펄스를 낸다.
+    const el = this.root.querySelector<HTMLElement>(`.flow-node[data-node="${node}"]`) || this.root.querySelector<SVGElement>(`#${this.key}-halo-${node}`);
     if (!el) return;
     el.classList.remove('pulse'); void el.getBoundingClientRect(); el.classList.add('pulse');
   }
@@ -315,31 +376,43 @@ export class Playback {
     const c = this.ctx;
     if (!c) { if (label) label.textContent = 't = 0 ms'; return; }
     const t = this.t, lastLeg = c.legs[c.legs.length - 1];
-    if (label) label.textContent = `t = ${Math.round(t)} ms`;
+    if (label) label.textContent = `t = ${Math.round(t)} ms · ${packetLabel(t, c.legs)}`; // 원안: t 라벨에 현재 구간
     const pos = packetPos(t, c.legs);
     let fill = 'accent';
     if (t >= lastLeg.t1) fill = 'muted';
     if (c.reqFail && t >= c.legs[1].t0 && t < c.legs[4].t0) fill = 'fail';
-    if (c.respFail && t >= c.legs[6].t0) fill = 'fail';
+    if (c.respFail && t >= c.legs[5].t0) fill = 'fail'; // 원안: 응답 변조는 M→R 구간부터 붉다
     const changed = fill !== this.fill; this.fill = fill;
 
-    const dot = this.root.querySelector(`#${this.key}-packet`);
-    if (dot) { dot.setAttribute('cx', pos.x.toFixed(1)); dot.setAttribute('cy', pos.y.toFixed(1)); if (changed) dot.setAttribute('fill', CV(fill)); }
+    const dot = this.root.querySelector<SVGElement>(`#${this.key}-packet`);
+    if (dot) {
+      dot.setAttribute('cx', pos.x.toFixed(1)); dot.setAttribute('cy', pos.y.toFixed(1));
+      if (changed) {
+        dot.setAttribute('fill', CV(fill));
+        // 글로우는 패킷 색을 따른다. 도착해 멈춘 뒤(muted)에는 빛나지 않는다.
+        dot.style.filter = fill === 'muted' ? 'none' : `drop-shadow(0 0 6px ${CV(fill + '-glow')})`;
+      }
+    }
     // 홉 구간은 추론 구간보다 10배 짧아 한 프레임에 크게 건너뛴다. 재생 중에는 그 간격만큼 꼬리를 늘려
-    // 이동이 끊겨 보이지 않게 한다 — 속도를 그대로 드러내는 것이고 판정과는 무관하다.
+    // 이동이 끊겨 보이지 않게 한다 — 속도를 그대로 드러내는 것이고 판정과는 무관하다. 기본 길이는 20px.
     const jump = this.prev ? Math.hypot(pos.x - this.prev.x, pos.y - this.prev.y) : 0;
     this.prev = {x: pos.x, y: pos.y};
-    const base = this.playing ? Math.max(22, Math.min(44, jump * 1.6)) : 22;
+    const base = this.playing ? Math.max(22, Math.min(46, jump * 1.6)) : 22; // 원안 값
     const inTransit = !reducedMotion && t > c.legs[0].t0 && t < lastLeg.t1;
     const full = inTransit ? trailLength(t, c.legs, base) : 0;
-    // 꼬리는 길이·두께·농도가 다른 세 겹으로 그린다. 방향이 꺾여도 그러데이션처럼 잦아든다.
-    for (const [i, share, alpha] of [[1, 1, .10], [2, .6, .16], [3, .3, .24]] as [number, number, number][]) {
-      const layer = this.root.querySelector<SVGElement>(`#${this.key}-trail${i}`);
-      if (!layer) continue;
-      const pts = full > 0.5 ? trailPoints(t, c.legs, full * share) : [];
+    // 실제 SVG 그라데이션을 꼬리→패킷 방향으로 정렬한다. 꺾은선의 좌표는 그대로 유지한다.
+    const layer = this.root.querySelector<SVGElement>(`#${this.key}-trail`);
+    const gradient = this.root.querySelector<SVGElement>(`#${this.key}-trail-gradient`);
+    if (layer && gradient) {
+      const pts = full > 0.5 ? trailPoints(t, c.legs, full) : [];
       layer.setAttribute('points', pts.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' '));
-      if (changed) layer.setAttribute('stroke', CV(fill));
-      layer.style.opacity = pts.length > 1 ? String(alpha) : '0';
+      if (changed) gradient.style.color = CV(fill);
+      if (pts.length > 1) {
+        const tail = pts[pts.length - 1];
+        gradient.setAttribute('x1', String(tail[0])); gradient.setAttribute('y1', String(tail[1]));
+        gradient.setAttribute('x2', String(pos.x)); gradient.setAttribute('y2', String(pos.y));
+      }
+      layer.style.opacity = pts.length > 1 ? '1' : '0';
     }
     const moving = t > c.legs[0].t0 && t < lastLeg.t1;
     const plabel = this.root.querySelector<HTMLElement>('[data-packetlabel]');
@@ -347,14 +420,23 @@ export class Playback {
       plabel.hidden = !moving;
       if (moving) {
         plabel.textContent = pos.leg.label;
-        plabel.style.left = (pos.x / 820 * 100).toFixed(2) + '%';
-        plabel.style.top = (pos.y / 360 * 100).toFixed(2) + '%';
-        plabel.style.transform = pos.y < 150 ? 'translate(-50%,-180%)' : 'translate(-50%,80%)';
+        if (plabel.hasAttribute('data-px')) { // flow 뷰포트 안에서는 그래프 좌표(px)를 그대로 쓴다
+          plabel.style.left = pos.x.toFixed(1) + 'px'; plabel.style.top = pos.y.toFixed(1) + 'px';
+          plabel.style.transform = pos.y < 100 ? 'translate(-50%,-190%)' : 'translate(-50%,90%)';
+        } else {
+          plabel.style.left = (pos.x / 820 * 100).toFixed(2) + '%';
+          plabel.style.top = (pos.y / 360 * 100).toFixed(2) + '%';
+          plabel.style.transform = pos.y < 150 ? 'translate(-50%,-180%)' : 'translate(-50%,80%)';
+        }
       }
     }
+    // 노드 상태: 패킷이 머무는 노드만 active (X6 식 상태 표시). 미니맵의 점도 같이 옮긴다.
+    // 캔버스(flow.ts)에 프레임을 알린다 — 도달 링 감쇠·상태 머신은 그쪽이 그린다. 재생 엔진은 캔버스를 모른다.
+    const flow = this.root.querySelector<HTMLElement>(`.flowc[data-flow="${this.key}"]`);
+    if (flow && typeof CustomEvent === 'function' && typeof flow.dispatchEvent === 'function') flow.dispatchEvent(new CustomEvent('playbackframe', {bubbles: true, detail: {t, legs: c.legs, playing: this.playing}}));
     if (!reducedMotion) for (let i = 0; i < c.legs.length; i++) {
       const L = c.legs[i];
-      if (L.arrive && !this.fired.has(i) && t >= L.t1) { this.fired.add(i); this.pulse(L.arrive); }
+      if (L.arrive && !this.fired.has(i) && t >= L.t1) { this.fired.add(i); if (this.playing) this.pulse(L.arrive); }
     }
     for (const k of ['U', 'R', 'M']) {
       const line = this.root.querySelector<SVGElement>(`#${this.key}-ev${k}`);
@@ -363,12 +445,12 @@ export class Playback {
       const reg = row?.dataset.evReg;
       const missing = !row || row.classList.contains('absent-row');
       const registered = !missing && reg !== undefined && t >= +reg;
-      const want = missing ? CV('na') : registered ? CV('pass') : CV('line');
+      const want = missing ? CV('na') : registered ? CV('accent') : CV('line');
       if (line.getAttribute('stroke') !== want) line.setAttribute('stroke', want);
       // 증거 제출 경로임을 업무 데이터 경로와 구분해 보인다: 재생 중이고 이미 등록된 선만 흐른다.
       // 결손 선은 어떤 경우에도 움직이지 않는다.
       line.classList.toggle('flowing', registered && this.playing && !reducedMotion);
-      if (registered && !this.evFired.has(k)) { this.evFired.add(k); if (this.primed && !reducedMotion) this.pulse('T'); }
+      if (registered && !this.evFired.has(k)) { this.evFired.add(k); if (this.playing && this.primed && !reducedMotion) this.pulse('T'); }
       if (!registered) this.evFired.delete(k);
     }
     // 등록 여부는 클래스만 바꾸고 색 전이는 CSS 가 맡는다 (프레임마다 인라인 스타일을 쓰면 전이가 끊긴다).
@@ -377,14 +459,14 @@ export class Playback {
       if (row.classList.contains('arrived') === arrived) return;
       row.classList.toggle('arrived', arrived);
       // 이미 끝난 사건을 불러올 때(primed 이전)는 안착 애니메이션을 내지 않는다 — 방금 등록된 것이 아니다.
-      row.classList.toggle('settling', arrived && this.primed && !reducedMotion);
+      row.classList.toggle('settling', arrived && this.playing && this.primed && !reducedMotion);
       const state = row.querySelector<HTMLElement>('.evstate')!;
       state.textContent = arrived ? `등록 ≤ ${reg} ms` : '대기';
     });
     this.primed = true;
     const ph = this.root.querySelector<HTMLElement>('[data-playhead]'); if (ph) ph.style.left = c.span(t) + '%';
     const box = this.root.querySelector<HTMLElement>('[data-scrub]');
-    if (box) { box.setAttribute('aria-valuemax', String(Math.round(c.tEnd))); box.setAttribute('aria-valuenow', String(Math.round(t))); box.setAttribute('aria-valuetext', `t = ${Math.round(t)} ms · ${pos.leg.label}`); }
+    if (box) { box.setAttribute('aria-valuemax', String(Math.round(c.tEnd))); box.setAttribute('aria-valuenow', String(Math.round(t))); box.setAttribute('aria-valuetext', `t = ${Math.round(t)} ms · ${packetLabel(t, c.legs)}`); }
     const hb = this.root.querySelector<HTMLElement>('[data-harmbar]');
     if (hb) {
       let w = 0;
@@ -410,7 +492,8 @@ export function timeBoxHtml(marks: Mark[]): string {
   return `<div class="timebox" data-scrub tabindex="0" role="slider" aria-label="재생 시점 탐색 — 드래그·방향키" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" title="클릭·드래그로 시점 이동 · ←/→ 홉 이동 · Space 재생">
     <div class="timeaxis"></div><div class="timegap" style="left:66%"></div><div class="timegaplabel" style="left:68%">축 생략</div>
     <div class="harmbar" data-harmbar style="left:0;width:0"><span class="harmlabel">피해 노출 — 사용 이후 T 판정 전</span></div>${html}
-    <div class="playhead" data-playhead style="left:0"><span class="playknob"></span></div></div>`;
+    <div class="playhead" data-playhead style="left:0"><span class="playknob"></span></div>
+    <div class="scrubtip" data-scrubtip hidden></div></div>`;
 }
 
 // ---------- 증거 패널 ----------
@@ -485,7 +568,7 @@ export function installConsoleInteractions() {
     e.preventDefault(); n.click();
   });
 }
-async function copyText(text: string): Promise<boolean> {
+export async function copyText(text: string): Promise<boolean> {
   if (!text) return false;
   try { await navigator.clipboard.writeText(text); return true; } catch { /* 권한 없는 환경은 아래로 */ }
   try {

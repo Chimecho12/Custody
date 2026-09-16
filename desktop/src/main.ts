@@ -5,6 +5,9 @@ import { Data, esc, Playback, installConsoleInteractions } from './console';
 import { ReportView } from './report';
 import { previewCall } from './preview';
 import { STATE_NAMES, MapMode, routeCard, idleRouteHtml, resultHtml, timelineHtml } from './runtime-view';
+import { renderAudit } from './audit-view';
+import { mountFlow } from './flow';
+import { mountTrace } from './trace';
 
 const get = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 function el(tag: string, className = '', text?: string): HTMLElement {
@@ -86,9 +89,11 @@ get('route-map').addEventListener('click', e => {
 });
 function renderRoute() {
   const root = get('route-map');
-  if (!selected) { root.innerHTML = idleRouteHtml(connection); requestPlay.set(null); return; }
-  const card = routeCard(selected, connection, mapMode);
-  root.innerHTML = card.html; requestPlay.set(card.ctx);
+  const card = selected ? routeCard(selected, connection, mapMode) : idleRouteHtml(connection);
+  root.innerHTML = card.html;
+  mountFlow(root, card.flow, requestPlay); // 캔버스(줌·팬·미니맵·상태 머신)를 붙인 뒤 재생 상태를 넣는다
+  if (card.trace) mountTrace(root, card.trace, requestPlay); // 배너·파이프라인·인스펙터가 같은 시계를 본다
+  requestPlay.set(card.ctx);
 }
 function renderTimeline(record: Data | null) { get('timeline').innerHTML = timelineHtml(record); }
 function renderConnection(data: Data) {
@@ -194,16 +199,8 @@ get('reload-history').onclick = () => { loadHistory().catch(fail); };
 get('run-audit').onclick = async () => {
   const b = get<HTMLButtonElement>('run-audit'); b.disabled = true;
   try {
-    const a = await call('audit'), target = get('audit-content'); target.replaceChildren();
-    target.append(badge(a.ok ? (a.private_scope === 'partial' ? '공개 검사 일치 · 비공개 일부 미검증' : '모든 과거 판정 감사 일치') : '불일치 또는 미완료 증거 발견', a.ok ? 'green' : 'red'));
-    const stats = el('div', 'stat-row');
-    for (const [label, value] of [['T 신원·정책', '고정 기준 확인'], ['과거 판정 전수 검사', String(a.verdict_count) + '건'], ['불일치 요청', String(a.verdict_mismatches.length) + '건']]) { const d = el('div'); d.append(el('small', '', label), el('strong', '', value)); stats.append(d); }
-    target.append(stats);
-    const anchors = el('div', 'tablewrap');
-    anchors.innerHTML = `<table><thead><tr><th>앵커 크기</th><th>앵커 루트</th><th>현재 재계산 루트</th><th>판정</th></tr></thead><tbody>${(a.anchors || []).map((x: Data) => `<tr><td>${x.tree_size}</td><td class="mono">${esc(String(x.anchored_root || '').slice(0, 12))}…</td><td class="mono">${esc(String(x.recomputed_root || '').slice(0, 12))}…</td><td class="${x.ok ? 'pass' : 'fail'}">${esc(x.reason)}</td></tr>`).join('') || '<tr><td colspan="4" class="absent">첫 체크포인트 · 비교할 앵커 없음</td></tr>'}</tbody></table>`;
-    target.append(anchors);
-    target.append(el('p', 'field-help', a.previous_checkpoint ? '이전에 사용자 PC에 보관한 체크포인트와 비교했습니다.' : '첫 체크포인트입니다. 다음 감사부터 이전 이력과 비교합니다.'));
-    target.append(details('트리·앵커·판정 검증 상세', a));
+    // 트리 헤드·앵커·판정 대조 다이어그램과, 그 근거가 되는 JSON 을 양방향으로 연동해 보인다 (audit-view.ts).
+    renderAudit(get('audit-content'), await call('audit'));
   } catch (e) { fail(e); } finally { b.disabled = false; }
 };
 get('export').onclick = async () => { try { const result = await call('export'); notice('수용된 응답과 판정 기록을 저장했습니다: ' + result.path); } catch (e) { fail(e); } };
