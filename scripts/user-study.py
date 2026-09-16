@@ -23,6 +23,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+# 콘솔 코드페이지가 cp949 여도 죽지 않게 한다. 표현에 쓰는 기호(■ □ —)가 인코딩되지 않으면 대체 문자로 낸다.
+for stream in (sys.stdout, sys.stderr):
+    if hasattr(stream, "reconfigure"):
+        stream.reconfigure(errors="replace")
 
 DISPLAYS = ("i", "ii", "iii")
 COOPS = ("U", "U+M", "U+R", "U+R+M")
