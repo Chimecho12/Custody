@@ -27,8 +27,33 @@ let mapMode: MapMode = 'checks';
 const native = '__TAURI_INTERNALS__' in window;
 const titles: Record<string, string> = {request: '요청과 보호', history: '사건 기록', audit: '제3자 검증', simulation: '참조 시나리오', settings: '연결 설정', deployment: '배포와 키', evidence: '감사 자료', standards: '표준 적합성', keys: '키 · 신뢰 기준점'};
 
+// 동봉된 Agent 는 별도로 패키징되는 exe 라서 앱보다 오래된 빌드일 수 있다. 그러면
+// 화면은 멀쩡한데 명령만 거부당하고, 메시지만으로는 원인을 알 수 없다. status 가
+// 알려 준 명령 목록으로 부르기 전에 걸러 낸다.
+const REBUILD_HINT = 'scripts/dev-desktop.ps1 -RebuildAgent 로 사이드카를 다시 패키징하세요.';
+let agentOperations: string[] | null = null;
+
+function staleAgent(operation: string): string | null {
+  if (!native || !agentOperations) return null;
+  if (agentOperations.includes(operation)) return null;
+  return `동봉된 Agent 가 '${operation}' 을 모릅니다. 앱보다 오래된 빌드입니다 — ${REBUILD_HINT}`;
+}
+
 async function call<T = Data>(operation: string, args: Data = {}): Promise<T> {
-  return native ? invoke<T>('dispatch', {operation, args}) : previewCall(operation, args);
+  const stale = staleAgent(operation);
+  if (stale) throw new Error(stale);
+  if (!native) return previewCall(operation, args);
+  try {
+    return await invoke<T>('dispatch', {operation, args});
+  } catch (error) {
+    // 목록을 아직 못 받았거나(구 Agent 는 이 필드를 내지 않는다) Rust 쪽에서 막힌 경우.
+    const text = String(error);
+    if (text.includes('모릅니다') || text.includes('허용되지 않은 명령')
+        || text.includes('Unsupported Agent operation')) {
+      throw new Error(`${text} (${REBUILD_HINT})`);
+    }
+    throw error;
+  }
 }
 function notice(message: string, error = false) {
   const target = get('notice');
@@ -104,6 +129,9 @@ function renderRoute() {
 function renderTimeline(record: Data | null) { get('timeline').innerHTML = timelineHtml(record); }
 function renderConnection(data: Data) {
   connection = data;
+  // 구 Agent 는 이 필드를 내지 않는다. 그때는 null 로 두어 사전 차단을 하지 않고,
+  // 호출이 실패하면 call() 이 재패키징 안내를 붙인다.
+  agentOperations = Array.isArray(data.operations) ? data.operations as string[] : null;
   const isLab = data.source === 'network_lab';
   get('source').textContent = isLab ? 'TLS 실험실 · 단일 운영자' : '연결 모드 · evaluation';
   get('source').className = 'badge';

@@ -107,7 +107,8 @@ class Desktop:
             self.ensure()
             agent = self.agent
             if op == "status":
-                return {**agent.status(), "services": self.lab.status() if self.lab else None}
+                return {**agent.status(), "services": self.lab.status() if self.lab else None,
+                        "operations": sorted(ALLOWED_OPERATIONS)}
             if op == "history":
                 return agent.history()
             if op == "cancel":
@@ -133,7 +134,8 @@ class Desktop:
                 cancellation = threading.Event()
                 self.active[token] = cancellation
             elif op not in AGENT_OPERATIONS:
-                raise ValueError("허용되지 않은 명령입니다.")
+                raise ValueError(f"이 Agent 는 '{op}' 을 모릅니다. "
+                                 "앱보다 오래된 Agent 빌드일 수 있습니다 — 사이드카를 다시 패키징하세요.")
         if op == "request":
             try:
                 return agent.request(args["prompt"], args["mode"], args.get("scenario", "normal"), cancellation, token)
