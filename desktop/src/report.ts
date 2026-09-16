@@ -83,7 +83,7 @@ export class ReportView {
       this.matrix = await this.call('simulation_matrix');
       status.hidden = true;
       this.$('rpt-body').hidden = false;
-      this.renderBadges(); this.renderSummary(); this.renderMatrix(); this.renderQ1(); this.renderUncertainty();
+      this.renderBadges(); this.renderCards(); this.renderSummary(); this.renderMatrix(); this.renderQ1(); this.renderUncertainty();
       await this.onSelectionChanged();
     } catch (e) {
       status.innerHTML = `<div class="empty-glyph">✗</div><h3>참조 시나리오를 실행하지 못했습니다</h3><p>${esc(e instanceof Error ? e.message : e)}</p>`;
@@ -97,6 +97,37 @@ export class ReportView {
     return r!;
   }
   private row(sid: string, mode: string) { return this.matrix!.rows.find(r => r.scenario_id === sid && r.mode === mode)!; }
+
+  /** 바깥(시나리오 카드)에서 사건을 고른다. 매트릭스 행·탭 선택과 같은 경로를 탄다. */
+  select(sid: string) {
+    this.cur = {sid, mode: this.cur.mode, attempt: 0};
+    this.onSelectionChanged().catch(this.fail);
+    this.$('rpt-controls').scrollIntoView({block: 'start', behavior: reducedMotion ? 'auto' : 'smooth'});
+  }
+  private refCat = '전체';
+  // 시나리오 카드 (Console v3): 분류 필터와 17장. 기대 결과는 protect 실행의 T 최종 판정에서 온다 — 상수가 아니다.
+  private renderCards() {
+    const M = this.matrix!;
+    const cats = ['전체', ...Array.from(new Set(M.scenarios.map(sc => String(sc.category || '기타'))))];
+    if (!cats.includes(this.refCat)) this.refCat = '전체';
+    pills(this.$('rpt-cats'), cats.map(c => ({v: c, label: c})), v => v === this.refCat, v => { this.refCat = v; this.renderCards(); });
+    const items = M.scenarios.filter(sc => this.refCat === '전체' || String(sc.category || '기타') === this.refCat);
+    this.$('rpt-count').textContent = `${items.length} / ${M.scenarios.length} 건 · mock_result`;
+    this.$('rpt-cards').innerHTML = items.map(sc => {
+      const r = this.row(sc.id, 'protect');
+      const tone = r.verification_status === 'passed' ? 'pass' : r.verification_status === 'failed' ? 'fail' : 'na';
+      const glyph = tone === 'pass' ? '✓' : tone === 'fail' ? '✗' : '–';
+      const expected = tone === 'pass' ? '통과' : tone === 'fail' ? '실패' : esc(r.verification_status || '판정 없음');
+      const gt = sc.ground_truth || {};
+      const note = gt.attack_present ? (gt.detectable_by_evidence ? '공격 있음 · 증거로 탐지' : '공격 있음 · 증거로 탐지 불가') : '공격 없음';
+      return `<div class="v3-scen${sc.id === this.cur.sid ? ' on' : ''}" data-scen-card="${esc(sc.id)}">
+        <div class="h"><b>${esc(sc.id)}</b><span class="cat">${esc(String(sc.category || '기타'))}</span><span class="exp ${tone}">${glyph} ${expected}</span></div>
+        <div class="ti">${esc(sc.title)}</div>
+        <div class="bd">${note} · 완전성 ${esc(r.completeness || '—')} · 게이트 ${esc(r.gate_action || '—')}${(r.codes || []).length ? ' · ' + (r.codes as string[]).map(esc).join(', ') : ''}</div>
+        <div class="ft"><button type="button" class="v3-btn" data-jump="${esc(sc.id)}">이 사건 재생</button><span class="mono muted small">3개 정책으로 실행됨</span></div>
+      </div>`;
+    }).join('');
+  }
 
   private renderBadges() {
     const g = this.matrix!.generated_with;
@@ -144,6 +175,7 @@ export class ReportView {
     const ticket = ++this.selection;
     this.$('rpt-matrix').querySelectorAll<HTMLTableRowElement>('tr[data-sid]').forEach(tr => tr.classList.toggle('sel', tr.dataset.sid === this.cur.sid));
     pills(this.$('rpt-scenario-tabs'), M.scenarios.map(sc => ({v: sc.id, label: sc.id, title: sc.title})), v => v === this.cur.sid, v => { this.cur = {sid: v, mode: this.cur.mode, attempt: 0}; this.onSelectionChanged(); });
+    this.root.querySelectorAll<HTMLElement>('[data-scen-card]').forEach(card => card.classList.toggle('on', card.dataset.scenCard === this.cur.sid));
     pills(this.$('rpt-mode-tabs'), MODES.map(m => ({v: m, label: m})), v => v === this.cur.mode, v => { this.cur.mode = v; this.onSelectionChanged(); });
     this.play.stop();
     const attempts = this.row(this.cur.sid, this.cur.mode).attempts;

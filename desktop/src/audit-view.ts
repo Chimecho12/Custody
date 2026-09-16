@@ -25,6 +25,7 @@ export function renderAudit(root: HTMLElement, a: Data) {
       <div class="audit-json">
         <div class="json-toolbar">
           <input type="search" class="json-search" placeholder="키·값·경로 검색 (예: recomputed_root, E10, failed)" aria-label="JSON 검색">
+          <button type="button" class="quiet" data-json-only-bad title="불일치·결손 경로만 남긴다">불일치 항목만 보기</button>
           <button type="button" class="quiet" data-json-expand title="모두 펼치기">펼치기</button>
           <button type="button" class="quiet" data-json-collapse title="모두 접기">접기</button>
           <button type="button" class="quiet" data-json-copy title="전체 JSON 을 클립보드로">전체 복사</button>
@@ -33,6 +34,27 @@ export function renderAudit(root: HTMLElement, a: Data) {
       </div>
     </div>`;
   wire(root, a);
+}
+
+// ---------- 요약 카드 4장 (Console v3) ----------
+// 트리 헤드 서명 · 앵커 일치 · 전수 검사 · 목격자 독립성. 값은 replay_audit 결과에 있는 것만 쓴다.
+export function auditCardsHtml(a: Data): string {
+  const head: Data = a.current_checkpoint || {};
+  const anchors: Data[] = a.anchors || [];
+  const mism: Data[] = a.verdict_mismatches || [];
+  const headOk = !!a.tree_recomputed_matches_head && !!a.head_signature_valid;
+  const anchorTone = !anchors.length ? 'na' : anchors.every(x => x.ok) ? 'pass' : 'fail';
+  const cards: {k: string; v: string; n: string; tone: string}[] = [
+    {k: '트리 헤드 서명', v: headOk ? '검증 통과' : a.head_signature_valid ? '루트 불일치' : '서명 무효',
+     n: `kid ${esc(head.ts_kid || '—')} · tree_size ${head.tree_size ?? '—'}`, tone: headOk ? 'pass' : 'fail'},
+    {k: '앵커 일치', v: anchorTone === 'na' ? '첫 체크포인트' : anchorTone === 'pass' ? '일치' : '불일치 — 재작성 감지',
+     n: anchorTone === 'na' ? '다음 감사부터 이 시점과 비교합니다' : '게시 방식은 파일 기반 모사입니다', tone: anchorTone},
+    {k: '전수 검사', v: mism.length ? `불일치 ${mism.length}건` : '전부 일치',
+     n: `판정 ${a.verdict_count ?? 0}건 · 요청 ${a.subs_checked ?? 0}건${(a.compared_without || []).length ? ` · 비교 제외 ${a.compared_without.join(',')}` : ''}`, tone: mism.length ? 'fail' : 'pass'},
+    {k: '목격자 독립성', v: '관측 불가', n: esc(a.witness_scope || '별도 운영 목격자 없음 — 분기 탐지 성립 안 함'), tone: 'na'},
+  ];
+  const glyph = (t: string) => t === 'pass' ? '✓' : t === 'fail' ? '✗' : '–';
+  return cards.map(c => `<div class="v3-stat ${c.tone}"><div class="k">${c.k}</div><div class="v ${c.tone}"><span class="g">${glyph(c.tone)}</span><span>${c.v}</span></div><div class="n">${c.n}</div></div>`).join('');
 }
 
 // ---------- 요약 ----------
@@ -234,6 +256,38 @@ function wire(root: HTMLElement, a: Data) {
       for (let p = line.parentElement; p && p !== tree; p = p.parentElement) if (p.classList.contains('jn')) p.classList.remove('collapsed');
     });
     if (first) pane.scrollTo({top: Math.max(0, (first as HTMLElement).offsetTop - 40), behavior: reducedMotion ? 'auto' : 'smooth'});
+  });
+  // 불일치만 보기: 결과에서 「나쁜」 경로(불일치·무효·문제)를 모으고, 그 경로의 조상과 자손만 남긴다.
+  // 불일치가 없는 감사에서는 빈 화면 대신 안내를 낸다 — 비어 있음이 곧 결론이다.
+  const badPrefixes = (): string[] => {
+    const out: string[] = [];
+    (a.verdicts_checked || []).forEach((v: Data, i: number) => { if (!v.match) out.push(`verdicts_checked.${i}`); });
+    (a.anchors || []).forEach((x: Data, i: number) => { if (!x.ok) out.push(`anchors.${i}`); });
+    (a.verdict_mismatches || []).forEach((_: Data, i: number) => out.push(`verdict_mismatches.${i}`));
+    (a.policy_problems || []).forEach((_: unknown, i: number) => out.push(`policy_problems.${i}`));
+    (a.unauthenticated_verdicts || []).forEach((_: unknown, i: number) => out.push(`unauthenticated_verdicts.${i}`));
+    (a.receipt_errors || []).forEach((_: unknown, i: number) => out.push(`receipt_errors.${i}`));
+    if (!a.tree_recomputed_matches_head) out.push('tree_recomputed_matches_head');
+    if (!a.head_signature_valid) out.push('head_signature_valid');
+    if (a.ok === false) out.push('ok');
+    return out;
+  };
+  const onlyBad = root.querySelector<HTMLButtonElement>('[data-json-only-bad]')!;
+  let onlyBadOn = false, emptyNote: HTMLElement | null = null;
+  onlyBad.addEventListener('click', () => {
+    onlyBadOn = !onlyBadOn;
+    onlyBad.classList.toggle('on', onlyBadOn);
+    onlyBad.textContent = onlyBadOn ? '전체 보기' : '불일치 항목만 보기';
+    tree.classList.toggle('only-bad', onlyBadOn);
+    tree.querySelectorAll('.bad').forEach(n => n.classList.remove('bad'));
+    emptyNote?.remove(); emptyNote = null;
+    if (!onlyBadOn) return;
+    const bad = badPrefixes();
+    const keep = (path: string) => bad.some(b => b === path || b.startsWith(path + '.') || path.startsWith(b + '.'));
+    let shown = 0;
+    tree.querySelectorAll<HTMLElement>('[data-path]').forEach(n => { const p = n.dataset.path || ''; if (p && keep(p)) { n.classList.add('bad'); if (n.classList.contains('jl')) shown++; } });
+    tree.querySelectorAll('.jn.bad.collapsed').forEach(n => n.classList.remove('collapsed'));
+    if (!shown) { emptyNote = document.createElement('div'); emptyNote.className = 'empty'; emptyNote.textContent = '불일치 항목이 없습니다. 「전체 보기」로 문서 전체를 볼 수 있습니다.'; tree.prepend(emptyNote); }
   });
   root.querySelector('[data-json-expand]')!.addEventListener('click', () => tree.querySelectorAll('.jn.collapsed').forEach(n => n.classList.remove('collapsed')));
   root.querySelector('[data-json-collapse]')!.addEventListener('click', () => tree.querySelectorAll<HTMLElement>('.jn').forEach(n => { if (n.dataset.path) n.classList.add('collapsed'); }));

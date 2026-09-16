@@ -55,7 +55,7 @@ export class KeysView {
       `<div class="std-stat"><div class="k">${label}</div><div class="v ${tone}">${value}</div></div>`;
     return `<div class="std-head">
       <div class="std-head-text">
-        <div class="eyebrow">ITX · 키 · 신뢰 기준점</div>
+        <div class="v3-meta">운영</div>
         <h1>사설키가 이 기계 밖으로 나가는가</h1>
         <p>${esc(this.data!.note)}</p>
       </div>

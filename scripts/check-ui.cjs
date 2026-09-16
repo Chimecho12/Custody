@@ -48,7 +48,8 @@ const preview = Object.fromEntries(Object.entries(require('../desktop/preview-da
         assert.equal(await page.locator(`#view-${view}`).isVisible(), true);
         const dimensions = await page.evaluate(() => ({viewport:innerWidth,content:document.documentElement.scrollWidth}));
         assert.ok(dimensions.content <= dimensions.viewport, `horizontal overflow ${view} at ${width}`);
-        if (['deployment','evidence','standards','keys'].includes(view)) {
+        // 모든 화면을 찍는다. 레이아웃 회귀는 숫자로는 안 보이고 그림으로만 보인다.
+        {
           await page.screenshot({path:path.join(output,`${view}-${width}.png`),fullPage:true});
         }
         rows.push({view,width,horizontal_overflow:false});
