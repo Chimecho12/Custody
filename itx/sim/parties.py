@@ -6,22 +6,35 @@ T 는 본문을 중계하지 않는다. 차단은 U 의 집행 모듈이 자기 
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
-from itx.crypto import KeyPair, canonical_json, content_hash_hex, commit_hex, sha256_hex
+from itx.crypto import KeyPair, canonical_json, commit_hex, content_hash_hex, sha256_hex
+from itx.enforce import GateDecision, UserGate
+from itx.reconcile import PrivateEvidence, ReconciliationEngine
+from itx.reconcile.transforms import IDENTITY, PUBLIC_FORMATTER_V1, public_formatter_v1
 from itx.statements import (
-    SignedStatement, issue, ALL_CONTENT_TYPES,
-    CT_CONTRACT, CT_RELAY, CT_RECEIPT, CT_OBSERVATION, CT_MANIFEST, CT_VERDICT,
+    ALL_CONTENT_TYPES,
+    CT_CONTRACT,
+    CT_MANIFEST,
+    CT_OBSERVATION,
+    CT_RECEIPT,
+    CT_RELAY,
+    CT_VERDICT,
+    SignedStatement,
+    issue,
 )
 from itx.statements.schemas import (
-    contract_payload, relay_payload, receipt_payload, observation_payload, manifest_payload, policy_payload,
+    contract_payload,
+    manifest_payload,
+    observation_payload,
+    policy_payload,
+    receipt_payload,
+    relay_payload,
 )
-from itx.ts import TransparencyLog, TransparencyService, ServiceUnavailable, CheckpointAnchor, RegistrationReceipt
-from itx.reconcile import ReconciliationEngine, PrivateEvidence
-from itx.reconcile.transforms import public_formatter_v1, IDENTITY, PUBLIC_FORMATTER_V1
-from itx.enforce import UserGate, GateDecision
-from .context import SimContext, HOP_MS, RELAY_PROC_MS, SIGN_MS, TS_BASE_DELAY_MS, STRICT_POLL_MS, STRICT_DEADLINE_MS
+from itx.ts import CheckpointAnchor, RegistrationReceipt, ServiceUnavailable, TransparencyLog, TransparencyService
+
+from .context import HOP_MS, RELAY_PROC_MS, SIGN_MS, STRICT_DEADLINE_MS, STRICT_POLL_MS, TS_BASE_DELAY_MS, SimContext
 from .model import MockModel
 
 SUB_PATTERN = r"^urn:itx:(req|policy):[0-9a-zA-Z:-]+$"
@@ -94,7 +107,7 @@ class EvidenceQueue:
             self.dropped.append({"sub": drop.sub, **info})
             self.ctx.record(self.owner, "evidence_dropped", drop.sub, reason="queue saturated", **info)
 
-    def flush(self, third_party: "ThirdParty") -> int:
+    def flush(self, third_party: ThirdParty) -> int:
         """가능한 만큼 제출한다. T 가 죽어 있으면 남겨 둔다. 제출 수를 돌려준다."""
         sent = 0
         while self.items:
@@ -327,7 +340,7 @@ class ModelOperator:
             cti=cti, attempt_id=wire.attempt_id, request_commit=request_commit, response_commit=response_commit,
             model_id=model.model_id, model_version=model.version, model_hash=model.manifest_hash,
             eat_nonce=wire.nonce, execution_time_ms=exec_ms, pre_exec_check=check, decision=decision,
-            attestation_doc_hash=sha256_hex(f"mock-attestation:{cti}".encode("utf-8")),
+            attestation_doc_hash=sha256_hex(f"mock-attestation:{cti}".encode()),
         )
         self.ctx.advance(SIGN_MS)
         stmt = issue(self.key, iss=self.iss, sub=wire.sub, content_type=CT_RECEIPT, payload=payload, issued_at=self.ctx.now())

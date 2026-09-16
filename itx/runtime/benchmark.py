@@ -1,9 +1,11 @@
 """Repeatable mock-model TLS comparison, with explicit safety denominators."""
 from __future__ import annotations
+
 import math
 import platform
 import tempfile
 from pathlib import Path
+
 from .agent import Agent
 from .lab import Lab
 from .packages import write_document

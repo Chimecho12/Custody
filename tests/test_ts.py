@@ -2,14 +2,19 @@
 import random
 import unittest
 
-from itx.crypto import KeyPair, canonical_json
-from itx.statements import issue, CT_CONTRACT, CT_OBSERVATION, CT_RECEIPT, ALL_CONTENT_TYPES
-from itx.statements.schemas import policy_payload, observation_payload, receipt_payload
+from itx.crypto import KeyPair
+from itx.statements import ALL_CONTENT_TYPES, CT_CONTRACT, CT_OBSERVATION, CT_RECEIPT, issue
+from itx.statements.schemas import observation_payload, policy_payload, receipt_payload
 from itx.ts import (
-    MerkleTree, verify_inclusion, verify_consistency, TransparencyLog, RegistrationRefused,
-    verify_receipt, CheckpointAnchor,
+    CheckpointAnchor,
+    MerkleTree,
+    RegistrationRefused,
+    TransparencyLog,
+    verify_consistency,
+    verify_inclusion,
+    verify_receipt,
 )
-from itx.ts.merkle import mth, leaf_hash
+from itx.ts.merkle import leaf_hash, mth
 
 
 class MerkleTest(unittest.TestCase):
@@ -85,7 +90,7 @@ class LogTest(unittest.TestCase):
         self.assertFalse(ok)
 
     def test_registration_policy_refuses_bad_statements(self):
-        log, ts_key, user = _make_log()
+        log, _ts_key, user = _make_log()
         stranger = KeyPair.from_name("stranger")
         good_payload = observation_payload(attempt_id="a1", resp_commit="00" * 32, received_at=5,
                                            inline_receipt_hash=None, inline_relay_hash=None)
@@ -108,7 +113,7 @@ class LogTest(unittest.TestCase):
         self.assertTrue(any("may not issue" in r for r in cm.exception.reasons), cm.exception.reasons)
 
     def test_anchor_detects_history_rewrite(self):
-        log, ts_key, user = _make_log()
+        log, _ts_key, user = _make_log()
         stmts = []
         for i in range(5):
             s = issue(user, iss="urn:itx:party:user-test", sub=f"urn:itx:req:{i}", content_type=CT_OBSERVATION,

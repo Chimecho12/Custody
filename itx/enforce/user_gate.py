@@ -10,10 +10,9 @@
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
-from itx.crypto import verify as _verify_sig
 from itx.statements import SignedStatement
 
 MODES = ("observe", "protect", "strict")

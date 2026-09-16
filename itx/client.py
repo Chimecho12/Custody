@@ -2,14 +2,14 @@
 from __future__ import annotations
 
 import concurrent.futures
-from dataclasses import dataclass
 import json
 import os
-from pathlib import Path
 import secrets
 import subprocess
 import sys
 import threading
+from dataclasses import dataclass
+from pathlib import Path
 
 
 class ResponseRejected(RuntimeError):

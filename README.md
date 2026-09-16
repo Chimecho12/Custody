@@ -44,6 +44,16 @@ python run.py all        # 시나리오 17종 × 모드 3종 실행 → artifact
 
 `artifacts/report.html` 을 브라우저로 연다. 서버가 필요 없다.
 
+### 코드 점검
+
+```powershell
+python run.py test                       # 단위·시나리오·콘솔 동기화 (91건)
+node --test scripts/test-console.cjs     # 재생/스크러버 상호작용 (데스크톱 + 보고서 스크립트)
+cd desktop; pnpm build                   # tsc --noEmit + vite build
+node scripts/check-ui.cjs                # 빌드된 미리보기의 레이아웃·콘솔 오류 (playwright 필요)
+ruff check .                             # 설정은 pyproject.toml
+```
+
 ## 사용자의 두 질문에 이 구현이 답하는 방식
 
 **1. 충분한 신용을 가진 제3자가 방어를 해낼 수 있는가?**
@@ -110,21 +120,34 @@ Q1 매트릭스: S02·S03·S05·S06·S08 을 협조 집합 {U, U+M, U+R, U+R+M} 
 
 ```
 Pproject/
-├── run.py                     CLI (doctor / test / run / report / audit / all)
+├── run.py  runtime.py         진입점 (얇은 껍데기 — 실제 구현은 itx/cli/)
 ├── itx/
+│   ├── cli/                   simulation (doctor/test/run/report/audit/all) · runtime (사이드카·배포·감사 CLI)
 │   ├── crypto/                sha256·솔트 커밋, JCS 부분집합 정규화, Ed25519(순수 Python 또는 cryptography)
 │   ├── statements/            진술 봉투(iss·sub·content_type·kid 서명)와 7종 페이로드 스키마
 │   ├── ts/                    RFC 9162 Merkle 트리·포함/일관성 증명, 추가 전용 로그·등록 정책·영수증, 앵커, 장애 주입
 │   ├── reconcile/             등식 E1~E12, 불일치 D-코드, 완전성, 승인 변환, 대조 엔진
 │   ├── enforce/               사용자 게이트 (observe / protect / strict)
 │   ├── sim/                   시뮬레이션 시계·모형 모델·당사자(U/R/M/T)·시나리오·실행기
+│   ├── runtime/               실제 TLS 통신 런타임: 역할별 서비스·에이전트·배포 합의·감사 패키지
 │   ├── audit/                 독립 판정 재실행
 │   ├── metrics.py             탐지·방어·오차단·안전 완료·피해 노출·대기
-│   └── report/                단일 HTML 보고서 (홉 정합 지도, 비교, 집행, 시간선, 자기 검증, Q1)
-├── tests/                     RFC 8032 벡터, Merkle, 등록 정책, 대조 반례, 시나리오 기대치
-├── docs/                      threat-model · equations · limits · design-mapping
+│   └── report/
+│       ├── html.py            조립만 한다 (60줄)
+│       └── assets/            report.html · report.css · report.js — 보통의 웹 파일
+├── ui/                        데스크톱 앱과 HTML 보고서가 같이 쓰는 CSS
+│   ├── tokens.css             색·그림자·이징·글꼴 토큰 (단일 원본)
+│   └── console.css            경로검증 콘솔 컴포넌트 (홉 지도·재생·그래프 캔버스·증거 패널)
+├── desktop/                   Tauri 앱 (src/ TypeScript, src-tauri/ Rust 껍데기)
+├── scripts/                   빌드·개발 실행·UI 점검·스모크
+├── tests/                     RFC 8032 벡터, Merkle, 등록 정책, 대조 반례, 시나리오 기대치, 콘솔 동기화
+├── docs/                      threat-model · equations · limits · design-mapping · 디자인 시스템
 └── artifacts/                 실행 결과 (results.json, summary.json, report.html, log-export-S01.json)
 ```
+
+화면은 두 곳(데스크톱 TypeScript, 보고서 `report.js`)에 있지만 **CSS 는 `ui/` 하나**이고,
+두 구현이 공유해야 하는 상수·표(홉 지연, 등식 이름, 검사↔등식 대응)는
+`tests/test_report_assets.py` 가 값이 갈라지는 순간 실패한다.
 
 ## 주장 상태 표기
 

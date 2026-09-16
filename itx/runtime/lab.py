@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 import datetime
 import ipaddress
 import json
@@ -12,7 +11,7 @@ import sys
 import threading
 from pathlib import Path
 
-from .common import ISS, MODEL_ID, MODEL_HASH, KeyPair, now_ms, require_crypto, seal, write_private, load_config
+from .common import ISS, MODEL_HASH, MODEL_ID, KeyPair, now_ms, require_crypto, seal, write_private
 
 
 def create_deployment(root, *, lab=True, hosts=None):
@@ -36,8 +35,8 @@ def create_deployment(root, *, lab=True, hosts=None):
     created = now_ms()
     keys = {r: KeyPair.from_seed(f"{r.lower()}-{secrets.token_hex(6)}", secrets.token_bytes(32)) for r in ISS}
     identities = {r: {"iss": ISS[r], "kid": k.kid, "public_key": k.public_hex} for r, k in keys.items()}
-    hosts = hosts or {r: "127.0.0.1" for r in "RMT"}
-    endpoints = {r: f"https://{hosts[r]}:{port}" for r, port in zip("TMR", (8741, 8742, 8743))}
+    hosts = hosts or dict.fromkeys("RMT", "127.0.0.1")
+    endpoints = {r: f"https://{hosts[r]}:{port}" for r, port in zip("TMR", (8741, 8742, 8743), strict=True)}
     current = datetime.datetime.now(datetime.timezone.utc)
     ca_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     ca_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "itx evaluation deployment CA")])
@@ -108,7 +107,7 @@ class Lab:
                 command = [sys.executable, "service", "--config", str(config_path), "--parent-pipe"]
             else:
                 command = [sys.executable, "-B", "-m", "itx.runtime.service", "--config", str(config_path), "--parent-pipe"]
-            stderr = open(self.root / role / "service.stderr.log", "ab")
+            stderr = open(self.root / role / "service.stderr.log", "ab")  # noqa: SIM115 — 자식이 상속한 뒤 바로 닫는다
             env = dict(os.environ, PYTHONUTF8="1", PYTHONUNBUFFERED="1")
             if getattr(sys, "frozen", False):
                 env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
@@ -123,10 +122,10 @@ class Lab:
                 ready = json.loads(line)
                 if not ready.get("ready"):
                     raise ValueError("service did not become ready")
-            except Exception:
+            except Exception as error:
                 child.kill()
                 child.wait(timeout=5)
-                raise RuntimeError(f"{role} 서비스를 시작하지 못했습니다. service.stderr.log를 확인하세요.")
+                raise RuntimeError(f"{role} 서비스를 시작하지 못했습니다. service.stderr.log를 확인하세요.") from error
             self.children[role] = child
             self.endpoints[role] = f"https://127.0.0.1:{ready['port']}"
             self._update()

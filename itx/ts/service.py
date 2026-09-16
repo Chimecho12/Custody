@@ -9,7 +9,8 @@ from __future__ import annotations
 from typing import Any
 
 from itx.statements import SignedStatement
-from .log import TransparencyLog, RegistrationReceipt, LogEntry
+
+from .log import LogEntry, RegistrationReceipt, TransparencyLog
 
 
 class ServiceUnavailable(Exception):

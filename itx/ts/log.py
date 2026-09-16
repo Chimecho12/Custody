@@ -13,10 +13,10 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from itx.crypto import canonical_json, KeyPair, verify
-from itx.statements import SignedStatement, issue, validate_payload, CT_POLICY, CT_VERDICT
-from .merkle import MerkleTree, leaf_hash, verify_inclusion
+from itx.crypto import KeyPair, canonical_json, verify
+from itx.statements import CT_POLICY, CT_VERDICT, SignedStatement, issue, validate_payload
 
+from .merkle import MerkleTree, leaf_hash, verify_inclusion
 
 #: TS 자신이 낼 수 있는 진술. 정책(0번)과 판정뿐이다.
 TS_CONTENT_TYPES = (CT_POLICY, CT_VERDICT)
@@ -67,7 +67,7 @@ class RegistrationReceipt:
         }
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "RegistrationReceipt":
+    def from_dict(cls, d: dict[str, Any]) -> RegistrationReceipt:
         return cls(**{k: d[k] for k in cls.__dataclass_fields__})  # type: ignore[arg-type]
 
 

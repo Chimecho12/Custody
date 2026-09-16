@@ -12,8 +12,9 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from itx.crypto import canonical_json, verify
-from .auditing import fingerprint, verify_export, MAX_AUDIT_BYTES
-from .common import now_ms, seal, unseal, write_private, json_loads
+
+from .auditing import MAX_AUDIT_BYTES, fingerprint, verify_export
+from .common import json_loads, now_ms, seal, unseal, write_private
 
 
 def read_document(path):
@@ -99,8 +100,8 @@ def verify_package(value, trust, expected_fingerprint, recipient_directory=None)
         raise ValueError("audit package signature or trust binding is invalid")
     epochs = 0
     if trust.get("deployment_hash"):
-        from .enrollment import verify_deployment, configuration
         from .auditing import trust_from_config
+        from .enrollment import configuration, verify_deployment
         bundle = body.get("deployment_bundle")
         if not bundle or verify_deployment(bundle) != trust["deployment_hash"]:
             raise ValueError("missing or invalid independently pinned deployment agreement")

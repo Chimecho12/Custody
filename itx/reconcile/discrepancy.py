@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from .equations import EqResult, FAIL, G_SELF
+from .equations import FAIL, G_SELF, EqResult
 
 SEV_VIOLATION = "violation"          # 계약·정책 위반이 관측됨
 SEV_CONTRADICTION = "contradiction"  # 두 당사자의 진술이 모순. 누가 거짓인지는 미확정

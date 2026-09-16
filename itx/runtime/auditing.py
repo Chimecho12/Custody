@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 from itx import CHECKER_VERSION
-from itx.crypto import canonical_json, content_hash_hex
-from itx.statements import SignedStatement, CT_POLICY
-from itx.ts import TransparencyLog, MerkleTree, RegistrationReceipt, verify_receipt
 from itx.audit import replay_audit
+from itx.crypto import canonical_json, content_hash_hex
+from itx.statements import CT_POLICY, SignedStatement
+from itx.ts import MerkleTree, RegistrationReceipt, TransparencyLog, verify_receipt
+
 from .common import ISS, policy_for
 
 MAX_AUDIT_ENTRIES = 100000
