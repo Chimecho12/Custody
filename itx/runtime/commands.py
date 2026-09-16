@@ -41,6 +41,21 @@ def execute(args):
     if c == "benchmark":
         from .benchmark import benchmark
         return benchmark(args.output, args.repeats)
+    if c == "conformance":
+        from itx.cose import run_conformance
+        report = run_conformance(tuple(args.group) if args.group else None,
+                                 external=not args.no_external)
+        if args.output:
+            write_document(args.output, report)
+            report = {**report, "path": args.output}
+        return report
+    if c == "key-inventory":
+        from itx import keys as keystore
+        view = keystore.build(load_config(args.config))
+        if args.output:
+            write_document(args.output, view)
+            view = {**view, "path": args.output}
+        return view
     agent = Agent(args.config)
     try:
         if c == "audit-export":
