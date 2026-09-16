@@ -99,5 +99,5 @@
 3. **JSON 맵퍼 컴포넌트 (`renderMappedJson(auditJson)`)**:
    - 단순 `<pre>` 대신 키-값 단위로 `data-json-path="anchors.0.root"` 속성을 가진 구조화된 DOM 생성.
    - 이벤트 리스너를 통해 좌측 요소의 `data-ref-path`와 우측 요소 매핑.
-4. **스타일 정의 (`desktop/src/style.css`)**:
+4. **스타일 정의 (`ui/console.css` — 데스크톱과 보고서가 함께 읽는다; 앱 전용 규칙만 `desktop/src/style.css`)**:
    - 앵커 핀, 머클 노드 카드, 네온 하이라이트 애니메이션 추가.

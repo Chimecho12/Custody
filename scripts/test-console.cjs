@@ -5,6 +5,8 @@ const path = require('node:path');
 const vm = require('node:vm');
 const {test} = require('node:test');
 const ts = require('../desktop/node_modules/typescript');
+// 보고서 콘솔의 스크립트. itx/report/html.py 가 이 파일을 그대로 인라인한다.
+const reportScript = readFileSync(path.join(__dirname, '../itx/report/assets/report.js'), 'utf8');
 const source = ts.transpileModule(readFileSync(path.join(__dirname, '../desktop/src/console.ts'), 'utf8'), {
   compilerOptions: {target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS},
 }).outputText;
@@ -195,19 +197,15 @@ test('slider and hover announce before-send and after-receive consistently', () 
 });
 
 test('standalone report JavaScript compiles after the shared interaction changes', () => {
-  const report = readFileSync(path.join(__dirname, '../itx/report/html.py'), 'utf8');
-  const scripts = [...report.matchAll(/<script>([\s\S]*?)<\/script>/g)];
-  assert.ok(scripts.length > 0);
-  for (const [, code] of scripts) assert.doesNotThrow(() => new vm.Script(code));
+  assert.doesNotThrow(() => new vm.Script(reportScript));
 });
 
 test('standalone report pauses evidence flow and releases its scrubber capture', () => {
   const f = fixture(); f.root.listeners.clear(); f.frames.clear();
-  const report = readFileSync(path.join(__dirname, '../itx/report/html.py'), 'utf8');
   const region = (start, end) => {
-    const first = report.indexOf(start), last = report.indexOf(end, first);
+    const first = reportScript.indexOf(start), last = reportScript.indexOf(end, first);
     assert.ok(first >= 0 && last > first);
-    return report.slice(first, last);
+    return reportScript.slice(first, last);
   };
   const aliases = {'#playBtn': f.play, '#resetBtn': f.reset, '#stepBackBtn': f.back, '#stepFwdBtn': f.next,
     '#speedBtn': f.speed, '#itxScrubTip': f.tip, '#itxTimebox': f.box, '#itxTrail': f.trail,

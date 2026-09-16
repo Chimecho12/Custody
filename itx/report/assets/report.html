@@ -1,0 +1,63 @@
+<header class="itx">
+<h1>독립 제3자 기반 AI 서비스 경로 검증·정책 집행 — 결과 보고서</h1>
+<div class="badges" id="badges"></div>
+<p class="lede">모든 수치는 결정적 모형 모델과 시뮬레이션 시계에서 나온 <b>mock_result</b> 다. 영수증은 security_mode=evaluation, 판정 보증은 최대 air-local 이며 TEE 출처를 주장하지 않는다. 등록 시각은 발생 시각의 상한이다.</p>
+</header>
+<main class="itx">
+
+<h2>1. 모드별 요약 지표</h2>
+<p class="small muted">분자/분모를 함께 표시한다. 탐지·사용 전 방어·피해 노출·오차단은 서로 다른 질문이다. '탐지 불가' 로 분류된 공격(공모·인젝션)은 탐지율 분모에서 제외하고 그 수를 따로 적는다.</p>
+<div id="summary" class="tablewrap"></div>
+
+<h2>2. 시나리오 × 모드</h2>
+<p class="small muted">행을 클릭하면 아래 사건 상세가 바뀐다. 최종 판정은 세션 종료 후 T 가 서명·등록한 판정이다. 게이트는 사용자 측 집행 모듈의 결정이다.</p>
+<div id="matrix" class="tablewrap"></div>
+
+<h2>3. 사건 상세 — 경로 지도와 재생</h2>
+<p class="small muted">경로(실선)는 업무 데이터, T 로 가는 점선은 증거·통제 경로다. 재생은 이 시도의 실제 타임라인 이벤트(요청 전송·홉 지연·추론·게이트 결정·T 판정 등록)로 구간을 나눈 것이며 임의의 데모 수치가 아니다. 기본 화면은 이미 완결된 결과를 보여 주고, 재생은 그 과정을 되짚어보는 보조 기능이다. 시점 타임라인은 끌어서 임의의 t 로 옮길 수 있고, |◀ ▶| 는 홉 경계 단위로 이동한다.</p>
+<div class="card controls">
+  <div class="tabrow"><span class="tabrow-label">사건</span><div id="scenarioTabs" class="tabs"></div></div>
+  <div class="tabrow"><span class="tabrow-label">정책 모드</span><div id="modeTabs" class="tabs"></div>
+    <div class="playctl" tabindex="-1">
+      <button type="button" id="resetBtn" class="itx-btn itx-btn-step" title="처음으로 (R · Home)">|◀ 처음</button>
+      <button type="button" id="stepBackBtn" class="itx-btn itx-btn-step" title="이전 홉 (←)">◀ 이전 홉</button>
+      <button type="button" id="playBtn" class="itx-btn itx-btn-accent" title="재생·정지 (Space)">▶ 재생</button>
+      <button type="button" id="stepFwdBtn" class="itx-btn itx-btn-step" title="다음 홉 (→)">다음 홉 ▶</button>
+      <button type="button" id="speedBtn" class="itx-btn itx-btn-speed" title="재생 속도 (0.5× · 1× · 2×)" aria-label="재생 속도">1×</button>
+      <span id="tLabel" class="tlabel">t = 0 ms</span>
+    </div>
+  </div>
+  <div class="tabrow" id="attemptRow" style="display:none"><span class="tabrow-label">시도</span><div id="attemptTabs" class="tabs"></div></div>
+</div>
+<div id="detail"></div>
+
+<h2>4. Q1 — 협조 집합별 탐지 가능성</h2>
+<p class="small muted">같은 위반을 협조 집합 {U, U+M, U+R, U+R+M} 에서 실행했다. 'insufficient_evidence' 는 위반이 없다는 뜻이 아니라 증거로 확립할 수 없다는 뜻이다. R 만 협조하고 M 이 없으면 종단 무결성(E10)을 세울 수 없다.</p>
+<div id="q1" class="tablewrap"></div>
+
+<h2>5. 판정 불확실성을 어떻게 보여줄 것인가</h2>
+<p class="small muted">증거가 협조 수준만큼만 있을 때 '위반 없음'과 '위반을 확인할 수 없음'을 같은 칸에 섞으면 안 된다. 같은 사건을 세 가지 표현으로 비교한다 — 경로검증 콘솔 옵션 1d.</p>
+<div class="card controls">
+  <div class="tabrow"><span class="tabrow-label">사건</span><div id="uncScTabs" class="tabs"></div></div>
+  <div class="tabrow"><span class="tabrow-label">협조 집합</span><div id="uncCoopTabs" class="tabs"></div></div>
+</div>
+<div id="uncertainty"></div>
+
+<h2>6. 이 보고서가 주장하지 않는 것</h2>
+<div class="card small">
+<ul class="tight">
+<li>중개자의 <b>기밀성 위반</b>(프롬프트 보관·학습 사용)은 어떤 등식으로도 탐지하지 못한다. 무결성·귀속·완전성만 다룬다.</li>
+<li>모든 영수증은 evaluation 모드, 증명 문서는 mock 이다. 실제 TEE 위 실행을 보증하지 않는다.</li>
+<li>R 과 M 이 공모해 일치하는 거짓 진술을 내면(S15) 현재 증거 구조는 위반을 보지 못한다. 위협 모델 TM1 밖이다.</li>
+<li>아티팩트 해시 일치(E9)는 실행 계산의 일치가 아니다. 통계적 실행 검증은 미구현이다.</li>
+<li>해시 트리와 앵커는 '신뢰 기준점 대비 변경'을 드러낼 뿐 조작 불가를 뜻하지 않는다. 앵커는 파일 기반 목격자 모사다.</li>
+<li>시뮬레이션 지연은 고정 상수다. 실제 네트워크·모델 성능·가용성 수치가 아니다.</li>
+<li>인센티브 양립('모든 정직한 노드가 손해 보지 않는 구조')은 가설이며 이 보고서는 검증하지 않았다.</li>
+</ul>
+</div>
+
+<h2>7. 애니메이션·모션 설계 메모</h2>
+<p class="small muted">경로검증 콘솔 옵션 1e. 모션은 인과를 보이는 데만 쓰고 강조에는 쓰지 않는다. 결손·미실행은 절대 움직이지 않는다 — 부재가 사건처럼 보이면 안 된다. <span class="mono">prefers-reduced-motion</span> 에서는 모든 재생이 최종 상태로 즉시 점프한다 (이 페이지도 그렇게 동작한다).</p>
+<div class="card small" id="animNotes"></div>
+</main>
+<script id="data" type="application/json">__DATA__</script>

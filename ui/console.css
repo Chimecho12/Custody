@@ -1,0 +1,278 @@
+/* itx 경로검증 콘솔 공통 컴포넌트 — 데스크톱 앱(desktop/src/*.ts)과
+   HTML 보고서(itx/report/assets/report.js)가 같은 화면을 그리므로 CSS 도 하나만 둔다.
+   앱 셸·폼처럼 데스크톱에만 있는 것은 desktop/src/style.css,
+   문서 타이포그래피처럼 보고서에만 있는 것은 itx/report/assets/report.css 에 남긴다. */
+/* ---------- 콘솔 컨트롤 (경로검증 콘솔 1a) ---------- */
+.controls{display:flex;flex-direction:column;gap:10px;align-items:stretch}
+.sticky-controls{position:sticky;top:calc(var(--header-h) + 8px);z-index:12;box-shadow:var(--shadow-md)}
+.tabrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.tabrow-label{font-size:11px;color:var(--muted);letter-spacing:.02em;flex:none}
+.tabs{display:flex;flex-wrap:wrap;gap:6px}
+.pill{font:600 11.5px var(--mono);padding:4px 10px;border-radius:6px;cursor:pointer;border:1px solid var(--line-strong);background:var(--card-solid);color:var(--fg);line-height:1.3;
+  transition:background var(--dur-1) var(--ease-out),border-color var(--dur-1) var(--ease-out),color var(--dur-1) var(--ease-out)}
+.pill:hover{background:var(--accent-soft)}
+.pill.on,.pill.on:hover:not(:disabled){border-color:var(--accent);background:var(--accent);color:var(--on-accent)}
+.itx-btn{font:600 12px var(--sans);padding:5px 12px;border-radius:6px;border:1px solid var(--line-strong);background:var(--card-solid);color:var(--fg);cursor:pointer;box-shadow:var(--shadow-sm);
+  transition:background var(--dur-1) var(--ease-out),border-color var(--dur-1) var(--ease-out),opacity var(--dur-1) var(--ease-out),transform var(--dur-1) var(--ease-out),box-shadow var(--dur-1) var(--ease-out)}
+.itx-btn:hover:not(:disabled){background:var(--accent-soft);border-color:var(--accent)}
+.itx-btn:active:not(:disabled){transform:translateY(1px);box-shadow:none}
+.itx-btn:disabled{opacity:.45;cursor:default;box-shadow:none}
+.itx-btn-accent{border-color:var(--accent);background:var(--accent);color:var(--on-accent);min-width:104px}
+.itx-btn-accent:hover:not(:disabled){background:var(--accent);color:var(--on-accent);opacity:.9;box-shadow:0 0 0 3px var(--accent-glow)}
+.itx-btn-step{padding:5px 10px;letter-spacing:-.01em}
+.itx-btn-speed{font-family:var(--mono);padding:5px 9px;min-width:42px}
+.playctl{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.tabrow>.playctl{margin-left:auto}
+.playctl:focus{outline:none}
+.tlabel{font-family:var(--mono);font-size:12px;color:var(--muted);min-width:98px;text-align:right;display:inline-block;font-variant-numeric:tabular-nums}
+
+/* ---------- 홉 지도 ---------- */
+.hopwrap{position:relative;width:100%;max-width:960px}
+.hopwrap svg{width:100%;height:auto;display:block;fill:var(--fg);font-family:var(--sans)}
+.hopwrap svg line,.hopwrap svg path{transition:stroke var(--dur-2) var(--ease-out)}
+/* 패킷: 위치는 프레임마다 계산하고(전이 없음), 색과 글로우만 부드럽게 넘긴다. 변조 시점의 색 전이가 사건 그 자체다.
+   글로우 색은 console.ts 가 fill 과 함께 바꾼다 (정상 accent-glow · 변조 fail-glow · 도착 후 없음). */
+.packet{transition:fill var(--dur-2) var(--ease-out),filter var(--dur-2) var(--ease-out)}
+.packettrail{transition:opacity var(--dur-2) var(--ease-out),stroke var(--dur-2) var(--ease-out);pointer-events:none}
+/* 노드 수신 반응: 상자 바깥 4px 링이 300ms 동안 잦아든다. 판정 색이 아니라 흐름 색(accent-glow)만 쓰고 잔상을 남기지 않는다. */
+.nodehalo{opacity:0;pointer-events:none;transform-box:fill-box;transform-origin:center}
+.nodehalo.pulse{animation:itx-node-pulse 300ms var(--ease-apple)}
+@keyframes itx-node-pulse{0%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1.04)}}
+.evline{transition:stroke var(--dur-3) var(--ease-out)}
+/* 증거 제출 경로는 업무 데이터 경로와 다르다는 것을 흐르는 점선(4 6)으로 보인다.
+   재생 중이고 이미 등록된 선만 흐르며, 결손(na) 선은 어떤 경우에도 정지해 있다. */
+.evline.flowing{animation:itx-evflow 1.6s linear infinite}
+@keyframes itx-evflow{to{stroke-dashoffset:-20}}
+.hoplabel{position:absolute;white-space:nowrap;font-family:var(--mono);border-radius:3px;padding:0 3px;
+  transition:background var(--dur-1) var(--ease-out),box-shadow var(--dur-1) var(--ease-out)}
+.hoplabel.eq-hi{background:var(--accent-soft);box-shadow:0 0 0 1px var(--accent)}
+/* 재생 중에만 나타나는 현재 구간 이름. 정지·완료 상태에서는 지운다. */
+.packetlabel{position:absolute;white-space:nowrap;pointer-events:none;font:600 10.5px var(--mono);color:var(--accent);
+  background:var(--card);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:5px;padding:1px 6px;box-shadow:var(--shadow-sm)}
+.legend-row{display:flex;gap:16px;font-size:11px;color:var(--muted);margin:2px 0 14px;flex-wrap:wrap;align-items:center}
+
+/* 등식 ↔ 표 양방향 연동 하이라이트. 판정 색을 바꾸지 않고 배경·테두리만 쓴다. */
+tr.eq-hi td{background:var(--accent-soft)}
+.chip.eq-hi{box-shadow:0 0 0 1px var(--accent)}
+
+/* ---------- 증거 패널 ---------- */
+.evlist{display:flex;flex-direction:column;gap:5px}
+.evrow{display:flex;align-items:center;gap:9px;padding:6px 9px;border-radius:5px;border:1px solid var(--line);background:var(--chip);
+  transition:background var(--dur-3) var(--ease-out),border-color var(--dur-3) var(--ease-out)}
+.evrow.arrived{background:var(--card-solid);border-color:var(--line)}
+/* 등록은 '팝' 하고 튀지 않고 제자리로 안착한다 (2px 내려앉으며 .7→1). 이미 끝난 사건을 불러올 때는 붙지 않는 클래스다. */
+.evrow.settling{animation:itx-ev-settle var(--dur-3) var(--ease-apple)}
+@keyframes itx-ev-settle{from{transform:translateY(2px);opacity:.7}to{transform:none;opacity:1}}
+.evrow.inline-row{background:var(--card-solid)}
+/* 결손 행은 어떤 상태 변화도 없다. 부재가 사건처럼 보이면 안 된다. */
+.evrow.absent-row{background:var(--bg);border-style:dashed;border-color:var(--na);transition:none}
+.evdot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--line);transition:background var(--dur-3) var(--ease-out)}
+.evrow.arrived .evdot{background:var(--accent)}
+.evrow.inline-row .evdot{background:var(--accent)}
+.evrow.absent-row .evdot{background:transparent;border:1px dashed var(--na);transition:none}
+.evname{font:600 11.5px var(--sans);min-width:104px;flex:none}
+.evdetail{font:400 10.5px var(--mono);color:var(--muted);flex:1}
+.evstate{font:500 10.5px var(--mono);white-space:nowrap;color:var(--na);transition:color var(--dur-3) var(--ease-out)}
+.evrow.arrived .evstate{color:var(--accent)}
+.evrow.absent-row .evstate{transition:none}
+
+/* ---------- 해시 복사 ---------- */
+.hashchip,.copyable{position:relative;cursor:pointer;border-radius:3px;padding:0 2px;border-bottom:1px dotted var(--line);
+  transition:background var(--dur-1) var(--ease-out),border-color var(--dur-1) var(--ease-out)}
+.hashchip:hover,.copyable:hover{background:var(--chip);border-bottom-color:var(--accent)}
+.hashchip:focus-visible,.copyable:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.hashchip.copied::after,.copyable.copied::after{content:attr(data-flash);position:absolute;left:50%;bottom:calc(100% + 5px);transform:translateX(-50%);
+  background:var(--fg);color:var(--bg);font:600 10px var(--mono);padding:2px 7px;border-radius:4px;white-space:nowrap;z-index:40;
+  box-shadow:var(--shadow-2);animation:itx-tip-in var(--dur-2) var(--ease-out)}
+@keyframes itx-tip-in{from{opacity:0;transform:translate(-50%,3px)}to{opacity:1;transform:translate(-50%,0)}}
+
+/* ---------- 결론 코드 · 검사 칩 ---------- */
+.codebox{border-left:3px solid var(--line);padding:3px 0 3px 8px;margin:6px 0}
+.chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.chip{font:500 11px var(--mono);padding:2px 6px;border-radius:4px;background:var(--chip);border:1px solid var(--line);color:var(--muted);
+  transition:box-shadow var(--dur-1) var(--ease-out)}
+.chip.fail{background:var(--card-solid);border-color:var(--fail);color:var(--fail);font-weight:500}
+.chip.na{background:var(--card-solid);border-style:dashed;border-color:var(--na);color:var(--na)}
+
+/* ---------- 시점 타임라인 (스크러버) ---------- */
+.timebox{position:relative;height:94px;border:1px solid var(--line);border-radius:6px;background:var(--chip);overflow:hidden;
+  cursor:ew-resize;touch-action:none;user-select:none;transition:border-color var(--dur-2) var(--ease-out)}
+.timebox:hover{border-color:var(--accent)}
+.timeaxis{position:absolute;left:0;right:0;top:37px;height:1px;background:var(--line)}
+.timegap{position:absolute;top:28px;width:4%;height:19px;background:var(--chip);border-left:1px dashed var(--na);border-right:1px dashed var(--na)}
+.timegaplabel{position:absolute;top:50px;transform:translateX(-50%);font:400 9.5px var(--mono);color:var(--na);white-space:nowrap}
+/* 피해 노출 구간: 단색 면이 아니라 해칭 + 라벨로 '무엇이 그 사이에 실행되었는가' 를 묻게 한다. */
+.harmbar{position:absolute;top:35px;height:6px;border-top:1px solid var(--fail);border-bottom:1px solid var(--fail);
+  background:repeating-linear-gradient(135deg,var(--fail) 0 2px,transparent 2px 5px)}
+.harmlabel{position:absolute;left:0;top:-13px;font:600 9.5px var(--mono);color:var(--fail);white-space:nowrap}
+.harmbar.empty .harmlabel{display:none}
+.playhead{position:absolute;top:2px;bottom:2px;width:2px;background:var(--accent);opacity:.55}
+.playknob{position:absolute;top:-1px;left:50%;width:9px;height:9px;border-radius:50%;background:var(--accent);transform:translateX(-50%);box-shadow:0 0 0 3px var(--accent-glow)}
+.timebox:hover .playhead,.timebox:focus-visible .playhead{opacity:.9}
+/* 커서 아래 시점과 그 시점의 홉 상태. 드래그 중에는 재생 헤드를 따라간다. 판정을 말하지 않고 위치만 말한다. */
+.scrubtip{position:absolute;bottom:3px;transform:translateX(-50%);pointer-events:none;width:max-content;max-width:calc(100% - 8px);overflow-wrap:anywhere;z-index:2;
+  font:600 10px var(--mono);color:var(--fg);background:var(--card);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  border:1px solid var(--line);border-radius:5px;padding:2px 7px;box-shadow:var(--shadow-sm)}
+.timemark{position:absolute;transform:translateX(-50%);pointer-events:none}
+.markline{width:1px;height:14px;background:var(--muted);margin:0 auto}
+.marklabel{font:600 10px var(--mono);white-space:nowrap;text-align:center}
+.markat{font:400 9.5px var(--mono);color:var(--na);text-align:center}
+
+/* ---------- 정책/검사기 요약 띠 ---------- */
+.stripgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:6px;overflow:hidden;font-size:11px}
+.stripcell{background:var(--chip);padding:7px 9px;min-width:0}
+.stripcell .k{font-size:10px;color:var(--na);letter-spacing:.03em}
+.stripcell .v{font:500 11.5px var(--mono);color:var(--fg);overflow-wrap:anywhere}
+
+/* ---------- 1b 스윔레인 / 1c 원장 ---------- */
+.gapbox{position:relative;height:44px;margin-top:4px}
+.gapaxis{position:absolute;left:0;right:0;top:14px;height:1px;background:var(--line)}
+.gapfill{position:absolute;top:12px;height:5px;background:var(--fail)}
+.gaplabel-l{position:absolute;left:4%;top:22px;font:600 10px var(--mono);color:var(--fail)}
+.gaplabel-r{position:absolute;right:0;top:22px;font:600 10px var(--mono);color:var(--pass);text-align:right}
+.ledgerlink{font:600 12px var(--sans);color:var(--accent);cursor:pointer;background:none;border:none;padding:0;text-decoration:underline}
+.ledgerlink:hover{background:none;opacity:.78}
+
+/* ---------- 1d 불확실성 표현 3종 ---------- */
+.badge3{display:flex;gap:6px;flex-wrap:wrap}
+.badge3 span{font:600 11.5px var(--mono);padding:3px 9px;border-radius:4px}
+.meter-sq{width:26px;height:13px;border-radius:2px;display:inline-block;flex:none}
+.ladder-row{display:flex;gap:8px;font-size:11.5px;margin:4px 0;align-items:baseline}
+.ladder-tag{font-weight:700;flex:none;min-width:44px}
+
+/* ---------- 1e 애니메이션 메모 ---------- */
+.animnote{border-left:3px solid var(--accent);padding:2px 0 2px 10px;margin:8px 0}
+.animnote .t{font:600 12.5px var(--sans)}
+.animstatus{font:600 10px var(--mono);padding:1px 6px;border-radius:3px;margin-left:6px;white-space:nowrap;background:var(--chip)}
+.animstatus.impl{color:var(--pass)}
+.animstatus.planned{color:var(--na)}
+
+/* ---------- 그래프 캔버스 (flow.ts · Claude Design Hopmap Console v2 원안) ---------- */
+.fcinfo{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:0 0 10px;padding:9px 12px;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;background:var(--card);box-shadow:var(--shadow-sm)}
+.fcinfo .id{font:600 11.5px var(--mono);color:var(--accent)}
+.fcinfo .ti{font-size:12.5px}
+.fcinfo .sp{width:1px;height:14px;background:var(--line)}
+.fcinfo .kv{font-size:12px;color:var(--muted)}
+.fcinfo .note{font:400 11.5px var(--mono);color:var(--na);margin-left:auto}
+.flowc{border:1px solid var(--line);border-radius:12px;background:var(--card-solid);box-shadow:var(--shadow-md);overflow:hidden;outline:none}
+.flowc:focus-visible{box-shadow:0 0 0 2px var(--accent-glow),var(--shadow-md)}
+.flowc-bar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:9px 12px;border-bottom:1px solid var(--line);background:var(--sunken)}
+.flowc-bar .sp{width:1px;height:16px;background:var(--line);margin:0 4px}
+.flowc-bar .zoom{font:500 11px var(--mono);color:var(--muted);width:46px;text-align:center;font-variant-numeric:tabular-nums}
+.flowc-bar .itx-btn{height:26px;padding:0 9px;font:500 11px var(--mono);box-shadow:none}
+.flowc-bar .itx-btn.sq{width:28px;padding:0;font-size:13px}
+.flowc-bar .itx-btn.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.flowc-bar .tab{font-family:var(--sans);font-weight:500;padding:0 11px}
+.flowc-bar .tab.on{border-color:var(--accent);background:var(--accent);color:#fff;font-weight:600}
+.flowc-bar .lay.off{opacity:.45;pointer-events:none}
+.flowc-canvas{position:relative;height:560px;overflow:hidden;touch-action:none;user-select:none;cursor:grab;background-color:var(--sunken);
+  background-image:radial-gradient(var(--line-strong) 1px,transparent 1px)}
+.flowc-canvas.panning{cursor:grabbing}
+.flowc-world{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
+.flowc-world svg{position:absolute;left:0;top:0;overflow:visible;display:block}
+.flowc-world .edge{fill:none;stroke-linecap:round;transition:stroke var(--dur-2) var(--ease-out),stroke-width var(--dur-1) var(--ease-out),opacity var(--dur-2) var(--ease-out)}
+.flowc-world .edge-hit{fill:none;stroke:transparent;stroke-width:16;cursor:pointer}
+.flowc-world .edge-hit:hover+.edge,.flowc-world .edge.on{stroke-width:4}
+.flowc-world .evline{fill:none;transition:stroke var(--dur-3) var(--ease-out)}
+.flowc-world .evline.flowing{animation:itx-evflow 1.6s linear infinite}
+.fcnode{position:absolute;width:250px}
+.fcnode .ring{position:absolute;left:-7px;top:-7px;right:-7px;bottom:-7px;border:2px solid var(--accent);border-radius:16px;pointer-events:none;opacity:0}
+.fcnode .fccard{border:1px solid var(--line);border-radius:11px;background:var(--card-solid);overflow:hidden;box-shadow:var(--shadow-md);
+  transition:border-color var(--dur-2) var(--ease-out),box-shadow var(--dur-2) var(--ease-out)}
+.fcnode.t .fccard{border-color:var(--accent);border-style:dashed}
+.fcnode .fchead{display:flex;align-items:center;gap:9px;padding:9px 10px;border-bottom:1px solid var(--line-soft);background:var(--sunken)}
+.fcnode .fcbadge{display:grid;place-items:center;flex:none;width:26px;height:26px;border-radius:7px;background:var(--chip);color:var(--fg);font:700 13px var(--mono)}
+.fcnode.t .fcbadge{background:var(--accent-soft);color:var(--accent)}
+.fcnode .fcname{display:block;font:600 12px var(--sans);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fcnode .fcsub{display:block;font:400 10px var(--mono);color:var(--na);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fcnode .fccaret{flex:none;width:20px;height:20px;padding:0;border:1px solid var(--line);border-radius:5px;background:var(--card-solid);cursor:pointer;font:500 9px var(--mono);color:var(--muted);line-height:1;box-shadow:none}
+.fcnode .fcrows{padding:5px 4px 6px}
+.fcnode.closed .fcrows{display:none}
+.fcrow{display:flex;align-items:center;gap:6px;padding:3px 7px;border-radius:5px;cursor:pointer;transition:background var(--dur-1) var(--ease-out)}
+.fcrow:hover,.fcrow.eq-hi,.fcrow.sel{background:var(--accent-soft)}
+.fcrow .g{font:600 10px var(--mono);width:12px;flex:none}
+.fcrow .i{font:500 10.5px var(--mono);width:30px;flex:none}
+.fcrow .n{font:400 11px var(--sans);color:var(--fg);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fcrow .d{width:7px;height:7px;border-radius:50%;flex:none}
+.fcnode .handle{position:absolute;width:9px;height:9px;border-radius:50%;background:var(--card-solid);border:1.5px solid var(--line-strong);transform:translate(-2px,-2px);pointer-events:none}
+.fclabel{position:absolute;transform:translate(-50%,-50%);white-space:nowrap;font:500 11px var(--mono);background:var(--card-solid);border:1px solid var(--line);border-radius:5px;padding:2px 7px;box-shadow:var(--shadow-sm);cursor:pointer;
+  transition:border-color var(--dur-1) var(--ease-out),background var(--dur-1) var(--ease-out)}
+.fclabel:hover,.fclabel.eq-hi{background:var(--accent-soft)}
+.fclabel.sel{font-weight:600;border-color:var(--accent)}
+.flowc-tip{position:absolute;left:50%;top:14px;transform:translateX(-50%);pointer-events:none;font:600 11px var(--mono);color:var(--fg);background:var(--card);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:6px;padding:4px 9px;box-shadow:var(--shadow-md);z-index:4}
+.flowc-legend{position:absolute;left:12px;bottom:10px;display:flex;gap:14px;flex-wrap:wrap;align-items:center;font:400 10.5px var(--mono);color:var(--muted);pointer-events:none}
+.flowc-mini{position:absolute;right:12px;bottom:12px;width:188px;height:122px;border:1px solid var(--line);border-radius:8px;background:var(--card);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);box-shadow:var(--shadow-md);cursor:grab;touch-action:none;overflow:hidden;z-index:3}
+.flowc-mini svg{position:absolute;left:0;top:0;display:block;width:100%;height:100%}
+.flowc-mini .mmtag{position:absolute;left:6px;top:4px;font:600 9px var(--mono);letter-spacing:.1em;color:var(--na);pointer-events:none}
+.flowc-mini .mmnode{fill:var(--chip);stroke:var(--line-strong);stroke-width:3}
+.flowc-mini .mmnode.t{stroke:var(--accent)}
+.flowc-mini .mmview{fill:var(--accent-soft);stroke:var(--accent);stroke-width:6}
+.flowc-sel{position:absolute;left:12px;top:12px;width:268px;padding:10px 11px;border:1px solid var(--line);border-radius:9px;background:var(--card);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:var(--shadow-lg);z-index:4}
+.flowc-sel .h{display:flex;align-items:baseline;gap:7px}
+.flowc-sel .id{font:600 12px var(--mono)}
+.flowc-sel .ti{font:600 11.5px var(--sans);flex:1;min-width:0}
+.flowc-sel .x{border:0;background:none;cursor:pointer;color:var(--na);font:500 11px var(--mono);padding:0;box-shadow:none}
+.flowc-sel .reason{margin-top:6px;font:400 11px/1.6 var(--sans);color:var(--muted)}
+.flowc-sel .cmp{margin-top:7px;padding-top:7px;border-top:1px solid var(--line-soft);font:400 10px/1.7 var(--mono);color:var(--na);word-break:break-all}
+.fcsm{position:absolute;width:244px;padding:12px 13px;border-radius:11px;background:var(--card-solid);border:1.5px solid var(--line);color:var(--fg);box-shadow:var(--shadow-md);transition:border-color 200ms var(--ease-apple),box-shadow 200ms var(--ease-apple)}
+.fcsm .n{display:block;font:600 12px var(--sans)}
+.fcsm .s{display:block;font:400 10px var(--mono);color:var(--na);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fcsm.on{border-color:var(--accent);box-shadow:0 0 0 6px var(--accent-glow),var(--shadow-md)}
+.fcsm.on .s{color:var(--accent)}
+.fcsm.on.term{border-color:var(--fail);box-shadow:0 0 0 6px var(--fail-glow),var(--shadow-md)}
+.fcsm.on.term .s{color:var(--fail)}
+.flowc-world .smedge{fill:none;stroke:var(--line-strong);stroke-width:1.8;transition:stroke var(--dur-2) var(--ease-out),stroke-width var(--dur-2) var(--ease-out)}
+.flowc-world .smedge.done{stroke:var(--accent);stroke-width:2.6}
+.flowc-foot{padding:12px 14px;border-top:1px solid var(--line);background:var(--sunken)}
+.flowc-foot .playdock{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.flowc-foot .playdock .playctl{margin:0}
+.flowc-foot .fcev{display:grid;grid-template-columns:repeat(auto-fit,minmax(272px,1fr));gap:6px;margin-top:12px}
+.flowc-foot .fcev .evrow{padding:7px 10px;border-radius:6px}
+.flowc-foot .fcev .evname{min-width:96px}
+@media (max-width:760px){.flowc-canvas{height:380px}.flowc-mini{display:none}}
+
+
+/* ---------- 게이트 상태 머신 · 전체 실행 격자 · 칩 상세 ----------
+   보고서 콘솔에만 있던 규칙들. 같은 컴포넌트를 데스크톱도 그리므로 공통으로 옮긴다. */
+.pill:focus-visible,.itx-btn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.packetlabel[hidden]{display:none}
+.scrubtip[hidden]{display:none}
+.eqchip.eq-hi{box-shadow:0 0 0 1px var(--accent)}
+.timebox:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.flowc-bar .hint{margin-left:auto;font:400 10.5px var(--mono);color:var(--na)}
+.flowc-world.easing{transition:transform 260ms var(--ease-apple)}
+.fcnode .ring.pulse{animation:itx-ring 360ms var(--ease-apple)}
+@keyframes itx-ring{0%{opacity:1}100%{opacity:0}}
+.fcnode.active .fccard{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent),var(--shadow-md)}
+.flowc-tip[hidden]{display:none}
+.flowc-mini[hidden]{display:none}
+.flowc-mini .mmnode.alt{stroke-dasharray:8 6;opacity:.5}
+.flowc-mini .mmpacket{fill:var(--accent)}
+.flowc-sel[hidden]{display:none}
+.flowc-bar .vcount{font:500 10.5px var(--mono);color:var(--muted);white-space:nowrap}
+.fcsm .t{position:absolute;right:11px;top:9px;font:500 10px var(--mono);color:var(--na);font-variant-numeric:tabular-nums}
+.fcsm.taken{border-style:solid;color:var(--fg)}
+.fcsm.taken.reached{border-color:var(--accent)}
+.fcsm.taken.reached.tone-pass{border-color:var(--pass)}
+.fcsm.taken.reached.tone-fail{border-color:var(--fail)}
+.fcsm.taken.reached.tone-warn{border-color:var(--warn)}
+.fcsm.current{box-shadow:0 0 0 6px var(--accent-glow),var(--shadow-md)}
+.fcsm.current.tone-fail{box-shadow:0 0 0 6px var(--fail-glow),var(--shadow-md)}
+.fcsm .s.tone-pass{color:var(--pass)}
+.fcsm .s.tone-fail{color:var(--fail)}
+.fcsm .s.tone-warn{color:var(--warn)}
+.fcsm .s.tone-na{color:var(--na)}
+.flowc-world .smedge.alt{stroke-dasharray:5 5}
+.flowc-world .smedge.taken{stroke:var(--accent);stroke-width:2.6}
+.fcvhead{position:absolute;font:600 10px var(--mono);letter-spacing:.08em;color:var(--na);white-space:nowrap}
+.fcvrow{position:absolute;font:600 11px var(--mono);color:var(--muted);white-space:nowrap}
+.fcvcell{position:absolute;padding:6px 8px;border-radius:7px;background:var(--card-solid);border:1px solid var(--line);box-shadow:var(--shadow-sm);cursor:pointer;
+  transition:border-color var(--dur-1) var(--ease-out),box-shadow var(--dur-1) var(--ease-out)}
+.fcvcell:hover{border-color:var(--accent);box-shadow:var(--shadow-md)}
+.fcvcell.cur{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.fcvcell.vfail{border-color:var(--fail)}
+.fcvcell .id{display:flex;align-items:center;gap:5px;font:600 10.5px var(--mono)}
+.fcvcell .id .d{width:6px;height:6px;border-radius:50%;flex:none}
+.fcvcell .g{display:block;font:400 9.5px var(--mono);color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+@media (prefers-reduced-motion: reduce){.packettrail{display:none}}
