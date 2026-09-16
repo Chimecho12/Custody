@@ -1,9 +1,10 @@
+import type { Data } from '../../shared/types';
 // 제3자 검증 화면: replay_audit 결과를 다이어그램(좌)과 그 근거 JSON(우)으로 나란히 보인다.
 // 다이어그램의 모든 요소는 JSON 경로(data-ref)를 가리키고, JSON 의 모든 줄은 경로(data-path)를 갖는다.
 // 그래프를 누르면 JSON 이 그 자리로 스크롤·강조되고, JSON 줄에 커서를 올리면 그래프의 대응 요소가 펄스한다.
 // 색은 판정에만 쓴다: 헤드 일치·앵커 일치·판정 일치는 pass/fail, 연동 강조는 accent 뿐이다.
 // 그림은 감사 결과에 있는 값만 그린다. 잎의 내용·서명자는 결과에 없으므로 그리지 않는다 — 없는 것을 있는 척하지 않는다.
-import { Data, esc, short, st, reducedMotion, copyText } from './console';
+import { esc, short, st, reducedMotion, copyText } from '../../shared/console';
 
 const HEX64 = /^[0-9a-f]{64}$/i;
 const STATUS_KO: Record<string, string> = {passed: '통과', failed: '실패', insufficient_evidence: '증거 부족'};

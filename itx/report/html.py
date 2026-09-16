@@ -11,11 +11,11 @@ UI 원칙 (종합노트 §9.1, 05 검토서 §8):
 
 이 모듈은 조립만 한다. 실제 화면은 `assets/` 의 일반 웹 파일이다.
 
-    assets/report.css    보고서 전용 규칙 (공통 토큰·컴포넌트는 ui/ 에서 가져온다)
+    assets/report.css    보고서 전용 규칙 (공통 토큰·컴포넌트는 itx/ui/ 에서 가져온다)
     assets/report.html   본문 골격 (빈 컨테이너와 __DATA__ 자리)
     assets/report.js     results.json 을 읽어 화면을 그리는 스크립트
 
-`ui/` 의 두 파일은 데스크톱 앱(desktop/src/style.css)과 **같은 원본**이다. 한쪽만
+`itx/ui/` 의 두 파일은 데스크톱 앱(desktop/src/styles/app.css)과 **같은 원본**이다. 한쪽만
 고쳐 두 콘솔이 어긋나던 문제를 없애려고 분리했다. 보고서에만 필요한 규칙은
 assets/report.css 에 둔다.
 
@@ -29,11 +29,18 @@ from __future__ import annotations
 
 import json
 from functools import cache
-from pathlib import Path
+from importlib.resources import files
 from typing import Any
 
-_ASSETS = Path(__file__).resolve().parent / "assets"
-_UI = Path(__file__).resolve().parents[2] / "ui"
+from itx import ui
+
+try:
+    from importlib.resources.abc import Traversable
+except ImportError:  # Python 3.10 predates importlib.resources.abc.
+    from importlib.abc import Traversable
+
+_ASSETS = files("itx.report").joinpath("assets")
+_UI = files(ui)
 
 _TITLE = "itx 경로 검증"
 
@@ -47,7 +54,7 @@ _STYLESHEETS = (_UI / "tokens.css", _UI / "console.css", _ASSETS / "report.css")
 
 
 @cache
-def _read(path: Path) -> str:
+def _read(path: Traversable) -> str:
     return path.read_text(encoding="utf-8")
 
 

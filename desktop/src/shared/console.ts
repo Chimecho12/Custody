@@ -2,7 +2,7 @@
 // 홉 지도 좌표는 Claude Design 탐색안 1a 를 그대로 쓴다. 색은 항상 실제 검사·등식 결과에서 나온다.
 // 모션 규칙: 인과(패킷의 이동·도달·증거 등록)를 보이는 데만 쓴다. 강조·장식에는 쓰지 않는다.
 // 결손·미실행은 움직이지 않는다. prefers-reduced-motion 이면 재생 없이 최종 상태로 즉시 간다.
-export type Data = Record<string, any>;
+import type { Data } from './types';
 
 export const esc = (s: unknown): string =>
   String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c] as string));

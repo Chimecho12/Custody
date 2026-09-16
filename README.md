@@ -69,11 +69,13 @@ python run.py all        # 시나리오 17종 × 모드 3종 실행 → artifact
 ### 코드 점검
 
 ```powershell
-python run.py test                       # 단위·시나리오·콘솔 동기화 (91건)
+python run.py test                       # 단위·시나리오·IPC·콘솔 동기화
 node --test scripts/test-console.cjs     # 재생/스크러버 상호작용 (데스크톱 + 보고서 스크립트)
 cd desktop; pnpm build                   # tsc --noEmit + vite build
 node scripts/check-ui.cjs                # 빌드된 미리보기의 레이아웃·콘솔 오류 (playwright 필요)
 ruff check .                             # 설정은 pyproject.toml
+python -m pip wheel . --no-deps -w .build/wheels
+python scripts/check-package.py .build/wheels/itx-0.1.0-py3-none-any.whl # 저장소 밖에서 import·보고서 자산 검사
 ```
 
 ## 사용자의 두 질문에 이 구현이 답하는 방식
@@ -152,26 +154,37 @@ Pproject/
 │   ├── enforce/               사용자 게이트 (observe / protect / strict)
 │   ├── cose/                  결정적 CBOR(RFC 8949) · COSE_Sign1(RFC 9052) · 적합성 벡터
 │   ├── keys/                  서명 키 보관처·평문 노출·회전·계보, 외부 서명자 어댑터
-│   ├── sim/                   시뮬레이션 시계·모형 모델·당사자(U/R/M/T)·시나리오·실행기
-│   ├── runtime/               실제 TLS 통신 런타임: 역할별 서비스·에이전트·배포 합의·감사 패키지
+│   ├── sim/                   시뮬레이션 시계·모형 모델·시나리오·실행기
+│   │   └── parties/           U/R/M/T 역할별 구현, 전송 메시지, 증거 큐
+│   ├── runtime/               실제 TLS 통신 서비스·에이전트·배포 합의·감사 패키지
+│   │   └── desktop/           연결·취소 제어, IPC, 허용 명령, 등록·COSE 내보내기
 │   ├── audit/                 독립 판정 재실행
 │   ├── metrics.py             탐지·방어·오차단·안전 완료·피해 노출·대기
-│   └── report/
-│       ├── html.py            조립만 한다 (60줄)
-│       └── assets/            report.html · report.css · report.js — 보통의 웹 파일
-├── ui/                        데스크톱 앱과 HTML 보고서가 같이 쓰는 CSS
-│   ├── tokens.css             색·그림자·이징·글꼴 토큰 (단일 원본)
-│   └── console.css            경로검증 콘솔 컴포넌트 (홉 지도·재생·그래프 캔버스·증거 패널)
-├── desktop/                   Tauri 앱 (src/ TypeScript, src-tauri/ Rust 껍데기)
+│   ├── report/
+│   │   ├── html.py            패키지 자산을 읽어 독립 HTML 조립
+│   │   └── assets/            report.html · report.css · report.js
+│   └── ui/                    데스크톱·보고서 공통 tokens.css · console.css (wheel 포함)
+├── desktop/
+│   ├── src/
+│   │   ├── main.ts            스타일 로드와 앱 시작
+│   │   ├── app/               앱 조립·화면 전환·테마
+│   │   ├── features/          request · history · connection · deployment · evidence · audit · simulation · standards · keys
+│   │   ├── services/          Tauri IPC·Agent 기능 확인·브라우저 미리보기
+│   │   ├── shared/            타입·DOM·작업 버튼·콘솔·경로·추적 컴포넌트
+│   │   └── styles/            앱 전용 CSS
+│   └── src-tauri/             Rust 실행 껍데기·권한·패키징
 ├── scripts/                   빌드·개발 실행·UI 점검·스모크
 ├── tests/                     RFC 8032 벡터, Merkle, 등록 정책, 대조 반례, 시나리오 기대치, 콘솔 동기화
 ├── docs/                      threat-model · equations · limits · design-mapping · 디자인 시스템
 └── artifacts/                 실행 결과 (results.json, summary.json, report.html, log-export-S01.json)
 ```
 
-화면은 두 곳(데스크톱 TypeScript, 보고서 `report.js`)에 있지만 **CSS 는 `ui/` 하나**이고,
+화면은 두 곳(데스크톱 TypeScript, 보고서 `report.js`)에 있지만 **CSS 는 `itx/ui/` 하나**이고,
 두 구현이 공유해야 하는 상수·표(홉 지연, 등식 이름, 검사↔등식 대응)는
 `tests/test_report_assets.py` 가 값이 갈라지는 순간 실패한다.
+
+모듈 책임과 의존 방향, 변경 전후 경로, 검증 방법은 [docs/architecture.md](docs/architecture.md)에 있다.
+기존 `python run.py`, `python runtime.py`, `itx.sim.parties`, `itx.runtime.desktop` 진입점은 유지한다.
 
 ## 주장 상태 표기
 

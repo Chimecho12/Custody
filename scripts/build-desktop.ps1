@@ -23,7 +23,7 @@ try {
     if (-not $SkipAgent) {
         # The checker hashes the published transform source via inspect.getsource.
         $transformSource = (Join-Path $projectRoot 'itx/reconcile/transforms.py') + ':itx/reconcile'
-        & $Python -m PyInstaller --noconfirm --clean --onefile --name itx-agent --add-data $transformSource --distpath desktop/src-tauri/binaries --workpath .build/pyinstaller --specpath .build runtime.py
+        & $Python -m PyInstaller --noconfirm --clean --onefile --name itx-agent --collect-data itx --add-data $transformSource --distpath desktop/src-tauri/binaries --workpath .build/pyinstaller --specpath .build runtime.py
         if ($LASTEXITCODE -ne 0) { throw 'Agent packaging failed' }
     }
     if ($SigningConfig) {

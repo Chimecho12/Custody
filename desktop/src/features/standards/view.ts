@@ -1,3 +1,4 @@
+import type { Data } from '../../shared/types';
 // 「표준 적합성」 — 이 증거는 남의 도구로도 검증되는가.
 //
 // 화면이 지키는 규칙 두 가지.
@@ -5,7 +6,7 @@
 //    있어야 주장 범위가 정확해진다.
 //  - 미구현 항목은 지우지 않고 **회색 결손 행**으로 남긴다. 표준 대비 어디까지
 //    왔는지가 이 화면의 본문이다.
-import {Data, esc} from './console';
+import { esc } from '../../shared/console';
 
 type State = {doc: string; view: 'hex' | 'diag'; open: Record<string, boolean>; showAbsent: boolean};
 

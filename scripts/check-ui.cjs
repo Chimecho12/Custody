@@ -56,8 +56,31 @@ const preview = Object.fromEntries(Object.entries(require('../desktop/preview-da
       }
     }
     assert.equal(await page.locator('#retention-apply').isDisabled(), true);
+    // Exercise controller boundaries: request -> history -> investigation -> history.
+    await page.locator('nav button[data-view="request"]').click();
+    await page.locator('#prompt').fill('controller regression check');
+    await page.locator('#send').click();
+    await page.waitForFunction(() => !document.querySelector('#send').disabled
+      && document.querySelector('#request-meta').textContent.trim().length > 0);
+    assert.notEqual(await page.locator('#request-state').innerText(), '진행 중');
+    await page.locator('nav button[data-view="history"]').click();
+    await page.locator('#history-content button').first().click();
+    assert.equal(await page.locator('#view-request').isVisible(), true);
+    assert.equal(await page.locator('#request-title').innerText(), '사건 조사');
+    await page.locator('#back-to-log').click();
+    assert.equal(await page.locator('#view-history').isVisible(), true);
+    await page.locator('#history-query').fill('missing-request-refactor-check');
+    assert.match(await page.locator('#history-count').innerText(), /^0 \/ /);
+    await page.locator('#history-clear').click();
+    assert.ok(await page.locator('#history-content button').count() > 0);
+    await page.locator('nav button[data-view="deployment"]').click();
+    await page.locator('#deploy-next').click();
+    assert.equal(await page.locator('[data-step-tab="propose"]').getAttribute('class').then(c => c.includes(' on')), true);
+    await page.locator('#deploy-prev').click();
+    assert.equal(await page.locator('#deploy-prev').isDisabled(), true);
     assert.deepEqual(errors, []);
-    const report = {scope:'built_browser_preview_layout_only',native_ipc_tested:false,rows,errors};
+    const report = {scope:'built_browser_preview_layout_and_controllers',native_ipc_tested:false,
+      interactions:['request','history_filter','history_inspection','deployment_steps'],rows,errors};
     await fs.writeFile(path.join(output,'result.json'), JSON.stringify(report,null,2));
     process.stdout.write(JSON.stringify(report,null,2));
   } finally {

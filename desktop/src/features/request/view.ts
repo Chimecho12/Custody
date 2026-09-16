@@ -1,14 +1,12 @@
+import type { Data } from '../../shared/types';
 // 요청 화면: U Agent 의 실제 기록(record)을 Console v3 구조로 그린다.
 //   1) 결과 요약 — 검증 결과와 응답 공개 여부는 별개의 두 축이다. 한 줄에 섞으면 둘 중 하나를 잘못 읽는다.
 //   2) 응답 본문 — 공개된 경우에만 원문. 격리·거부·대기는 점선 상자와 이유만.
 //   3) 경로 상세 — 홉 지도(flow.ts 그래프 캔버스) · 추적 3단 · 로컬 검사 · T 판정 · 시간선. 기본 화면은 결론이고 이것은 근거다.
 // U 가 실측한 것은 전송·수신·결정·공개 시각뿐이다. R·M 내부 구간은 비율 추정이며 그렇게 표기한다.
-import {
-  Data, esc, short, CV, makeSpan, PlayContext, timeBoxHtml, Mark, evidenceRowsHtml, stripGridHtml,
-  checksTableHtml, equationTableHtml, codesHtml, gateColor, checkChipsHtml, st, playControlsHtml,
-} from './console';
-import { FlowData, flowCanvasHtml, flowLegs, footHtml, eqFromChecks, eqFromEquations, actionTone, toneOf } from './flow';
-import { TraceData, traceTopHtml, traceBottomHtml } from './trace';
+import { esc, short, CV, makeSpan, PlayContext, timeBoxHtml, Mark, evidenceRowsHtml, stripGridHtml, checksTableHtml, equationTableHtml, codesHtml, gateColor, checkChipsHtml, st, playControlsHtml,  } from '../../shared/console';
+import { FlowData, flowCanvasHtml, flowLegs, footHtml, eqFromChecks, eqFromEquations, actionTone, toneOf } from '../../shared/flow';
+import { TraceData, traceTopHtml, traceBottomHtml } from '../../shared/trace';
 
 export const STATE_NAMES: Record<string, string> = {accept: '검증 후 수용', accept_unverified: '미검증 수용', quarantine: '응답 격리', reject: '수용 거부', reject_timeout: 'T 판정 기한 초과', cancelled: '취소 · 미공개', interrupted: '종료로 중단 · 미공개', pending: '진행 중', error: '요청 오류'};
 export const CHECK_NAMES: Record<string, string> = {M_authority: 'M 발행자·역할 인증', R_authority: 'R 발행자·역할 인증', not_expired: '계약 유효기간', receipt_present: '모델 영수증', receipt_signature: '영수증 서명', nonce_match: 'nonce 결합', request_binding: '승인된 요청 결합', response_binding: '종단 응답 결합', attempt_match: '시도 ID 결합', model_hash_reference: '등록 기준 해시', route_allowed: '허용 모델 경로', tool_policy: '도구 실행 정책'};

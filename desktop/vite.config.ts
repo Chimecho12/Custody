@@ -29,6 +29,6 @@ function previewData(): Plugin {
 export default defineConfig({
   plugins: [previewData()],
   clearScreen: false,
-  // style.css 가 ../../ui/ 의 공통 스타일시트를 @import 한다 (보고서와 같은 원본).
+  // src/styles/app.css imports the packaged itx/ui styles also used by the report.
   server: { fs: { allow: ['..'] } },
 });
