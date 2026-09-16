@@ -213,6 +213,38 @@ class ThirdPartyTest(unittest.TestCase):
         self.assertTrue(all(c["ok"] for c in held["receipt_checkpoints"]))
 
 
+class TContributionTest(unittest.TestCase):
+    """'제3자가 실제로 무엇을 더해 주는가' 에 대한 답을 고정한다. 사용 전 차단은 U 로컬 검증의 몫이라
+    T 없이도 같아야 하고, T 는 실행 전 거부·서명된 탐지 기록·감사 발견을 더한다. strict 는 차단을
+    더하지 못하고 가용성만 잃는다 — 이 결과가 바뀌면 문서의 주장도 같이 바꿔야 한다."""
+
+    @classmethod
+    def setUpClass(cls):
+        from itx.sim import run_t_contribution, summarize_t_contribution
+        cls.rows = {r["scenario_id"]: r for r in run_t_contribution(seed=42)}
+        cls.summary = summarize_t_contribution(list(cls.rows.values()))
+
+    def test_defense_before_use_does_not_depend_on_t(self):
+        self.assertEqual(self.summary["defense_same_without_t"], self.summary["scenarios"])
+        self.assertEqual(self.summary["attacks_blocked_local_only"], self.summary["attacks_blocked_with_t_protect"])
+        self.assertEqual(self.summary["strict_block"], [])
+
+    def test_what_t_adds(self):
+        self.assertEqual(self.summary["pre_execution_refusal"], ["S17"])
+        self.assertEqual(self.summary["audit_finding"], ["S13", "S14", "S18"])
+        self.assertEqual(set(self.summary["signed_detection_record"]), {"S02", "S03", "S05", "S06", "S08", "S17"})
+        s17 = self.rows["S17"]
+        self.assertFalse(s17["local_only"]["model_refused_before_execution"])  # T 없이는 변조 요청이 실행된 뒤 격리된다
+        self.assertTrue(s17["with_t_protect"]["model_refused_before_execution"])
+        self.assertIsNone(s17["local_only"]["detected_by_verdict"])  # T 가 없으면 탐지 기록은 '0' 이 아니라 '없음'
+        self.assertIsNone(s17["local_only"]["audit_finding"])
+
+    def test_strict_costs_availability_without_adding_defense(self):
+        for sid in ("S10", "S12"):
+            self.assertEqual(self.rows[sid]["with_t_strict"]["gate_action"], "reject_timeout")
+            self.assertEqual(self.rows[sid]["local_only"]["gate_action"], "accept")
+
+
 class Q1MatrixTest(unittest.TestCase):
     def test_cooperation_sets_change_detectability(self):
         rows = {(r["scenario_id"], r["cooperation"]): r for r in run_q1_matrix(seed=42)}

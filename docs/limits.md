@@ -22,7 +22,7 @@
 | 표기 | 이 저장소에서의 해당 |
 |---|---|
 | `measured_result` | 없음 |
-| `mock_result` | artifacts/ 의 모든 수치 |
+| `mock_result` | artifacts/ 의 모든 수치. T 기여 실험(로컬만 vs U+T)도 여기 속한다 — "사용 전 차단은 T 와 무관, T 는 실행 전 거부·탐지 기록·감사 발견을 더한다" 는 모형 모델·단일 PC 결과다 |
 | `verified_external` | 기획 문서가 절 번호와 함께 확인한 표준 조항. 코드 주석의 RFC 인용은 이를 옮긴 것. RFC 8949 부록 A 시험 벡터는 `tests/test_cose.py` 가 직접 대조하고, COSE_Sign1 서명은 `pycose` 가 검증한다 |
 | `planned` | 다중 TS, 실앵커, 통계 검증, 스트리밍, 정산 시뮬레이션, 실제 모델, TEE 증명, 외부 도구 상호 운용 확인 |
 | `hypothesis` | 인센티브 양립, 시장 수요 |

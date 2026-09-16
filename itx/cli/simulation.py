@@ -51,6 +51,10 @@ def cmd_run(args: argparse.Namespace) -> int:
               f"availability {m['availability_legit']['num']}/{m['availability_legit']['den']} "
               f"(under pressure {m['availability_under_pressure']['num']}/{m['availability_under_pressure']['den']})  "
               f"wait mean {m['decision_wait_ms']['mean']} ms")
+    t = bundle["t_contribution_summary"]
+    print(f"  T 기여 (U 로컬만 vs U+T): 공격 {t['attack_attempts']}건 중 사용 전 차단 로컬만 {t['attacks_blocked_local_only']} / "
+          f"U+T protect {t['attacks_blocked_with_t_protect']} · 실행 전 거부 {t['pre_execution_refusal']} · "
+          f"서명된 탐지 기록 {len(t['signed_detection_record'])}건 · 감사 발견 {t['audit_finding']} · strict 추가 차단 {t['strict_block']}")
     print(f"written: {out / 'results.json'}, {out / 'summary.json'}, {out / 'log-export-S01.json'}")
     return 0
 

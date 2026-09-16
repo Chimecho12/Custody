@@ -172,7 +172,7 @@ class Desktop:
             # Compact form of run_all(): full runs exceed the IPC frame, the UI fetches one run at a time.
             from itx import CHECKER_VERSION, __version__
             from itx.crypto import BACKEND
-            from itx.sim.runner import MODES, aggregate, run_q1_matrix, run_scenario
+            from itx.sim.runner import MODES, aggregate, run_q1_matrix, run_scenario, run_t_contribution, summarize_t_contribution
             from itx.sim.scenarios import SCENARIOS
             results = [run_scenario(sc, mode) for sc in SCENARIOS for mode in MODES]
             rows = []
@@ -188,7 +188,9 @@ class Desktop:
             return {"generated_with": {"itx_version": __version__, "checker_version": CHECKER_VERSION, "seed": 42,
                                        "crypto_backend": BACKEND, "claim_status": "mock_result"},
                     "scenarios": [s.to_dict() for s in SCENARIOS], "rows": rows,
-                    "q1_matrix": run_q1_matrix(), "summary": aggregate(results)}
+                    "q1_matrix": run_q1_matrix(), "summary": aggregate(results),
+                    "t_contribution": (contribution := run_t_contribution()),
+                    "t_contribution_summary": summarize_t_contribution(contribution)}
         if op == "export":
             # Export only public UI records, never raw prompts, quarantine bodies, keys or salts.
             target = self.directory / "exports"
