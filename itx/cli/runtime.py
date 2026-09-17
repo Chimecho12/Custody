@@ -91,6 +91,11 @@ SPEC: list[tuple[str, str, list[tuple[str, dict]]]] = [
     ("benchmark", "세 모드를 반복 실행해 지연을 실측한다", [
         ("--output", _REQ),
         ("--repeats", {"type": int, "default": 5})]),
+    ("endurance", "T 정지·복구를 낀 연속 요청으로 적체와 회복을 실측한다", [
+        ("--output", _REQ),
+        ("--requests", {"type": int, "default": 24}),
+        ("--outage", {"default": "8:16", "help": "T 를 정지할 요청 구간 START:END"}),
+        ("--modes", {"nargs": "+", "choices": ["protect", "strict", "observe"], "default": ["protect", "strict"]})]),
     ("proxy", "OpenAI 호환 루프백 게이트웨이를 U Agent 앞에 띄운다 (스트리밍 미지원)", [
         ("--data-dir", _REQ),
         ("--config", {"help": "고정된 U config.json. --lab 일 때만 생략"}),
