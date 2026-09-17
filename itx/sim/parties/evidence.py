@@ -48,7 +48,7 @@ class EvidenceQueue:
                     rc = third_party.submit(item.payload, self.ctx.now())
                     self.receipts[item.payload.statement_hash] = rc
                     self.held.append({"receipt": rc.to_dict(), "statement_hash": item.payload.statement_hash,
-                                      "sub": item.sub, "content_type": item.payload.content_type})
+                                      "sub": item.sub, "content_type": item.payload.content_type, "holder": self.owner})
                     self.ctx.record(self.owner, "evidence_registered", item.sub,
                                     content_type=item.payload.content_type, leaf_index=rc.leaf_index,
                                     registered_at=rc.registered_at, queued_ms=self.ctx.now() - item.enqueued_at)

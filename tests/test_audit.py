@@ -139,6 +139,26 @@ class HeldReceiptInclusionTest(unittest.TestCase):
         self.assertEqual(len(r["held_receipts"]["unverifiable"]), 1)
         self.assertTrue(r["held_receipts"]["ok"])  # 검증 불가한 영수증은 누락의 증거가 아니다
 
+    def test_receipt_registered_after_the_snapshot_is_not_a_missing_entry(self):
+        """감사 헤드를 뜬 뒤에 등록된 영수증(예: M 의 백그라운드 제출)은 이 스냅샷의 대상이 아니다.
+        누락으로 세면 정상 배포가 매번 실패한다. 등록 시각이 헤드보다 앞서면서 잎이 없으면 그때가 꼬리 절단이다."""
+        run = _base_run()
+        export = copy.deepcopy(run["log_export"])
+        last = max(run["held_receipts"], key=lambda h: h["receipt"]["tree_size"])
+        export["entries"] = export["entries"][:last["receipt"]["leaf_index"]]  # 스냅샷이 그 항목 직전에 떠졌다고 가정
+        export["head"]["time"] = last["receipt"]["registered_at"] - 1  # 헤드 시각이 마지막 등록보다 앞
+        (export, anchors) = _reseal(export)
+        r = replay_audit(export, anchors, {}, {}, REF, held_receipts=[last])
+        self.assertEqual(r["held_receipts"]["missing"], [])
+        self.assertEqual(len(r["held_receipts"]["after_snapshot"]), 1)
+        self.assertTrue(r["held_receipts"]["ok"])
+        # 같은 영수증이라도 헤드 시각이 등록 시각 이후라면 꼬리 절단이다.
+        export["head"]["time"] = last["receipt"]["registered_at"] + 1
+        (export, anchors) = _reseal(export)
+        r = replay_audit(export, anchors, {}, {}, REF, held_receipts=[last])
+        self.assertEqual(len(r["held_receipts"]["missing"]), 1)
+        self.assertFalse(r["held_receipts"]["ok"])
+
     def test_untouched_log_includes_every_held_receipt(self):
         run = _base_run()
         r = replay_audit(run["log_export"], [], {}, {}, REF, held_receipts=run["held_receipts"])
