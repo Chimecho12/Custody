@@ -170,6 +170,25 @@ class ThirdPartyTest(unittest.TestCase):
         self.assertFalse(all(x["ok"] for x in r["audit"]["anchors"]))
         self.assertFalse(r["audit"]["ok"])
 
+    def test_S14_ledger_rewrite_snapshots_are_real_before_and_after_values(self):
+        """화면의 '연쇄' 는 연출이 아니라 재작성 전·후의 실제 잎 해시·접두 루트 차이다. 교체 이전 항목은 그대로,
+        교체된 잎과 그 뒤의 모든 접두 루트는 달라지고, 재작성 전 마지막 접두 루트가 곧 앵커된 루트다."""
+        r, _ = _last("S14", "protect")
+        rw = r["ts"]["ledger_rewrite"]
+        idx = rw["tampered_index"]
+        self.assertEqual(idx, r["ts"]["tampered_index"])
+        self.assertEqual(len(rw["before"]), len(rw["after"]))
+        for i, (b, a) in enumerate(zip(rw["before"], rw["after"], strict=True)):
+            self.assertEqual(b["index"], i)
+            if i < idx:
+                self.assertEqual(b, a)
+            else:
+                self.assertNotEqual(b["prefix_root"], a["prefix_root"])
+            self.assertEqual(b["leaf_hash"] != a["leaf_hash"], i == idx)
+        self.assertEqual(rw["before"][-1]["prefix_root"], rw["anchor"]["root_hash"])
+        self.assertEqual(rw["after"][-1]["prefix_root"], r["ts"]["root_hash"])
+        self.assertIsNone(_run("S01", "protect")["ts"]["ledger_rewrite"])
+
     def test_S15_collusion_is_honestly_undetectable(self):
         r, a = _last("S15", "protect")
         self.assertTrue(r["scenario"]["ground_truth"]["attack_present"])

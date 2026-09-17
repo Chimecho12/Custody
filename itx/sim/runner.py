@@ -32,6 +32,13 @@ def _keys(seed: int) -> dict[str, KeyPair]:
     }
 
 
+def _ledger_snapshot(log) -> list[dict[str, Any]]:
+    """원장의 잎 해시와 접두 루트(root_at(i+1)). 항목 하나를 바꾸면 그 잎과 그 뒤의 모든 접두 루트가
+    바뀐다 — 화면의 '연쇄' 는 이 실제 값의 전·후 차이이지 연출용 수치가 아니다."""
+    return [{"index": e.index, "content_type": e.statement.content_type, "iss": e.statement.iss,
+             "leaf_hash": e.leaf_hash, "prefix_root": log.root_at(e.index + 1)} for e in log.entries]
+
+
 def run_scenario(scenario: Scenario, mode: str, seed: int = 42,
                  cooperation: str = "U+R+M") -> dict[str, Any]:
     """시나리오 하나를 한 모드로 실행한다. cooperation 은 Q1 매트릭스용 협조 집합."""
@@ -93,7 +100,9 @@ def run_scenario(scenario: Scenario, mode: str, seed: int = 42,
     anchor_rec = T.checkpoint(ctx.now())
 
     tampered_index = None
+    ledger_rewrite = None
     if scenario.ts_tamper_after_anchor:
+        ledger_before = _ledger_snapshot(T.log)
         # 앵커 이후 과거 항목 재작성: 첫 중계 진술을 '무변환·정상' 으로 보이는 위조 진술로 바꾼다.
         for e in T.log.entries:
             if e.statement.content_type == CT_RELAY:
@@ -105,6 +114,8 @@ def run_scenario(scenario: Scenario, mode: str, seed: int = 42,
                 T.log.tamper_entry(e.index, fake)
                 ctx.record("T", "log_tampered", e.statement.sub, index=e.index, note="운영자가 과거 항목을 교체 (모사)")
                 break
+        ledger_rewrite = {"tampered_index": tampered_index, "before": ledger_before, "after": _ledger_snapshot(T.log),
+                          "anchor": {"tree_size": anchor_rec["tree_size"], "root_hash": anchor_rec["root_hash"]}}
 
     export = T.log.export(ctx.now())
     private_by_sub = {s: p.to_dict() for s, p in T.private.items()}
@@ -163,6 +174,7 @@ def run_scenario(scenario: Scenario, mode: str, seed: int = 42,
             "down_during_run": scenario.ts_down, "extra_delay_ms": scenario.ts_extra_delay_ms,
             "queue_drops": {"U": U.queue.dropped, "R": R.queue.dropped, "M": M.queue.dropped},
             "anchor_record": anchor_rec, "tampered_index": tampered_index, "omitted_indexes": omitted_indexes,
+            "ledger_rewrite": ledger_rewrite,
             "held_receipts": len(held_receipts),
             "held_receipts_by_holder": {"U": len(U.queue.held), "R": len(R.queue.held), "M": len(M.queue.held)},
         },

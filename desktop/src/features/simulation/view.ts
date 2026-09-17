@@ -9,6 +9,34 @@ interface Matrix { generated_with: Data; scenarios: Data[]; rows: Data[]; q1_mat
 const MODES = ['observe', 'protect', 'strict'];
 const COOPS = ['U', 'U+M', 'U+R', 'U+R+M'];
 
+// 1c 재작성 재생: 셀 값은 S14 실행의 실제 재작성 전·후 잎 해시·접두 루트다 (보고서 report.js 와 같은 규칙).
+// 항목 하나가 바뀌면 그 잎과 그 뒤의 모든 접두 루트가 차례로 바뀌고 마지막에 앵커 비교가 불일치로 넘어간다.
+export function rewriteTableHtml(rw: Data): string {
+  const cell = (b: string, a: string) => `<td class="mono rw-cell" data-before="${esc(b)}" data-after="${esc(a)}">${short(b)}</td>`;
+  const rows = rw.before.map((b: Data, i: number) => { const x = rw.after[i];
+    return `<tr class="rw-row${i === rw.tampered_index ? ' tampered' : ''}"><td class="muted">${i}</td><td>${esc(b.content_type.replace('application/vnd.itx.', '').replace('+json', ''))}</td>${cell(b.leaf_hash, x.leaf_hash)}${cell(b.prefix_root, x.prefix_root)}</tr>`; }).join('');
+  const lastB = rw.before[rw.before.length - 1], lastA = rw.after[rw.after.length - 1];
+  return `<div data-rw>
+    <div class="tabrow" style="margin:10px 0 6px;gap:8px;flex-wrap:wrap"><button type="button" class="itx-btn itx-btn-accent" data-rw-play>▶ 재작성 재생</button><button type="button" class="itx-btn" data-rw-reset>앵커 시점으로 되돌리기</button>
+      <span class="small muted">항목 #${rw.tampered_index} 교체 → 그 뒤 접두 루트가 차례로 바뀜 → 앵커 비교 불일치. 모든 값은 이 실행의 실제 전·후 값이다.</span></div>
+    <div class="tablewrap"><table style="font-size:12px"><thead><tr><th>#</th><th>유형</th><th>잎 해시</th><th>접두 루트 root(0..#)</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="tablewrap" style="margin-top:8px"><table><thead><tr><th>앵커 크기</th><th>앵커에 고정된 루트</th><th>현재 재계산 루트</th><th>판정</th></tr></thead><tbody>
+      <tr><td class="mono">${rw.anchor.tree_size}</td><td class="mono">${short(rw.anchor.root_hash)}</td>${cell(lastB.prefix_root, lastA.prefix_root)}<td class="rw-verdict" data-rw-verdict data-before="일치" data-after="앵커된 체크포인트와 다른 과거를 제시함 (기록 재작성)">일치</td></tr></tbody></table></div></div>`;
+}
+const rwTimers = new WeakMap<HTMLElement, number[]>();
+export function ledgerRewritePlay(root: HTMLElement, toAfter: boolean) {
+  const cells = [...root.querySelectorAll<HTMLElement>('.rw-cell')], verdict = root.querySelector<HTMLElement>('[data-rw-verdict]')!;
+  const set = (c: HTMLElement, after: boolean) => { const changed = after && c.dataset.after !== c.dataset.before;
+    c.classList.toggle('changed', changed); c.innerHTML = short(after ? c.dataset.after! : c.dataset.before!) + (changed ? `<span class="old">${short(c.dataset.before!)}</span>` : ''); };
+  (rwTimers.get(root) || []).forEach(t => clearTimeout(t)); const timers: number[] = []; rwTimers.set(root, timers);
+  if (!toAfter) { cells.forEach(c => set(c, false)); verdict.textContent = verdict.dataset.before!; verdict.classList.remove('bad'); return; }
+  const changing = cells.filter(c => c.dataset.after !== c.dataset.before);
+  cells.filter(c => c.dataset.after === c.dataset.before).forEach(c => set(c, false));
+  const step = reducedMotion ? 0 : 260;
+  changing.forEach((c, i) => timers.push(window.setTimeout(() => set(c, true), i * step)));
+  timers.push(window.setTimeout(() => { verdict.textContent = verdict.dataset.after!; verdict.classList.add('bad'); }, changing.length * step));
+}
+
 const KIND_LABEL: Record<string, string> = {
   contract_signed: '계약 서명', request_sent: '요청 전송', received: '요청 수신', pre_exec_check: '실행 전 검사',
   refused: '거부', inferred: '추론 완료', receipt_issued: '영수증 발행', relay_statement_issued: '중계 진술 발행',
@@ -38,8 +66,8 @@ const ANIM_NOTES = [
    body: '타임라인을 누르거나 끌면 그 시점으로 바로 간다 (OpenTelemetry 추적 뷰의 시간 축 탐색과 같은 조작). |◀ ▶| 는 홉 경계 단위로 한 걸음씩 옮기고, 속도는 ×0.5/×1/×2 로 바꾼다. 초점이 타임라인이나 재생 컨트롤에 있을 때 Space 는 재생·정지, ←/→ 는 홉 이동, Home/End 는 처음·끝이다.'},
   {title: '증거가 늘며 바뀌는 판정', spec: '5절 (1d) · 탭 전환', impl: true,
    body: '협조 집합 탭을 U → U+M/U+R → U+R+M 으로 늘리면 같은 사건의 배지·사다리가 실제 Q1 매트릭스 값으로 바뀐다. 탭을 누를 때만 바뀌고 나머지는 정지한다 — 별도 애니메이션은 넣지 않았다.'},
-  {title: '해시 체인과 외부 앵커', spec: '원장형(1c) · S14 로 이동', impl: false,
-   body: '항목을 교체하면 그 이후 행의 해시가 순서대로 빨갛게 물들고 앵커 비교 행이 불일치로 바뀌는 연쇄 애니메이션은 아직 만들지 않았다. 대신 실제로 재작성이 일어난 S14 시나리오로 바로 이동하는 링크를 두었다 — 가짜 수치로 연출하지 않기 위해서다.'},
+  {title: '해시 체인과 외부 앵커', spec: '원장형(1c) · S14 재작성 재생', impl: true,
+   body: 'S14 에서 「재작성 재생」을 누르면 교체된 항목의 잎 해시가 먼저 바뀌고, 그 뒤의 접두 루트 root(0..#) 가 260ms 간격으로 차례로 바뀌며, 마지막에 앵커 비교 행이 불일치로 넘어간다. 셀의 값은 시뮬레이션이 재작성 직전·직후에 실제로 계산한 잎 해시와 접두 루트이고 바뀐 셀에는 이전 값이 취소선으로 남는다 — 연출용 수치는 없다. 교체 이전 항목은 움직이지 않으며, 다른 시나리오에서는 S14 로 이동하는 링크만 둔다.'},
   {title: '모드 전환', spec: '사건 상세 · 탭 전환', impl: true,
    body: 'observe/protect/strict 를 바꾸면 경로와 증거는 그대로 있고 시간선의 결정·소비 표시와 게이트 패널만 바뀐다. 크로스페이드는 넣지 않았고 즉시 갱신된다 — 같은 사건에서 정책만 달라졌음을 보이는 데는 애니메이션이 굳이 필요하지 않았다.'},
 ];
@@ -57,6 +85,8 @@ export class ReportView {
     this.play = new Playback(root, 'rpt');
     this.$('rpt-run').onclick = () => { this.load(true).catch(fail); };
     root.addEventListener('click', e => {
+      const rw = (e.target as HTMLElement).closest<HTMLElement>('[data-rw-play],[data-rw-reset]');
+      if (rw) { ledgerRewritePlay(rw.closest<HTMLElement>('[data-rw]')!, rw.hasAttribute('data-rw-play')); return; }
       const btn = (e.target as HTMLElement).closest<HTMLElement>('button[data-jump]');
       if (!btn) return;
       this.cur = {sid: btn.dataset.jump!, mode: this.cur.mode, attempt: 0};
@@ -379,7 +409,7 @@ export class ReportView {
       <div class="tablewrap" style="margin-top:10px"><table><thead><tr><th>앵커 크기</th><th>앵커에 고정된 루트</th><th>현재 재계산 루트</th><th>판정</th></tr></thead><tbody>${anchorRow}</tbody></table></div>
       ${showTamperDemo
         ? `<p class="small" style="margin-top:8px">운영자가 과거 항목을 실제로 교체하면 어떻게 되는지는 <button type="button" class="ledgerlink" data-jump="S14">S14 — T 의 기록 재작성</button> 시나리오에서 그대로 볼 수 있다. 트리는 다시 계산돼 스스로는 깨지지 않지만, 앵커된 루트와 달라지고 일관성 증명이 실패한다.</p>`
-        : `<p class="small fail" style="margin-top:8px">이 시나리오는 앵커 이후 항목 #${ts.tampered_index} 을 교체한 사건이다. 위 판정 칸이 '재작성 감지' 로 바뀐 것을 확인한다 — 트리 자체는 재계산돼 깨지지 않았지만 외부에 고정한 루트와 달라졌다.</p>`}
+        : `<p class="small fail" style="margin-top:8px">이 시나리오는 앵커 이후 항목 #${ts.tampered_index} 을 교체한 사건이다. 위 판정 칸이 '재작성 감지' 로 바뀐 것을 확인한다 — 트리 자체는 재계산돼 깨지지 않았지만 외부에 고정한 루트와 달라졌다.</p>${ts.ledger_rewrite ? rewriteTableHtml(ts.ledger_rewrite) : ''}`}
     </div>`;
   }
 

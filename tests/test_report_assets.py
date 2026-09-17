@@ -94,6 +94,15 @@ class ConsoleParity(unittest.TestCase):
         self.assertEqual(emitted - set(_js_object(self.flow_ts, "CHECK_CODE")), set(),
                          "flow.ts CHECK_CODE 에 L- 코드가 없는 검사가 있다 — 등식 번호로 그려져 T 등식처럼 읽힌다")
 
+    def test_ledger_rewrite_replay_exists_in_both_consoles_and_is_not_marked_unimplemented(self):
+        """원장형(1c) 재작성 재생은 두 콘솔에 같이 있어야 하고, 애니메이션 메모가 '미구현' 으로 남아 있으면 안 된다."""
+        view = (DESKTOP / "features" / "simulation" / "view.ts").read_text(encoding="utf-8")
+        for source in (self.report_js, view):
+            self.assertIn("data-rw-play", source)
+            self.assertIn("ledger_rewrite", source)
+            self.assertNotIn("연쇄 애니메이션은 아직 만들지 않았다", source)
+        self.assertIn(".rw-cell.changed", (UI / "console.css").read_text(encoding="utf-8"))
+
     def test_every_check_has_a_basis_and_the_screen_can_name_it(self):
         """검사 모드의 행은 등식이 아니다. 검사마다 근거 종류가 있어야 하고 화면은 그 이름을 가져야 한다.
         route_allowed·model_hash_reference 는 서명자의 자기보고를 기준값과 맞춘 것이지 U 의 계산이 아니다."""

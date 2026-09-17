@@ -131,6 +131,14 @@ tr.eq-hi td{background:var(--accent-soft)}
 .gaplabel-l{position:absolute;left:4%;top:22px;font:600 10px var(--mono);color:var(--fail)}
 .gaplabel-r{position:absolute;right:0;top:22px;font:600 10px var(--mono);color:var(--pass);text-align:right}
 .ledgerlink{font:600 12px var(--sans);color:var(--accent);cursor:pointer;background:none;border:none;padding:0;text-decoration:underline}
+/* 원장 재작성 재생(1c): 셀 값은 실제 S14 실행의 전·후 잎 해시·접두 루트다. 색은 판정(불일치)에만 쓴다. */
+.rw-cell{transition:background-color .32s var(--ease-out,ease),color .32s var(--ease-out,ease)}
+.rw-cell.changed{color:var(--fail);background:var(--fail-soft);animation:rwFlip .32s var(--ease-out,ease)}
+.rw-cell.changed .old{display:block;color:var(--muted);text-decoration:line-through;font-size:10.5px}
+.rw-row.tampered td:first-child{box-shadow:inset 3px 0 0 var(--fail)}
+.rw-verdict.bad{color:var(--fail);font-weight:600}
+@keyframes rwFlip{from{background:var(--fail-glow)}to{background:var(--fail-soft)}}
+@media (prefers-reduced-motion:reduce){.rw-cell,.rw-cell.changed{transition:none;animation:none}}
 .ledgerlink:hover{background:none;opacity:.78}
 
 /* ---------- 1d 불확실성 표현 3종 ---------- */
