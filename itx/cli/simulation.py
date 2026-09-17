@@ -55,6 +55,11 @@ def cmd_run(args: argparse.Namespace) -> int:
     print(f"  T 기여 (U 로컬만 vs U+T): 공격 {t['attack_attempts']}건 중 사용 전 차단 로컬만 {t['attacks_blocked_local_only']} / "
           f"U+T protect {t['attacks_blocked_with_t_protect']} · 실행 전 거부 {t['pre_execution_refusal']} · "
           f"서명된 탐지 기록 {len(t['signed_detection_record'])}건 · 감사 발견 {t['audit_finding']} · strict 추가 차단 {t['strict_block']}")
+    inc = bundle["incentives"]["summary"]
+    st = inc["structural"]
+    print(f"  인센티브 원장: 부당한 책임 {st['unjust_liability_total']}건 · 가해자 있는 공격 {st['attacks']}건 중 분쟁 해결 "
+          f"{st['attacks_resolved']}건 · 미해결 {st['attacks_unresolved']} · 정직 참여 순편익 부호(가설 단위) "
+          + " ".join(f"{p}:{'+' if v else '-'}" for p, v in inc["parametric"]["honest_net_positive"].items()))
     print(f"written: {out / 'results.json'}, {out / 'summary.json'}, {out / 'log-export-S01.json'}")
     return 0
 
