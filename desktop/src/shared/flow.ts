@@ -74,8 +74,8 @@ export function eqFromEquations(equations: Record<string, any>): Record<string, 
 export const labelsToEq = (labels: HopLabel[]): Record<string, EqInfo> => Object.fromEntries(labels.map(l => [CHECK_SLOT[l.id] || l.id, {result: l.result, title: l.tail}]));
 
 // ---------- 기하 (원안 그대로) ----------
-interface Geo { posA: PosMap; posB: PosMap | null; lt: number; axisA: Axis; axisB: Axis | null; open: Record<NodeKey, boolean> }
-const freshGeo = (): Geo => ({posA: LAYOUTS.dagre.pos, posB: null, lt: 1, axisA: 'h', axisB: null, open: {U: true, R: true, M: true, T: true}});
+interface Geo { posA: PosMap; posB: PosMap | null; lt: number; axisA: Axis; axisB: Axis | null; open: Record<NodeKey, boolean>; h: Partial<Record<NodeKey, number>> }
+const freshGeo = (): Geo => ({posA: LAYOUTS.dagre.pos, posB: null, lt: 1, axisA: 'h', axisB: null, open: {U: true, R: true, M: true, T: true}, h: {}});
 function gPos(g: Geo): PosMap {
   if (!g.posB) return g.posA;
   const f = APPLE(g.lt), out = {} as PosMap;
@@ -83,7 +83,8 @@ function gPos(g: Geo): PosMap {
   return out;
 }
 const gAxis = (g: Geo): Axis => g.posB ? (g.lt < .5 ? g.axisA : g.axisB!) : g.axisA;
-const nodeH = (g: Geo, id: NodeKey) => g.open[id] ? HEAD + NODE_DEF[id].rows.length * ROWH + 11 : HEAD;
+// CSS 가 정하는 실제 높이(측정값)가 우선이고, 상수는 첫 렌더 전의 추정값이다. 포트(%)·엣지·라벨이 모두 같은 높이를 보게 된다.
+const nodeH = (g: Geo, id: NodeKey) => g.h[id] ?? (g.open[id] ? HEAD + NODE_DEF[id].rows.length * ROWH + 11 : HEAD);
 function anchor(g: Geo, id: NodeKey, side: 'r' | 'l' | 't' | 'b', frac: number): Pt {
   const p = gPos(g)[id], h = nodeH(g, id);
   if (side === 'r') return [p[0] + NW, p[1] + h * frac];
@@ -91,11 +92,11 @@ function anchor(g: Geo, id: NodeKey, side: 'r' | 'l' | 't' | 'b', frac: number):
   if (side === 't') return [p[0] + NW * frac, p[1]];
   return [p[0] + NW * frac, p[1] + h];
 }
-function ends(g: Geo, a: NodeKey, b: NodeKey, frac: number): [Pt, Pt] {
+function ends(g: Geo, a: NodeKey, b: NodeKey, frac: number, inset = 0): [Pt, Pt] {
   const ax = gAxis(g), pa = gPos(g)[a], pb = gPos(g)[b];
-  if (ax === 'h') { const fwd = pb[0] >= pa[0]; return [anchor(g, a, fwd ? 'r' : 'l', frac), anchor(g, b, fwd ? 'l' : 'r', frac)]; }
-  const down = pb[1] >= pa[1];
-  return [anchor(g, a, down ? 'b' : 't', frac), anchor(g, b, down ? 't' : 'b', frac)];
+  if (ax === 'h') { const fwd = pb[0] >= pa[0]; const q = anchor(g, b, fwd ? 'l' : 'r', frac); return [anchor(g, a, fwd ? 'r' : 'l', frac), [q[0] + (fwd ? -inset : inset), q[1]]]; }
+  const down = pb[1] >= pa[1]; const q = anchor(g, b, down ? 't' : 'b', frac);
+  return [anchor(g, a, down ? 'b' : 't', frac), [q[0], q[1] + (down ? -inset : inset)]];
 }
 function smoothstep(x1: number, y1: number, x2: number, y2: number, axis: Axis): string {
   const r = 14;
@@ -172,7 +173,7 @@ function mapWorldHtml(d: FlowData, g: Geo, sel: string | null, t = Infinity, pla
   const res = (id: string) => (d.eq[id] || {}).result || 'not_evaluable';
   const title = (id: string) => d.rowTitle?.[id] || EQ_TITLE[id] || '';
   const idl = (id: string) => d.rowId?.[id] || id;  // 검사 모드에서는 등식 번호를 보이지 않는다
-  const mkFlow = (id: string, a: NodeKey, b: NodeKey, frac: number) => { const [p, q] = ends(g, a, b, frac), r = res(id);
+  const mkFlow = (id: string, a: NodeKey, b: NodeKey, frac: number) => { const [p, q] = ends(g, a, b, frac, 6), r = res(id);  // 화살촉이 포트 원(반지름 ~5px) 앞에서 멈춘다
     return {id, d: smoothstep(p[0], p[1], q[0], q[1], ax), color: colOf(r), dash: 'none', marker: `url(#${key}-ar)`, res: r, mid: [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2] as Pt, ev: ''}; };
   const edges = [mkFlow('E2', 'U', 'R', .3), mkFlow('E3', 'R', 'M', .3), mkFlow('E6', 'M', 'R', .72), mkFlow('E7', 'R', 'U', .72)];
   { const [p, q] = clipLine(g, 'U', 'M'), r = res('E10'), my = Math.max(p[1], q[1]) + 190;
@@ -274,6 +275,7 @@ export class FlowCanvas {
   }
   fit() {
     const r = this.canvas.getBoundingClientRect(), w = this.worldSize(); if (r.width <= 0) return;
+    if (this.view === 'map' && this.measure()) this.renderWorld(); // 접힌 채 그려진 지도가 처음 보일 때 실제 높이로 맞춘다
     const k = Math.max(.2, Math.min(1.6, Math.min(r.width / w.w, r.height / w.h) * 0.94));
     this.vp = {k, x: (r.width - w.w * k) / 2, y: (r.height - w.h * k) / 2}; this.apply();
   }
@@ -287,8 +289,18 @@ export class FlowCanvas {
     const wx = (cx - r.left - offx) / k, wy = (cy - r.top - offy) / k;
     this.vp = {k: this.vp.k, x: c.width / 2 - wx * this.vp.k, y: c.height / 2 - wy * this.vp.k}; this.apply();
   }
+  // 노드 높이는 CSS 가 정한다. 그린 뒤 실제 높이를 읽어 기하에 반영해야 포트·엣지·라벨이 같은 상자를 본다.
+  private measure(): boolean {
+    let changed = false;
+    this.world.querySelectorAll<HTMLElement>('.fcnode[data-node]').forEach(n => {
+      const id = n.dataset.node as NodeKey, h = n.offsetHeight;
+      if (h > 0 && Math.abs((this.g.h[id] ?? -1) - h) > .5) { this.g.h[id] = h; changed = true; }
+    });
+    return changed;
+  }
   private renderWorld() {
     this.world.innerHTML = this.view === 'sm' ? smWorldHtml(this.d) : mapWorldHtml(this.d, this.g, this.sel, this.t, this.playing);
+    if (this.view === 'map' && this.measure()) this.world.innerHTML = mapWorldHtml(this.d, this.g, this.sel, this.t, this.playing);
     const ms = this.$('[data-fc-minishapes]'); if (ms) ms.innerHTML = miniShapesHtml(this.d, this.g, this.view);
     const W = this.worldSize(), svg = this.$('[data-fc-minisvg]'), mv = this.$('[data-fc-miniview]');
     if (svg) svg.setAttribute('viewBox', `0 0 ${W.w} ${W.h}`); if (mv) { mv.setAttribute('width', String(W.w)); mv.setAttribute('height', String(W.h)); }
