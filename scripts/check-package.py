@@ -18,12 +18,18 @@ import sys
 from importlib.resources import files
 
 sys.path.insert(0, sys.argv[1])
-for name in ("itx.cose", "itx.keys", "itx.cli.runtime", "itx.runtime.desktop", "itx.sim.parties"):
+for name in ("itx.cose", "itx.keys", "itx.cli.runtime", "itx.runtime.desktop", "itx.sim.parties",
+             "itx.runtime.common", "itx.runtime.common.configuration", "itx.runtime.common.identity",
+             "itx.runtime.common.primitives", "itx.runtime.common.protection", "itx.runtime.common.storage"):
     module = importlib.import_module(name)
     assert sys.argv[1] in module.__file__, module.__file__
 from itx.report import build_report
 from itx.report.html import stylesheet
 from itx.sim.parties import Relay, ThirdParty, User
+from itx.runtime.common import Store, ProcessLock, load_config, authenticate, seal, unseal
+from itx.runtime.common.storage import Store as StorageStore
+assert Store is StorageStore
+assert all(callable(value) for value in (ProcessLock, load_config, authenticate, seal, unseal))
 
 html = build_report({"results": [], "summary": {}, "scenarios": [], "q1_matrix": []})
 for name in ("tokens.css", "console.css"):
@@ -41,7 +47,8 @@ def main() -> int:
     with zipfile.ZipFile(wheel) as archive:
         names = set(archive.namelist())
         for required in ("itx/cose/__init__.py", "itx/keys/__init__.py", "itx/sim/parties/user.py",
-                         "itx/runtime/desktop/ipc.py", "itx/ui/tokens.css", "itx/ui/console.css",
+                         "itx/runtime/desktop/ipc.py", "itx/runtime/common/__init__.py",
+                         "itx/runtime/common/storage.py", "itx/ui/tokens.css", "itx/ui/console.css",
                          "itx/report/assets/report.html", "itx/report/assets/report.js", "itx/report/assets/report.css"):
             if required not in names:
                 raise ValueError(f"wheel is missing {required}")
