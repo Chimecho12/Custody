@@ -21,10 +21,20 @@
   --glass-blur:16px;
   --sans:"IBM Plex Sans KR","Pretendard","Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,Consolas,"Malgun Gothic",monospace;
-  --sidebar-w:224px;--header-h:52px;
+  --sidebar-w:224px;--header-h:48px;
+  /* 워크벤치 치수·간격·모서리 — 컴포넌트가 스스로 높이를 정하지 않도록 셸이 고정한다 (itx/ui/workbench.css 가 쓴다). */
+  --inspector-w:360px;--panel-head-h:36px;--control-h:28px;--control-h-lg:32px;--row-h:30px;
+  --space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:24px;--space-6:32px;
+  --radius-sm:4px;--radius-md:6px;--radius-lg:8px;--radius-pill:999px;
+  --z-notice:16;--z-appbar:20;--z-sidebar:30;--z-tooltip:40;
+  /* 그림자는 실제로 떠 있는 면에만: 앱바(raise), 툴팁·알림(overlay). 패널에는 쓰지 않는다. 초점 링은 accent 아웃라인에 겹친다. */
+  --shadow-raise:0 1px 2px rgba(0,0,0,.06);--shadow-overlay:0 8px 24px -6px rgba(0,0,0,.12);--focus-ring:0 0 0 3px var(--accent-glow);
   /* 모션: 인과를 보이는 데만 쓴다. 길이는 세 단계, 곡선은 Apple 표준 감속 하나로 고정한다. */
   --dur-1:110ms;--dur-2:200ms;--dur-3:320ms;
   --ease-apple:cubic-bezier(.16,1,.3,1);--ease-out:var(--ease-apple);--ease-in-out:cubic-bezier(.4,0,.2,1);
+  --ease-standard:var(--ease-apple);--ease-inout:var(--ease-in-out);
+  /* 글꼴 스택은 여기 한 곳에만 둔다. 컴포넌트 CSS 는 이 별칭만 쓴다. */
+  --font-sans:var(--sans);--font-mono:var(--mono);
   color-scheme:light;
 }
 @media (prefers-color-scheme: dark){
@@ -39,6 +49,7 @@
     --shadow-sm:0 1px 2px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.05);
     --shadow-md:0 4px 20px -2px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.08);
     --shadow-lg:0 16px 40px -4px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.1);
+    --shadow-raise:0 1px 2px rgba(0,0,0,.4);--shadow-overlay:0 16px 40px -4px rgba(0,0,0,.6);
     color-scheme:dark;
   }
 }
@@ -53,5 +64,6 @@
   --shadow-sm:0 1px 2px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.05);
   --shadow-md:0 4px 20px -2px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.08);
   --shadow-lg:0 16px 40px -4px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.1);
+  --shadow-raise:0 1px 2px rgba(0,0,0,.4);--shadow-overlay:0 16px 40px -4px rgba(0,0,0,.6);
   color-scheme:dark;
 }
