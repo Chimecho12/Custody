@@ -30,5 +30,6 @@ export default defineConfig({
   plugins: [previewData()],
   clearScreen: false,
   // src/styles/app.css imports the packaged itx/ui styles also used by the report.
-  server: { fs: { allow: ['..'] } },
+  // tauri dev 가 같은 트리에서 cargo 를 돌리므로 Rust 산출물은 감시하지 않는다 (Windows 에서 EBUSY 로 vite 가 죽는다).
+  server: { fs: { allow: ['..'] }, watch: { ignored: ['**/src-tauri/**'] } },
 });
