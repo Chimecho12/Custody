@@ -17,13 +17,14 @@ const ref = (path: string, cls: string, inner: string, title = '') =>
 
 export function renderAudit(root: HTMLElement, a: Data) {
   root.innerHTML = `${summaryHtml(a)}
-    <div class="audit-split">
-      <div class="audit-canvas">
+    <div class="itx-workbench itx-workbench--wide audit-split">
+      <section class="itx-panel"><div class="itx-panel-head mono-label">Diagram<span class="itx-spacer"></span><span class="itx-panel-meta mono-meta">요소를 누르면 오른쪽 JSON 의 근거 위치로 이동합니다</span></div>
+      <div class="itx-panel-body audit-canvas">
         <h3>1. 머클 트리 헤드 · 체크포인트 앵커</h3>${bridgeHtml(a)}
         <h3>2. 요청별 판정 대조 — T 가 등록한 판정 vs 감사자의 독립 재계산</h3>${comparatorHtml(a)}
         ${problemsHtml(a)}
-      </div>
-      <div class="audit-json">
+      </div></section>
+      <section class="itx-panel audit-json">
         <div class="json-toolbar">
           <input type="search" class="json-search" placeholder="키·값·경로 검색 (예: recomputed_root, E10, failed)" aria-label="JSON 검색">
           <button type="button" class="quiet" data-json-only-bad title="불일치·결손 경로만 남긴다">불일치 항목만 보기</button>
@@ -32,7 +33,7 @@ export function renderAudit(root: HTMLElement, a: Data) {
           <button type="button" class="quiet" data-json-copy title="전체 JSON 을 클립보드로">전체 복사</button>
         </div>
         <div class="json-tree" data-json-root>${jsonNode(a, '', null, true)}</div>
-      </div>
+      </section>
     </div>`;
   wire(root, a);
 }
@@ -56,7 +57,10 @@ export function auditCardsHtml(a: Data): string {
     {k: '목격자 독립성', v: '관측 불가', n: esc(a.witness_scope || '별도 운영 목격자 없음 — 분기 탐지 성립 안 함'), tone: 'na'},
   ];
   const glyph = (t: string) => t === 'pass' ? '✓' : t === 'fail' ? '✗' : '–';
-  return cards.map(c => `<div class="v3-stat ${c.tone}"><div class="k">${c.k}</div><div class="v ${c.tone}"><span class="g">${glyph(c.tone)}</span><span>${c.v}</span></div><div class="n">${c.n}</div></div>`).join('');
+  const word: Record<string, string> = {pass: '통과', fail: '불일치', na: '평가 불가'};
+  // 통계 카드를 패널 머리 아래의 값 다섯 줄로 접는다. 지표는 하나도 빼지 않는다.
+  return `<section class="itx-panel"><div class="itx-panel-head mono-label">Witness Summary<span class="itx-spacer"></span><span class="itx-panel-meta mono-meta">트리 헤드 · 앵커 · 전수 검사 · 보관 영수증 · 목격자 독립성</span></div>
+    <div class="itx-kv itx-kv--wide">${cards.map(c => `<div class="itx-kv-row"${c.tone === 'na' ? ' data-absent' : ''}><span class="itx-kv-k mono-meta">${c.k}</span><span class="itx-kv-v ui-body"><b class="ui-body-strong">${c.v}</b><span class="ui-caption muted"> — ${c.n}</span></span><span class="itx-chip mono-meta" data-tone="${c.tone}">${glyph(c.tone)} ${word[c.tone]}</span></div>`).join('')}</div></section>`;
 }
 
 // 보관 영수증 포함 검사 (RFC 9162 §11.3). 트리·헤드·앵커는 "보여 준 자료가 일관적인가" 만 답하고,
@@ -83,12 +87,11 @@ function summaryHtml(a: Data): string {
     ['불일치 요청', `${(a.verdict_mismatches || []).length}건`, 'verdict_mismatches'],
     ['보관 영수증 포함', a.held_receipts ? `${a.held_receipts.included ?? 0}/${a.held_receipts.held ?? 0}건 · 누락 ${(a.held_receipts.missing || []).length}건` : '—', 'held_receipts'],
   ];
-  return `<div class="audit-summary">
-    <span class="badge ${ok ? 'green' : 'red'}">${esc(label)}</span>
-    <span class="small muted">검사기 ${esc(a.auditor_checker_version || '—')} · 범위 ${esc(a.audit_scope || '—')} · ${esc(a.witness_scope || '')}</span>
+  return `<section class="itx-panel"><div class="itx-panel-head mono-label">Audit Result<span class="badge ${ok ? 'green' : 'red'}">${esc(label)}</span><span class="itx-spacer"></span><span class="itx-panel-meta mono-meta">검사기 ${esc(a.auditor_checker_version || '—')} · 범위 ${esc(a.audit_scope || '—')} · ${esc(a.witness_scope || '')}</span></div>
+    <div class="itx-panel-body audit-summary">
     <div class="stat-row">${stats.map(([k, v, p]) => ref(p, 'stat', `<small>${esc(k)}</small><strong>${esc(v)}</strong>`)).join('')}</div>
-    <p class="field-help">${a.previous_checkpoint ? '이전에 사용자 PC에 보관한 체크포인트와 비교했습니다.' : '첫 체크포인트입니다. 다음 감사부터 이전 이력과 비교합니다.'} 왼쪽 요소를 누르면 오른쪽 JSON 의 근거 위치로 이동하고, JSON 줄에 커서를 올리면 왼쪽의 대응 요소가 표시됩니다.</p>
-  </div>`;
+    <p class="itx-help itx-prose">${a.previous_checkpoint ? '이전에 사용자 PC에 보관한 체크포인트와 비교했습니다.' : '첫 체크포인트입니다. 다음 감사부터 이전 이력과 비교합니다.'} 왼쪽 요소를 누르면 오른쪽 JSON 의 근거 위치로 이동하고, JSON 줄에 커서를 올리면 왼쪽의 대응 요소가 표시됩니다.</p>
+  </div></section>`;
 }
 
 // ---------- 1. 헤드 대조 · 잎 리본 · 앵커 핀 ----------

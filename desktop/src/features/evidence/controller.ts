@@ -10,9 +10,10 @@ export function renderBundle(data: Data) {
     ['배포 이력 · 배포 묶음', 'deployment_history', data.deployment_hash ? `배포 지문 ${String(data.deployment_hash).slice(0, 12)}…` : '실험실 — 배포 묶음 없음', data.deployment_hash ? 'ok' : 'partial'],
   ];
   const STATE: Record<string, [string, string]> = {ok: ['포함', 'pass'], partial: ['조건부 · 모사', 'warn'], absent: ['결손 — 사실과 함께 반출', 'na']};
-  get('bundle-items').innerHTML = items.map(([title, key, note, state]) => `<div class="v3-bundle-row${state === 'absent' ? ' absent' : ''}">
-      <span class="v3-bundle-mark ${STATE[state][1]}">${state === 'ok' ? '✓' : state === 'partial' ? '!' : '–'}</span>
-      <span class="t"><b>${title}</b><span class="mono muted">${key}</span></span><span class="n">${note}</span><span class="mono ${STATE[state][1]}">${STATE[state][0]}</span></div>`).join('');
+  get('bundle-items').innerHTML = items.map(([title, key, note, state]) => `<div class="itx-kv-row"${state === 'absent' ? ' data-absent' : ''}>
+      <span class="itx-kv-k mono-meta">${key}</span>
+      <span class="itx-kv-v ui-body"><b class="ui-body-strong">${title}</b><span class="ui-caption muted"> — ${note}</span></span>
+      <span class="itx-chip mono-meta" data-tone="${STATE[state][1]}">${state === 'ok' ? '✓' : state === 'partial' ? '!' : '–'} ${STATE[state][0]}</span></div>`).join('');
   get('bundle-meta').textContent = `공개 패키지 ${items.filter(i => i[3] === 'ok').length}항목 확정 · 검증 명령과 결손 목록을 담은 README 가 함께 나갑니다`;
 }
 

@@ -15,7 +15,7 @@ export function badge(text: string, tone = '') { return el('span', 'badge ' + to
 export function color(state: string) { return state === 'accept' ? 'green' : ['quarantine', 'reject', 'reject_timeout', 'error'].includes(state) ? 'red' : 'amber'; }
 export function pretty(value: unknown) { const pre = el('pre'); pre.textContent = JSON.stringify(value, null, 2); return pre; }
 export function details(label: string, value: unknown) { const item = el('details'); item.append(el('summary', '', label), pretty(value)); return item; }
-export function button(text: string, action: () => void, className = 'v3-btn') {
+export function button(text: string, action: () => void, className = 'itx-btn') {
   const b = el('button', className, text) as HTMLButtonElement; b.type = 'button'; b.onclick = action; return b;
 }
 

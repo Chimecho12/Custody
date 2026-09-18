@@ -30,9 +30,14 @@ export async function bootstrap() {
   const keys = new KeysView(get('view-keys'), call, fail);
   async function showView(name: string) {
     for (const node of document.querySelectorAll<HTMLElement>('.view')) node.hidden = node.id !== 'view-' + name;
-    for (const node of document.querySelectorAll<HTMLButtonElement>('nav button')) node.classList.toggle('selected', node.dataset.view === name);
+    for (const node of document.querySelectorAll<HTMLButtonElement>('nav button')) {
+      const on = node.dataset.view === name;
+      node.classList.toggle('selected', on);
+      if (on) node.setAttribute('aria-current', 'page'); else node.removeAttribute('aria-current');
+    }
     get('breadcrumb').textContent = '워크스페이스 / ' + titles[name];
-    window.scrollTo({top: 0, behavior: 'auto'});
+    // 본문만 스크롤하는 셸이다 — 창이 아니라 main 을 맨 위로 올린다.
+    document.querySelector('main')?.scrollTo({top: 0, behavior: 'auto'});
     if (name !== 'request') { request.leave(); }
     if (name === 'history') await history.show();
     if (name === 'settings') await request.updateStatus();
