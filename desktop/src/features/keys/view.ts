@@ -6,6 +6,7 @@ import type { Data } from '../../shared/types';
 //  - 약한 보관처는 fail 이 아니라 **점선 배지 + 경고**다. 로컬 파일 키는 위반이
 //    아니라 운영 위험이고, 그 키로 만든 서명도 암호학적으로는 유효하다.
 //  - 키 계보(생성·회전·폐기)는 판정과 다른 시간축이므로 이 화면에만 둔다.
+// 배치: 인벤토리 표 한 패널, 그 아래 서명 경로 · 계보 두 패널, 마지막에 신뢰 기준점.
 import { esc } from '../../shared/console';
 
 type Filter = 'all' | 'exposed' | 'overdue';
@@ -44,34 +45,26 @@ export class KeysView {
   private render() {
     if (!this.data) return;
     const cur = this.current();
-    this.root.innerHTML = this.headHtml() + this.tableHtml() +
-      `<div class="key-grid">${cur ? this.chainHtml(cur) + this.lineageHtml(cur) : ''}</div>` +
-      this.anchorsHtml();
+    const guideOpen = this.root.querySelector<HTMLElement>('[data-guide-text]')?.hidden === false;
+    this.root.innerHTML = this.headHtml(guideOpen) + `<div class="itx-stack">${this.tableHtml()}
+      <div class="itx-workbench itx-workbench--even">${cur ? this.chainHtml(cur) + this.lineageHtml(cur) : ''}</div>
+      ${this.anchorsHtml()}</div>`;
     this.wire();
   }
 
-  private headHtml(): string {
+  private headHtml(guideOpen: boolean): string {
     const s = this.data!.summary as Data;
-    const cell = (label: string, value: string, tone = '') =>
-      `<div class="std-stat"><div class="k">${label}</div><div class="v ${tone}">${value}</div></div>`;
-    return `<div class="std-head">
-      <div class="std-head-text">
-        <div class="v3-meta">운영</div>
-        <h1>사설키가 이 기계 밖으로 나가는가</h1>
-        <p>${esc(this.data!.note)}</p>
-      </div>
-      <div class="std-stats">
-        ${cell('평문 노출 없음', `${s.sealed}<span class="of">/${s.total}</span>`, 'pass')}
-        ${cell('메모리 평문', String(s.exposed), Number(s.exposed) ? 'warn' : 'na')}
-        ${cell('회전 기한 초과', String(s.overdue), Number(s.overdue) ? 'warn' : 'na')}
-      </div>
-    </div>`;
+    return `<div class="itx-view-head"><h1 class="ui-title">키 · 신뢰 기준점</h1>
+      <span class="itx-view-meta mono-meta">평문 노출 없음 ${s.sealed} / ${s.total} · 메모리 평문 ${s.exposed} · 회전 기한 초과 ${s.overdue}</span>
+      <button class="itx-guide-btn${guideOpen ? ' on' : ''}" type="button" data-guide="keys" title="이 화면 설명" aria-expanded="${guideOpen}">ⓘ</button></div>
+      <p class="itx-guide-panel itx-prose" data-guide-text="keys"${guideOpen ? '' : ' hidden'}>사설키가 이 기계 밖으로 나가는가 — ${esc(this.data!.note)}</p>`;
   }
 
   private tableHtml(): string {
+    const s = this.data!.summary as Data;
     const filters: [Filter, string][] = [['all', '전체'], ['exposed', '평문 노출'], ['overdue', '기한 초과']];
     const pills = filters.map(([k, label]) =>
-      `<button type="button" class="pill${this.state.filter === k ? ' on' : ''}" data-filter="${k}">${label}</button>`).join('');
+      `<button type="button" class="pill${this.state.filter === k ? ' on' : ''}" aria-pressed="${this.state.filter === k}" data-filter="${k}">${label}</button>`).join('');
     const keys = ((this.data!.keys ?? []) as Data[]).filter(k =>
       this.state.filter === 'all' ? true
         : this.state.filter === 'exposed' ? k.exposed : Number(k.overdue_days) > 0);
@@ -80,8 +73,8 @@ export class KeysView {
       const days = Number(k.rotation_days), max = Number(k.rotation_max) || 90;
       const width = Math.min(100, days / max * 100).toFixed(1);
       const rot = !days ? '기록 없음' : over ? `기한 +${k.overdue_days}일 초과` : `${days} / ${max}일`;
-      return `<div class="key-row${k.role === this.state.sel ? ' sel' : ''}" data-role="${esc(k.role)}" tabindex="0">
-        <span class="role-badge">${esc(k.role)}</span>
+      return `<div class="key-row${k.role === this.state.sel ? ' sel' : ''}" data-role="${esc(k.role)}" tabindex="0"${k.role === this.state.sel ? ' aria-selected="true"' : ''}>
+        <span class="itx-role${k.role === 'T' ? ' t' : ''}">${esc(k.role)}</span>
         <span class="id"><b class="mono">${esc(k.kid)}</b><span class="mono na">${esc(k.purpose)}</span></span>
         <span class="store"><span class="store-badge${k.exposed ? ' weak' : ''}">${esc(k.store_label)}</span></span>
         <span class="exposure">
@@ -93,14 +86,17 @@ export class KeysView {
         <span class="signs mono na">${k.sign_count || '—'}</span>
       </div>`;
     }).join('');
-    return `<section class="card std-card">
-      <div class="std-card-head"><b>서명 키 인벤토리</b>
-        <span class="small muted">행을 누르면 아래 계보 · 서명 경로가 그 키로 바뀝니다</span>
-        <span class="std-tabs">${pills}</span></div>
+    // 통계 3칸은 패널 머리의 칩으로 접는다.
+    const stats = `<span class="itx-chip" data-tone="pass" title="평문 노출 없음">✓ ${s.sealed}<span class="muted">/${s.total}</span></span><span class="itx-chip" data-tone="${Number(s.exposed) ? 'warn' : 'na'}" title="메모리 평문">! ${s.exposed}</span><span class="itx-chip" data-tone="${Number(s.overdue) ? 'warn' : 'na'}" title="회전 기한 초과">↻ ${s.overdue}</span>`;
+    return `<section class="itx-panel">
+      <div class="itx-panel-head mono-label">Key Inventory${stats}<span class="itx-spacer"></span>
+        <span class="itx-panel-meta mono-meta">행을 누르면 아래 계보 · 서명 경로가 그 키로 바뀝니다</span>
+        <div class="itx-seg" role="group" aria-label="키 필터">${pills}</div></div>
       <div class="key-table">
         <div class="key-head"><span></span><span>키 식별자</span><span>보관처</span><span>평문 노출</span><span>회전</span><span class="r">서명 건수</span></div>
         ${rows || '<div class="std-absent">이 조건에 맞는 키가 없습니다.</div>'}
       </div>
+      <div class="itx-panel-foot mono-meta"><span>약한 보관처는 점선입니다 — 위반이 아니라 운영 위험이므로 판정 색을 쓰지 않습니다.</span></div>
     </section>`;
   }
 
@@ -115,9 +111,9 @@ export class KeysView {
         ${i < all.length - 1 ? '<span class="arrow mono">→</span>' : ''}
       </div>`).join('');
     const ms = Number(k.round_trip_ms);
-    return `<section class="card std-card">
-      <div class="std-card-head"><span class="role-badge">${esc(k.role)}</span>
-        <b>원격 서명 경로</b><span class="mono na">${esc(k.kid)}</span></div>
+    return `<section class="itx-panel">
+      <div class="itx-panel-head"><span class="itx-role${k.role === 'T' ? ' t' : ''}">${esc(k.role)}</span>
+        <span class="itx-panel-title ui-subtitle">원격 서명 경로</span><span class="itx-spacer"></span><span class="itx-panel-meta mono-meta">${esc(k.kid)}</span></div>
       <div class="key-chain">${chain}</div>
       <div class="key-boundary ${k.exposed ? 'weak' : 'strong'}">${esc(k.boundary)}</div>
       <div class="key-latency">
@@ -146,9 +142,9 @@ export class KeysView {
         </span>
       </div>`;
     }).join('');
-    return `<section class="card std-card">
-      <div class="std-card-head"><b>키 계보</b>
-        <span class="small muted">생성 · 회전 · 폐기 — 요청 판정과 다른 시간축</span></div>
+    return `<section class="itx-panel">
+      <div class="itx-panel-head"><span class="itx-panel-title ui-subtitle">키 계보</span><span class="itx-spacer"></span>
+        <span class="itx-panel-meta mono-meta">생성 · 회전 · 폐기 — 요청 판정과 다른 시간축</span></div>
       <div class="key-lineage">${rows}</div>
     </section>`;
   }
@@ -162,9 +158,9 @@ export class KeysView {
         <div class="rows">${((a.rows ?? []) as [string, string][]).map(([key, value]) =>
           `<div><span class="mono na">${esc(key)}</span><span class="mono">${esc(value)}</span></div>`).join('')}</div>
       </div>`).join('');
-    return `<section class="card std-card">
-      <div class="std-card-head"><b>신뢰 기준점</b>
-        <span class="small muted">U 가 무엇을 근거로 상대 키를 믿는가 — 이 목록이 판정 전체의 뿌리입니다</span></div>
+    return `<section class="itx-panel">
+      <div class="itx-panel-head"><span class="itx-panel-title ui-subtitle">신뢰 기준점</span><span class="itx-spacer"></span>
+        <span class="itx-panel-meta mono-meta">U 가 무엇을 근거로 상대 키를 믿는가 — 이 목록이 판정 전체의 뿌리입니다</span></div>
       <div class="key-anchors">${cards}</div>
     </section>`;
   }

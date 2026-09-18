@@ -12,8 +12,9 @@ export function createHistory(call: AgentCall, onInspect: (record: Data) => void
     {key: 'verdict', label: '검증 결과', options: [['all', '전체'], ['pass', '통과'], ['fail', '실패'], ['na', '판정 없음']]},
   ];
   function renderHistoryFilters() {
-    get('history-filters').innerHTML = FILTERS.map(f => `<div class="v3-filter"><div class="v3-label">${f.label}</div><div class="v3-pills">${f.options.map(([v, label]) =>
-      `<button type="button" class="pill${historyFilter[f.key] === v ? ' on' : ''}" data-filter="${f.key}" data-value="${v}">${label}</button>`).join('')}</div></div>`).join('');
+    // 네 축(요청 ID · 기간 · 집행 정책 · 검증 결과)은 전부 실제 조사에서 쓰인다. 줄을 바꿀 뿐 축을 감추지 않는다.
+    get('history-filters').innerHTML = FILTERS.map(f => `<span class="itx-filter-label">${f.label}</span><div class="itx-seg" role="group" aria-label="${f.label}">${f.options.map(([v, label]) =>
+      `<button type="button" class="${historyFilter[f.key] === v ? 'on' : ''}" aria-pressed="${historyFilter[f.key] === v}" data-filter="${f.key}" data-value="${v}">${label}</button>`).join('')}</div>`).join('');
   }
   get('history-filters').addEventListener('click', e => {
     const b = (e.target as HTMLElement).closest<HTMLElement>('[data-filter]'); if (!b) return;
@@ -35,7 +36,7 @@ export function createHistory(call: AgentCall, onInspect: (record: Data) => void
     target.replaceChildren();
     if (!historyCache.length) { target.append(el('div', 'empty', '저장된 요청이 없습니다.')); return; }
     if (!rows.length) { target.append(el('div', 'empty', '조건에 맞는 사건이 없습니다. 필터를 초기화해 보세요.')); return; }
-    const wrap = el('div', 'table-wrap'), table = el('table', 'history-table v3-table'), head = el('tr');
+    const wrap = el('div', 'table-wrap'), table = el('table', 'itx-table history-table'), head = el('tr');
     for (const title of ['요청 ID · 시각', '정책', '실험 조건', '검증 결과', '응답 공개', '집행', 'T 판정', '소요', '']) head.append(el('th', '', title)); table.append(head);
     const VERDICT_KO: Record<string, string> = {pass: '검증 통과', fail: '검증 실패', na: '판정 없음', wait: '진행 중'};
     const GLYPH: Record<string, string> = {pass: '✓', fail: '✗', na: '–', wait: '…'};

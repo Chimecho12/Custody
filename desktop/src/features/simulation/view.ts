@@ -104,7 +104,7 @@ export class ReportView {
     if (force) this.runs.clear();
     this.loading = true;
     const status = this.$('rpt-status'); status.hidden = false;
-    status.innerHTML = `<div class="busybar"></div><div class="empty-glyph">⊞</div><h3>17개 시나리오 × 3개 정책을 실행하는 중</h3><p>결정적 모형 모델과 시뮬레이션 시계로 51회 실행과 Q1 매트릭스 20회를 계산합니다.</p>`;
+    status.innerHTML = `<div class="busybar"></div><span class="itx-empty-mark">⊞</span><span class="itx-empty-title">17개 시나리오 × 3개 정책을 실행하는 중</span><span class="itx-empty-note">결정적 모형 모델과 시뮬레이션 시계로 51회 실행과 Q1 매트릭스 20회를 계산합니다.</span>`;
     const button = this.$<HTMLButtonElement>('rpt-run'); button.disabled = true;
     try {
       this.matrix = await this.call('simulation_matrix');
@@ -113,7 +113,7 @@ export class ReportView {
       this.renderBadges(); this.renderCards(); this.renderSummary(); this.renderMatrix(); this.renderQ1(); this.renderContribution(); this.renderUncertainty();
       await this.onSelectionChanged();
     } catch (e) {
-      status.innerHTML = `<div class="empty-glyph">✗</div><h3>참조 시나리오를 실행하지 못했습니다</h3><p>${esc(e instanceof Error ? e.message : e)}</p>`;
+      status.innerHTML = `<span class="itx-empty-mark">✗</span><span class="itx-empty-title">참조 시나리오를 실행하지 못했습니다</span><span class="itx-empty-note">${esc(e instanceof Error ? e.message : e)}</span>`;
       this.fail(e);
     } finally { this.loading = false; button.disabled = false; }
   }
@@ -147,11 +147,11 @@ export class ReportView {
       const expected = tone === 'pass' ? '통과' : tone === 'fail' ? '실패' : esc(r.verification_status || '판정 없음');
       const gt = sc.ground_truth || {};
       const note = gt.attack_present ? (gt.detectable_by_evidence ? '공격 있음 · 증거로 탐지' : '공격 있음 · 증거로 탐지 불가') : '공격 없음';
-      return `<div class="v3-scen${sc.id === this.cur.sid ? ' on' : ''}" data-scen-card="${esc(sc.id)}">
-        <div class="h"><b>${esc(sc.id)}</b><span class="cat">${esc(String(sc.category || '기타'))}</span><span class="exp ${tone}">${glyph} ${expected}</span></div>
+      return `<div class="itx-scen${sc.id === this.cur.sid ? ' on' : ''}" data-scen-card="${esc(sc.id)}">
+        <div class="h"><b>${esc(sc.id)}</b><span class="itx-chip">${esc(String(sc.category || '기타'))}</span><span class="itx-chip exp" data-tone="${tone}">${glyph} ${expected}</span></div>
         <div class="ti">${esc(sc.title)}</div>
         <div class="bd">${note} · 완전성 ${esc(r.completeness || '—')} · 게이트 ${esc(r.gate_action || '—')}${(r.codes || []).length ? ' · ' + (r.codes as string[]).map(esc).join(', ') : ''}</div>
-        <div class="ft"><button type="button" class="v3-btn" data-jump="${esc(sc.id)}">이 사건 재생</button><span class="mono muted small">3개 정책으로 실행됨</span></div>
+        <div class="ft"><button type="button" class="itx-btn itx-btn--outline" data-jump="${esc(sc.id)}">이 사건 재생</button><span class="mono-meta muted">3개 정책으로 실행됨</span></div>
       </div>`;
     }).join('');
   }
