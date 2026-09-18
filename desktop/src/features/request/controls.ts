@@ -25,7 +25,7 @@ export function nodeControls(ctl: RouteControls | undefined, shown: string | nul
   const nodeMenu: Partial<Record<NodeKey, NodeMenu>> = {
     R: {title: '다음 요청에서 중개자 R 이 할 일', current: ctl.scenario,
         options: R_ACTIONS.map(a => ({value: a.value, label: a.label, hint: SCENARIO_NAMES[a.value] || a.value, disabled: ctl.busy || !ctl.canInject})),
-        note: ctl.canInject ? '실험실 배포에서만 주입된다. 여기서 고른 값은 위 「실험 조건」과 같은 값이다.' : '연결 모드에서는 공격을 주입할 수 없어 정상 경로만 선택된다.'},
+        note: ctl.canInject ? '실험실 배포에서만 주입된다. 여기서 고른 값은 위 「실험 조건」과 같은 값이다.' : '연결 모드에서는 공격을 주입할 수 없어 정상 경로로 고정된다.'},
   };
   if (ctl.tRunning !== null) nodeMenu.T = {title: '독립 제3자 T 의 상태', current: ctl.tRunning ? 'start' : 'stop',
     options: [{value: 'start', label: '정상적으로 판정한다', hint: 'T 서비스 가동', disabled: ctl.busy}, {value: 'stop', label: '멈춘다 (실험)', hint: 'T 서비스를 중단해 protect 와 strict 의 차이를 본다', disabled: ctl.busy}],

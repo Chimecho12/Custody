@@ -68,9 +68,12 @@ export function createRequest(onConnection: (data: Data) => void) {
   get<HTMLSelectElement>('mode').onchange = renderModeCards;
   function renderScenarioPills() {
     const sel = get<HTMLSelectElement>('scenario');
+    // 가시성은 연결 종류로만 정하고 진행 상태와 섞지 않는다. sel.disabled 로 판단하면 실험실에서
+    // 요청이 도는 동안 연결 모드용 안내가 떴다 사라진다. 실행 중 잠금은 pill 의 disabled 로 나타낸다.
+    const canInject = connection?.source === 'network_lab';
     get('scenario-pills').innerHTML = [...sel.options].map(o => `<button type="button" class="pill${sel.value === o.value ? ' on' : ''}" data-scenario="${esc(o.value)}" role="radio" aria-checked="${sel.value === o.value}" title="${esc(o.textContent || '')}"${sel.disabled ? ' disabled' : ''}>${esc(o.textContent || '')}</button>`).join('');
-    get('scenario-help').hidden = !sel.disabled;
-    get('scenario-on-map').hidden = sel.disabled;
+    get('scenario-help').hidden = canInject;
+    get('scenario-on-map').hidden = !canInject;
     renderModeCards();
     route.syncControls();
   }
