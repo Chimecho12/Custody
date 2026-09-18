@@ -4,12 +4,9 @@ const {readFileSync} = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const {test} = require('node:test');
-const ts = require('../desktop/node_modules/typescript');
+const {loadTypeScript} = require('./testing/load-typescript.cjs');
 // 보고서 콘솔의 스크립트. itx/report/html.py 가 이 파일을 그대로 인라인한다.
 const reportScript = readFileSync(path.join(__dirname, '../itx/report/assets/report.js'), 'utf8');
-const source = ts.transpileModule(readFileSync(path.join(__dirname, '../desktop/src/shared/console.ts'), 'utf8'), {
-  compilerOptions: {target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS},
-}).outputText;
 
 class Element {
   constructor(tag = 'div', attributes = {}, children = []) {
@@ -66,8 +63,7 @@ function fixture() {
     addEventListener: (_, callback) => { motionChanged = callback; }})},
     requestAnimationFrame: callback => { frames.set(++serial, callback); return serial; },
     cancelAnimationFrame: id => frames.delete(id)});
-  vm.runInContext(source, context);
-  const api = context.exports;
+  const api = loadTypeScript(path.join(__dirname, '../desktop/src/shared/console'), context);
   const tip = new Element('div', {'data-scrubtip': ''}); tip.hidden = true;
   const box = new Element('div', {'data-scrub': '', role: 'slider'}, [tip]);
   const play = new Element('button', {'data-play': ''});

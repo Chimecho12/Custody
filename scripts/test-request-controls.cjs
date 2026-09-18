@@ -1,16 +1,9 @@
 // 요청 화면의 노드 메뉴 규칙. DOM 없이 순수 함수만 검사한다 — 화면 배치는 다루지 않는다.
 const assert = require('node:assert/strict');
-const {readFileSync} = require('node:fs');
 const path = require('node:path');
 const {test} = require('node:test');
-const ts = require('../desktop/node_modules/typescript');
-
-const source = ts.transpileModule(readFileSync(path.join(__dirname, '../desktop/src/features/request/controls.ts'), 'utf8'),
-  {compilerOptions: {target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS}}).outputText;
-// 같은 realm 에서 불러온다 — 별도 컨텍스트로 만들면 프로토타입이 달라 deepEqual 이 어긋난다.
-const module_ = {exports: {}};
-new Function('module', 'exports', 'require', source)(module_, module_.exports, require);
-const {nodeControls, routeAction} = module_.exports;
+const {loadTypeScript} = require('./testing/load-typescript.cjs');
+const {nodeControls, routeAction} = loadTypeScript(path.join(__dirname, '../desktop/src/features/request/controls'));
 
 const lab = (over = {}) => ({scenario: 'normal', canInject: true, tRunning: true, busy: false, ...over});
 const connected = (over = {}) => ({scenario: 'normal', canInject: false, tRunning: null, busy: false, ...over});
