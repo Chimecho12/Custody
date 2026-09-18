@@ -1,10 +1,10 @@
 import type { Data } from '../../shared/types';
 import { call, native, setAgentOperations } from '../../services/agent';
 import { get, color, notice, fail } from '../../shared/dom';
-import { esc, Playback } from '../../shared/console';
-import { mountFlow, FlowCanvas } from '../../shared/flow';
-import { mountTrace } from '../../shared/trace';
-import { STATE_NAMES, SCENARIO_NAMES, MODES, MapMode, RouteControls, nodeControls, routeCard, idleRouteHtml, summaryHtml, bodyHtml, detailHtml, timelineHtml, releaseLabel } from './view';
+import { esc } from '../../shared/console';
+import { createRequestRoute } from './route';
+import { SCENARIO_NAMES, MODES, type RouteControls } from './controls';
+import { STATE_NAMES, summaryHtml, bodyHtml, detailHtml, timelineHtml, releaseLabel } from './view';
 
 export function createRequest(onConnection: (data: Data) => void) {
   let connection: Data | null = null;
@@ -12,44 +12,31 @@ export function createRequest(onConnection: (data: Data) => void) {
   let liveEvents: Data[] = [];
   let activeToken = '';
   let busy = false;
-  let mapMode: MapMode = 'checks';
+  let changingT = false;
   let fromLog: Data | null = null;   // 사건 기록에서 「조사」로 들어온 경우 — 돌아가기 버튼과 제목이 바뀐다
-  let requestFlow: FlowCanvas | null = null;   // 요청 화면의 홉 지도 캔버스 — 노드 메뉴·표식을 제자리에서 갱신할 때 쓴다
+  const route = createRequestRoute(get('route-map'), get('view-request'),
+    () => ({connection, record: selected, controls: controls()}), action => {
+      if (action.kind === 'scenario') selectScenario(action.value);
+      else void setTRunning(action.running);
+    });
   function setBusy(value: boolean) {
     busy = value;
-    get<HTMLButtonElement>('send').disabled = value || !connection;
+    const locked = value || changingT;
+    get<HTMLButtonElement>('send').disabled = locked || !connection;
     get<HTMLButtonElement>('cancel').disabled = !value;
     get<HTMLButtonElement>('send').textContent = value ? '실행 중…' : '요청 실행 ↗';
     get('run-live').hidden = !value;
-    for (const id of ['connect', 'use-lab', 'lab-t']) get<HTMLButtonElement>(id).disabled = value;
+    for (const id of ['connect', 'use-lab', 'lab-t']) get<HTMLButtonElement>(id).disabled = locked;
+    get<HTMLSelectElement>('scenario').disabled = locked || connection?.source !== 'network_lab';
+    renderScenarioPills();
   }
 
   // ---------- 요청 화면 ----------
-  const requestPlay = new Playback(get('view-request'), 'req');
-  get('route-map').addEventListener('click', e => {
-    const b = (e.target as HTMLElement).closest<HTMLElement>('button[data-map]');
-    if (!b) return;
-    mapMode = b.dataset.map as MapMode; renderRoute();
-  });
-  // 그림이 조작판이 되기 위한 현재 상태. select 와 서비스 상태가 진실이고, 그림은 그것을 보여주는 또 하나의 입력 장치다.
   function controls(): RouteControls {
-    const sel = get<HTMLSelectElement>('scenario');
-    return {scenario: sel.value, canInject: !sel.disabled, tRunning: (connection?.services && native) ? !!connection.services.T?.running : null};
-  }
-  function syncRouteControls() {
-    if (!requestFlow) return;
-    const ctl = controls();
-    const nc = nodeControls(ctl, selected ? (selected.lab_scenario || 'normal') : ctl.scenario, !!selected);
-    requestFlow.setNodeMenu(nc.nodeMenu); requestFlow.setNodeState(nc.nodeState);
-  }
-  function renderRoute() {
-    const root = get('route-map');
-    const ctl = controls();
-    const card = selected ? routeCard(selected, connection, mapMode, ctl) : idleRouteHtml(connection, ctl);
-    root.innerHTML = card.html;
-    requestFlow = mountFlow(root, card.flow, requestPlay); // 캔버스(줌·팬·미니맵·상태 머신)를 붙인 뒤 재생 상태를 넣는다
-    if (card.trace) mountTrace(root, card.trace, requestPlay); // 배너·파이프라인·인스펙터가 같은 시계를 본다
-    requestPlay.set(card.ctx);
+    return {scenario: get<HTMLSelectElement>('scenario').value,
+      canInject: connection?.source === 'network_lab', busy: busy || changingT,
+      tRunning: connection?.source === 'network_lab' && connection.services && native
+        ? !!connection.services.T?.running : null};
   }
   function renderTimeline(record: Data | null) { get('timeline').innerHTML = timelineHtml(record); }
 
@@ -81,33 +68,43 @@ export function createRequest(onConnection: (data: Data) => void) {
   get<HTMLSelectElement>('mode').onchange = renderModeCards;
   function renderScenarioPills() {
     const sel = get<HTMLSelectElement>('scenario');
+    // 가시성은 연결 종류로만 정하고 진행 상태와 섞지 않는다. sel.disabled 로 판단하면 실험실에서
+    // 요청이 도는 동안 연결 모드용 안내가 떴다 사라진다. 실행 중 잠금은 pill 의 disabled 로 나타낸다.
+    const canInject = connection?.source === 'network_lab';
     get('scenario-pills').innerHTML = [...sel.options].map(o => `<button type="button" class="pill${sel.value === o.value ? ' on' : ''}" data-scenario="${esc(o.value)}" role="radio" aria-checked="${sel.value === o.value}" title="${esc(o.textContent || '')}"${sel.disabled ? ' disabled' : ''}>${esc(o.textContent || '')}</button>`).join('');
-    get('scenario-help').hidden = !sel.disabled;
-    get('scenario-on-map').hidden = sel.disabled;
+    get('scenario-help').hidden = canInject;
+    get('scenario-on-map').hidden = !canInject;
     renderModeCards();
-    syncRouteControls();
+    route.syncControls();
   }
-  // 홉 지도의 노드 메뉴에서 고른 값. R 은 실험 조건 select 로, T 는 기존 「실험: T 중단」 버튼으로 흘려보낸다 — 새 경로를 만들지 않는다.
-  get('route-map').addEventListener('flownode', e => {
-    const {node, value} = (e as CustomEvent<{node: string; value: string}>).detail;
-    if (node === 'R') {
-      const sel = get<HTMLSelectElement>('scenario'); if (sel.disabled) return;
-      sel.value = value; renderScenarioPills();
-    } else if (node === 'T') {
-      const b = get<HTMLButtonElement>('lab-t'); if (b.hidden || b.disabled) return;
-      const running = !!connection?.services?.T?.running;
-      if ((value === 'stop') === running) b.click();
-    }
-  });
+  // 지도와 실험 조건 버튼은 같은 선택 경로를 사용한다.
+  function selectScenario(value: string) {
+    const sel = get<HTMLSelectElement>('scenario');
+    if (sel.disabled || ![...sel.options].some(option => option.value === value)) return;
+    sel.value = value;
+    renderScenarioPills();
+  }
+  get<HTMLSelectElement>('scenario').onchange = renderScenarioPills;
   get('scenario-on-map').onclick = () => {
     setDetail(true);
     get('route-map').scrollIntoView({behavior: 'smooth', block: 'start'});
-    requestFlow?.openNodeMenu('R');
+    route.openRelayMenu();
   };
   get('scenario-pills').addEventListener('click', e => {
     const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-scenario]'); if (!b || b.disabled) return;
-    get<HTMLSelectElement>('scenario').value = b.dataset.scenario!; renderScenarioPills();
+    selectScenario(b.dataset.scenario!);
   });
+
+  async function setTRunning(running: boolean) {
+    const ctl = controls();
+    if (ctl.busy || ctl.tRunning === null || ctl.tRunning === running) return;
+    changingT = true; setBusy(busy);
+    try {
+      renderConnection(await call(running ? 'start_t' : 'stop_t'));
+      notice(running ? 'T를 복구했습니다. 대기 증거가 자동으로 재제출됩니다.' : 'T를 중단했습니다. protect와 strict의 동작을 비교할 수 있습니다.');
+    } catch (e) { fail(e); }
+    finally { changingT = false; setBusy(busy); }
+  }
 
   function renderConnection(data: Data) {
     connection = data;
@@ -129,16 +126,13 @@ export function createRequest(onConnection: (data: Data) => void) {
     if (!isLab) scenario.value = 'normal';
     renderScenarioPills();
     const labT = get<HTMLButtonElement>('lab-t');
-    if (data.services && native) {
+    if (isLab && data.services && native) {
       const running = data.services.T.running;
       labT.hidden = false; labT.textContent = running ? '실험: T 중단' : 'T 복구';
-      labT.onclick = async () => {
-        try { renderConnection(await call(running ? 'stop_t' : 'start_t')); notice(running ? 'T를 중단했습니다. protect와 strict의 동작을 비교할 수 있습니다.' : 'T를 복구했습니다. 대기 증거가 자동으로 재제출됩니다.'); }
-        catch (e) { fail(e); }
-      };
+      labT.onclick = () => { void setTRunning(!running); };
     } else labT.hidden = true;
     onConnection(data);
-    renderRoute();
+    route.render();
     setBusy(busy);
   }
   async function updateStatus() { try { renderConnection(await call('status')); } catch (e) { fail(e); } }
@@ -158,12 +152,12 @@ export function createRequest(onConnection: (data: Data) => void) {
       try { const fresh = await call('refresh', {sub}); if (selected?.sub === sub) renderResult(fresh); notice('T 판정을 갱신했습니다. 기존 집행 결과는 바뀌지 않습니다.'); } catch (e) { fail(e); }
     };
     renderTimeline(record);
-    renderRoute();
+    route.render();
     setDetail(true);
   }
   get<HTMLFormElement>('request-form').onsubmit = async event => {
     event.preventDefault();
-    if (busy) return;
+    if (busy || changingT || !connection) return;
     activeToken = crypto.randomUUID();
     fromLog = null; get('back-to-log').hidden = true; get('request-title').textContent = '요청'; get('request-meta').textContent = '';
     setBusy(true); get('notice').hidden = true; liveEvents = []; renderTimeline(null);
@@ -188,17 +182,17 @@ export function createRequest(onConnection: (data: Data) => void) {
   });
   get('cancel').onclick = async () => { try { await call('cancel', {token: activeToken}); notice('취소를 요청했습니다. 원격 호출의 완료 여부와 별개로, 취소가 처리되면 응답을 공개하지 않습니다.'); } catch (e) { fail(e); } };
 
-  get('connect').onclick = async () => { try { renderConnection(await call('connect', {path: get<HTMLInputElement>('config-path').value})); selected = null; renderRoute(); renderTimeline(null); notice('선택한 신뢰 설정으로 연결했습니다. 새 요청부터 적용됩니다.'); } catch (e) { fail(e); } };
+  get('connect').onclick = async () => { try { renderConnection(await call('connect', {path: get<HTMLInputElement>('config-path').value})); selected = null; route.render(); renderTimeline(null); notice('선택한 신뢰 설정으로 연결했습니다. 새 요청부터 적용됩니다.'); } catch (e) { fail(e); } };
   get('use-lab').onclick = async () => { try { renderConnection(await call('lab')); notice('로컬 TLS 실험실로 전환했습니다.'); } catch (e) { fail(e); } };
   return {
-    isBusy: () => busy,
+    isBusy: () => busy || changingT,
     selectedSub: () => selected?.sub ?? '',
     leave: () => { fromLog = null; get('back-to-log').hidden = true; },
     inspect: (record: Data) => { fromLog = record; renderResult(record); },
     updateStatus,
     initialize: () => {
       get('summary').innerHTML = summaryHtml(null);
-      renderModeCards(); renderScenarioPills(); renderRoute(); renderTimeline(null);
+      renderModeCards(); renderScenarioPills(); route.render(); renderTimeline(null);
     },
     progress: (data: Data) => {
       if (data.token !== activeToken) return;

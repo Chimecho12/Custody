@@ -1,14 +1,10 @@
-"""Bounded HTTPS evaluation services. One process and persistent store per role."""
+"""Role operations and signed evidence, independent of HTTP and model providers."""
 from __future__ import annotations
 
 import argparse
-import json
 import os
-import ssl
-import sys
 import threading
 import time
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from itx.crypto import canonical_json, content_hash_hex
@@ -20,7 +16,6 @@ from itx.ts import RegistrationReceipt, TransparencyLog, verify_receipt
 from .common import (
     ISS,
     MAX_PROMPT,
-    MAX_RESPONSE,
     MAX_WIRE,
     TYPES,
     ProcessLock,
@@ -36,7 +31,9 @@ from .common import (
     signed,
     unseal,
 )
-from .transport import Peer, verify_rpc
+from .models import model_reply
+from .rpc_server import serve_rpc
+from .transport import Peer
 
 
 class Service:
@@ -312,123 +309,7 @@ class Service:
         return result
 
     def model_reply(self, body):
-        if self.config["model_kind"] == "deterministic_mock":
-            return {"text": "모형 모델의 응답: " + body["prompt"]}
-        if self.config["model_kind"] != "ollama":
-            raise ValueError("unsupported model adapter")
-        # Endpoint is operator configuration, never taken from a prompt or RPC payload.
-        import urllib.request
-        from urllib.parse import urlsplit
-        endpoint = self.config["model_endpoint"]
-        url = urlsplit(endpoint)
-        if (not url.hostname or url.username or url.password or url.query or url.fragment or url.path not in ("", "/")
-                or (url.scheme != "https" and not (url.scheme == "http" and url.hostname in ("localhost", "127.0.0.1", "::1")))):
-            raise ValueError("model endpoint must use HTTPS or explicit loopback")
-        data = json.dumps({"model": self.config["model_name"], "prompt": body["prompt"], "stream": False}).encode()
-        from .transport import NoRedirect
-        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
-        try:
-            with opener.open(urllib.request.Request(endpoint.rstrip("/") + "/api/generate", data=data,
-                                                   headers={"Content-Type": "application/json"}), timeout=18) as response:
-                raw = response.read(MAX_WIRE + 1)
-        except urllib.error.HTTPError as exc:
-            exc.close()
-            raise ValueError("model endpoint returned HTTP " + str(exc.code)) from None
-        if len(raw) > MAX_WIRE:
-            raise ValueError("model response too large")
-        def unique_object(pairs):
-            obj = {}
-            for key, value in pairs:
-                if key in obj:
-                    raise ValueError("duplicate model response key")
-                obj[key] = value
-            return obj
-        def invalid_constant(value):
-            raise ValueError("non-finite model response number")
-        result = json.loads(raw, object_pairs_hook=unique_object, parse_constant=invalid_constant)
-        if not isinstance(result, dict) or result.get("model") != self.config["model_name"]:
-            raise ValueError("model response name differs from the configured canonical name")
-        text = result.get("response")
-        if not isinstance(text, str) or len(text) > MAX_RESPONSE or result.get("done") is not True:
-            raise ValueError("model did not return a complete text response")
-        return {"text": text}
-
-
-class Server(ThreadingHTTPServer):
-    daemon_threads = True
-    def __init__(self, address, service, context):
-        self.service, self.context = service, context
-        self.slots = threading.BoundedSemaphore(8)
-        super().__init__(address, Handler)
-
-    def get_request(self):
-        sock, address = self.socket.accept()
-        sock.settimeout(3)
-        try:
-            tls = self.context.wrap_socket(sock, server_side=True)
-            tls.settimeout(25)
-            return tls, address
-        except Exception:
-            sock.close()
-            raise
-
-    def process_request(self, request, client_address):
-        if not self.slots.acquire(False):
-            request.close()
-            return
-        try:
-            super().process_request(request, client_address)
-        except Exception:
-            self.slots.release()
-            raise
-
-    def process_request_thread(self, request, client_address):
-        try:
-            super().process_request_thread(request, client_address)
-        finally:
-            self.slots.release()
-
-
-class Handler(BaseHTTPRequestHandler):
-    def log_message(self, *args):
-        pass
-
-    def do_POST(self):
-        try:
-            if self.path != "/rpc" or self.headers.get("Transfer-Encoding"):
-                raise ValueError("invalid request path or framing")
-            if self.headers.get("Content-Type") != "application/json":
-                raise ValueError("JSON is required")
-            length = int(self.headers.get("Content-Length", "0"))
-            if not 0 < length <= MAX_WIRE:
-                raise ValueError("invalid content length")
-            raw = self.rfile.read(length)
-            if len(raw) != length:
-                raise ValueError("truncated request")
-            rpc = json_loads(raw)
-            args = verify_rpc(self.server.service.config, rpc)
-            result = self.server.service.handle(*args)
-            output = canonical_json({"ok": True, "result": result})
-            if len(output) > MAX_WIRE:
-                raise ValueError("export exceeds v1 wire limit; use a smaller deployment")
-            code = 200
-        except (ValueError, KeyError, TypeError, OverflowError, RecursionError):
-            code, output = 400, canonical_json({"ok": False, "error": "invalid or unauthorized input"})
-        except Exception as exc:
-            # Frame locations aid packaged diagnostics without logging prompts, keys or payloads.
-            import traceback
-            frames = [f"{Path(f.filename).name}:{f.lineno}:{f.name}" for f in traceback.extract_tb(exc.__traceback__)]
-            print(json.dumps({"error_type": type(exc).__name__, "frames": frames}), file=sys.stderr, flush=True)
-            code, output = 503, canonical_json({"ok": False, "error": "service unavailable"})
-        try:
-            self.send_response(code)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(output)))
-            self.send_header("Cache-Control", "no-store")
-            self.end_headers()
-            self.wfile.write(output)
-        except (OSError, ssl.SSLError):
-            pass
+        return model_reply(self.config, body)
 
 
 def serve(path, parent_pipe=False):
@@ -440,28 +321,7 @@ def serve(path, parent_pipe=False):
         service = WitnessService(config)
     else:
         service = Service(config)
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    context.minimum_version = ssl.TLSVersion.TLSv1_2
-    password = unseal(Path(config["tls_password_file"]).read_bytes()).decode() if config.get("tls_password_file") else None
-    context.load_cert_chain(config["tls_cert"], config["tls_key"], password=password)
-    server = Server((config.get("bind", "127.0.0.1"), config.get("port", 0)), service, context)
-    stopped = threading.Event()
-    def background():
-        while not stopped.wait(0.2):
-            if service.role in "RM":
-                service.flush()
-    threading.Thread(target=background, daemon=True).start()
-    if parent_pipe:
-        def watch_parent():
-            sys.stdin.buffer.read()  # EOF on Agent death also stops grandchildren.
-            os._exit(0)
-        threading.Thread(target=watch_parent, daemon=True).start()
-    print(json.dumps({"ready": True, "role": config["role"], "port": server.server_port}), flush=True)
-    try:
-        server.serve_forever(poll_interval=0.1)
-    finally:
-        stopped.set()
-        server.server_close()
+    serve_rpc(service, config, parent_pipe)
 
 
 if __name__ == "__main__":
