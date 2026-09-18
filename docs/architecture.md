@@ -22,6 +22,12 @@
 
 `itx/runtime/desktop/`는 전송 경계와 업무 작업을 구분한다.
 
+실제 서비스 경계도 세 층으로 나눈다. `itx/runtime/models.py`는 운영자가 고정한 모델
+엔드포인트와 Ollama 응답 형식만 다루고, `itx/runtime/service.py`는 계약·영수증·대조와
+역할별 업무만 다룬다. `itx/runtime/rpc_server.py`는 TLS 소켓·JSON 프레이밍·동시성
+상한만 담당한다. 이 분리 덕분에 로컬 Ollama를 쓰는 M과 다른 컴퓨터의 M/R/T를 같은
+검증 경로로 연결하면서, 클라우드 제공자 어댑터를 추가해도 서명·정책 코드가 바뀌지 않는다.
+
 | 파일 | 책임 |
 |---|---|
 | `ipc.py` | JSON 행 프레이밍·작업 큐·응답·종료 |

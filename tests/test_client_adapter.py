@@ -7,7 +7,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from itx.client import ItxClient, ResponseRejected
-from itx.runtime.common import MAX_RESPONSE
+from itx.runtime.common import MAX_RESPONSE, MAX_WIRE
+from itx.runtime.models import model_reply, parse_ollama_response, validate_model_endpoint
 from itx.runtime.service import Service
 
 
@@ -100,6 +101,35 @@ class OllamaAdapterTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.service.model_reply({"prompt": "hello"})
         self.assertEqual(len(self.seen), 1)
+
+    def test_endpoint_validation_happens_before_the_request(self):
+        for endpoint in ("http://example.invalid", self.endpoint + "/api/generate",
+                         self.endpoint + "?model=other", self.endpoint + "#fragment",
+                         "https://user:password@example.invalid", "file:///tmp/model"):
+            with self.subTest(endpoint=endpoint), self.assertRaises(ValueError):
+                model_reply({**self.service.config, "model_endpoint": endpoint}, {"prompt": "hello"})
+        self.assertEqual(self.seen, [])
+        self.assertEqual(validate_model_endpoint("https://model.example.invalid/"), "https://model.example.invalid")
+
+    def test_provider_metadata_allows_finite_numbers_but_not_ambiguous_json(self):
+        type(self).payload = b'{"model":"fixture:latest","response":"ok","done":true,"score":0.5}'
+        self.assertEqual(model_reply(self.service.config, {"prompt": "hello"}), {"text": "ok"})
+        for number in ("NaN", "Infinity", "-Infinity"):
+            raw = '{"model":"fixture:latest","response":"ok","done":true,"score":' + number + '}'
+            with self.subTest(number=number), self.assertRaises(ValueError):
+                parse_ollama_response(raw, "fixture:latest")
+
+    def test_wire_limit_applies_to_provider_metadata_too(self):
+        type(self).payload = json.dumps({"model": "fixture:latest", "response": "ok", "done": True,
+                                        "metadata": "x" * MAX_WIRE}).encode()
+        with self.assertRaisesRegex(ValueError, "too large"):
+            model_reply(self.service.config, {"prompt": "hello"})
+
+    def test_mock_and_unknown_providers_do_not_open_connections(self):
+        self.assertIn("hello", model_reply({"model_kind": "deterministic_mock"}, {"prompt": "hello"})["text"])
+        with self.assertRaisesRegex(ValueError, "unsupported model adapter"):
+            model_reply({**self.service.config, "model_kind": "unknown"}, {"prompt": "hello"})
+        self.assertEqual(self.seen, [])
 
 
 class PreExecutionAndRetirementTests(unittest.TestCase):
