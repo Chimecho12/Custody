@@ -65,7 +65,7 @@ def verify_rpc(config, rpc):
         raise ValueError("invalid RPC signature")
     allowed = {"T": {"U": {"submit", "verdict", "audit", "audit_head", "audit_page", "consistency", "health"},
                      "R": {"submit"}, "M": {"submit"}, "W": {"audit_head", "consistency"}},
-               "R": {"U": {"infer", "health"}}, "M": {"R": {"infer"}, "U": {"health"}},
+               "R": {"U": {"infer", "health", "held_receipts"}}, "M": {"R": {"infer"}, "U": {"health", "held_receipts"}},
                "W": {"U": {"witness", "witness_status", "health"}}}
     if rpc["operation"] not in allowed[config["role"]].get(actor, set()):
         raise ValueError("RPC operation not authorized")

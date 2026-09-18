@@ -22,11 +22,15 @@ itx-sim = "itx.cli.simulation:main"
 itx-runtime = "itx.cli.runtime:main"
 
 [tool.setuptools]
-packages = ["itx", "itx.audit", "itx.cli", "itx.crypto", "itx.enforce", "itx.reconcile",
-            "itx.report", "itx.runtime", "itx.sim", "itx.statements", "itx.ts"]
+include-package-data = false
+
+[tool.setuptools.packages.find]
+include = ["itx", "itx.*"]
+namespaces = false
 
 [tool.setuptools.package-data]
 "itx.report" = ["assets/*.css", "assets/*.html", "assets/*.js"]
+"itx.ui" = ["*.css"]
 
 [tool.ruff]
 line-length = 140

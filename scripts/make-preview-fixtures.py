@@ -23,6 +23,7 @@ REQUESTS = [
     ("승인 요청 결합 검사", "strict", "request_tamper"),
     ("관찰 대조군", "observe", "response_tamper"),
     ("영수증 누락", "protect", "missing_receipt"),
+    ("R 진술 보류", "protect", "missing_relay"),
     ("정상 strict 요청", "strict", "normal"),
 ]
 

@@ -59,7 +59,7 @@ def fetch_export(peer, trust):
     return export
 
 
-def verify_export(export, trust, *, anchors=None, private=None, private_by_hash=None):
+def verify_export(export, trust, *, anchors=None, private=None, private_by_hash=None, held_receipts=None):
     if trust.get("checker_version") != CHECKER_VERSION or trust.get("receipt_profile") != 1:
         raise ValueError("unsupported pinned checker or receipt profile")
     t = trust["identities"]["T"]
@@ -90,7 +90,8 @@ def verify_export(export, trust, *, anchors=None, private=None, private_by_hash=
     first = SignedStatement.from_dict(entries[0]["statement"])
     if first.content_type != CT_POLICY or first.statement_hash != trust["policy_hash"]:
         raise ValueError("entry zero is not the pinned policy")
-    report = replay_audit(export, anchors or [], private or {}, {}, trust["model_hashes"], private_by_hash)
+    report = replay_audit(export, anchors or [], private or {}, {}, trust["model_hashes"], private_by_hash,
+                          held_receipts=held_receipts or [])
     report["receipt_errors"] = receipt_errors
     report["ok"] = report["ok"] and not receipt_errors
     report["private_scope"] = "partial" if report["compared_without"] else "complete"

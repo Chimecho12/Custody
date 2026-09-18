@@ -19,6 +19,21 @@ MODES = ("observe", "protect", "strict")
 
 PASS, FAIL, NA = "pass", "fail", "not_evaluable"
 
+#: 검사의 근거 종류. 같은 'pass' 라도 U 가 직접 계산해 얻은 것과 서명자의 말을 기준값과 맞춰 본 것은
+#: 다른 주장이다. 화면은 이 값을 그대로 표기하고 T 의 대조 등식과 섞지 않는다.
+B_LOCAL = "measured_locally"        # U 가 직접 계산·비교: 해시·서명·nonce·시각·본문
+B_ATTESTED = "signed_self_report"   # 서명은 U 가 검증했지만 내용은 서명자의 주장: 모델 id·모델 해시·폴백 선언
+CHECK_BASIS: dict[str, str] = {
+    "not_expired": B_LOCAL, "receipt_present": B_LOCAL, "receipt_signature": B_LOCAL, "nonce_match": B_LOCAL,
+    "request_binding": B_LOCAL, "response_binding": B_LOCAL, "attempt_match": B_LOCAL, "tool_policy": B_LOCAL,
+    # M 이 서명한 model_id·model_hash 를 기준값과 맞춰 볼 뿐, 그 모델이 실제로 실행됐다는 증명이 아니다.
+    "model_hash_reference": B_ATTESTED,
+    # 실제 경로는 M 의 model_id 또는 R 의 upstream_model 선언에서 읽는다. 폴백 선언도 R 의 자기보고다.
+    "route_allowed": B_ATTESTED,
+    # 발행자·역할·서명·요청 결합은 U 가 직접 검증한다 (런타임 Agent 가 낸다).
+    "M_authority": B_LOCAL, "R_authority": B_LOCAL,
+}
+
 #: protect/strict 에서 not_evaluable 이면 수용하지 않고 격리하는 검사.
 #: request_binding 이 여기 있는 이유: 계약이 재계산 불가한 요청 변환을 허용하면 이 검사는
 #: not_evaluable 이 되고, 그 상태에서 수용하면 "M 이 받은 요청이 내가 보낸 요청" 이라는
@@ -87,7 +102,7 @@ class UserGate:
         expected_request_commits = expected_request_commits or {}
 
         def put(name: str, result: str, why: str) -> None:
-            checks[name] = {"result": result, "reason": why}
+            checks[name] = {"result": result, "reason": why, "basis": CHECK_BASIS[name]}
 
         # 1. 계약 만료
         put("not_expired", PASS if now <= contract["expires_at"] else FAIL,

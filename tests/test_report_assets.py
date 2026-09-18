@@ -1,4 +1,4 @@
-"""보고서 자산(assets/)과 공통 UI 계층(ui/)이 어긋나지 않는지 검사한다.
+"""보고서 자산(assets/)과 공통 UI 계층(itx/ui/)이 어긋나지 않는지 검사한다.
 
 이 저장소에는 같은 '경로검증 콘솔'이 두 벌 있다 — 데스크톱 앱(TypeScript)과 HTML
 보고서(인라인 스크립트). CSS 는 ui/ 하나로 합쳤지만 동작 코드는 아직 두 벌이다.
@@ -16,7 +16,7 @@ from typing import ClassVar
 from itx.report.html import build_report, stylesheet
 
 ROOT = Path(__file__).resolve().parents[1]
-UI = ROOT / "ui"
+UI = ROOT / "itx" / "ui"
 ASSETS = ROOT / "itx" / "report" / "assets"
 DESKTOP = ROOT / "desktop" / "src"
 
@@ -39,16 +39,16 @@ class SharedStylesheet(unittest.TestCase):
         for name in ("tokens.css", "console.css"):
             sample = [line for line in (UI / name).read_text(encoding="utf-8").splitlines()
                       if line.strip() and not line.strip().startswith("/*")]
-            self.assertIn(sample[-1].strip(), sheet, f"ui/{name} 이 보고서에 들어가지 않았다")
+            self.assertIn(sample[-1].strip(), sheet, f"itx/ui/{name} 이 보고서에 들어가지 않았다")
 
     def test_desktop_imports_the_shared_layers(self):
-        css = (DESKTOP / "style.css").read_text(encoding="utf-8")
-        self.assertIn("../../ui/tokens.css", css)
-        self.assertIn("../../ui/console.css", css)
+        css = (DESKTOP / "styles" / "app.css").read_text(encoding="utf-8")
+        self.assertIn("../../../itx/ui/tokens.css", css)
+        self.assertIn("../../../itx/ui/console.css", css)
 
     def test_no_hardcoded_font_stacks_outside_tokens(self):
         """글꼴은 --sans/--mono 토큰으로만 쓴다. 인라인 스택이 다시 늘면 드리프트가 재발한다."""
-        for path in (UI / "console.css", ASSETS / "report.css", DESKTOP / "style.css"):
+        for path in (UI / "console.css", ASSETS / "report.css", DESKTOP / "styles" / "app.css"):
             self.assertNotIn("IBM Plex", path.read_text(encoding="utf-8"), f"{path.name} 에 글꼴 스택이 직접 박혀 있다")
 
 
@@ -57,8 +57,8 @@ class ConsoleParity(unittest.TestCase):
 
     def setUp(self):
         self.report_js = (ASSETS / "report.js").read_text(encoding="utf-8")
-        self.console_ts = (DESKTOP / "console.ts").read_text(encoding="utf-8")
-        self.flow_ts = (DESKTOP / "flow.ts").read_text(encoding="utf-8")
+        self.console_ts = (DESKTOP / "shared" / "console.ts").read_text(encoding="utf-8")
+        self.flow_ts = (DESKTOP / "shared" / "flow.ts").read_text(encoding="utf-8")
 
     def test_timing_constants_match(self):
         pattern = r"const HOP_MS = (\d+), PROC_MS = (\d+), SIGN_MS = (\d+)"
@@ -86,11 +86,31 @@ class ConsoleParity(unittest.TestCase):
         gate = (ROOT / "itx" / "enforce" / "user_gate.py").read_text(encoding="utf-8")
         emitted = set(re.findall(r'put\("([a-z_]+)"', gate))
         self.assertTrue(emitted, "user_gate.py 에서 검사 키를 읽지 못했다")
-        runtime_view = (DESKTOP / "runtime-view.ts").read_text(encoding="utf-8")
+        runtime_view = (DESKTOP / "features" / "request" / "view.ts").read_text(encoding="utf-8")
         self.assertEqual(emitted - set(_js_object(runtime_view, "CHECK_NAMES")), set(),
                          "runtime-view.ts CHECK_NAMES 에 이름이 없는 검사가 있다")
-        self.assertEqual(emitted - set(_js_object(self.flow_ts, "CHECK_TO_EQ")), set(),
-                         "flow.ts CHECK_TO_EQ 에 등식 자리가 없는 검사가 있다")
+        self.assertEqual(emitted - set(_js_object(self.flow_ts, "CHECK_SLOT")), set(),
+                         "flow.ts CHECK_SLOT 에 홉 지도 자리가 없는 검사가 있다")
+        self.assertEqual(emitted - set(_js_object(self.flow_ts, "CHECK_CODE")), set(),
+                         "flow.ts CHECK_CODE 에 L- 코드가 없는 검사가 있다 — 등식 번호로 그려져 T 등식처럼 읽힌다")
+
+    def test_every_check_has_a_basis_and_the_screen_can_name_it(self):
+        """검사 모드의 행은 등식이 아니다. 검사마다 근거 종류가 있어야 하고 화면은 그 이름을 가져야 한다.
+        route_allowed·model_hash_reference 는 서명자의 자기보고를 기준값과 맞춘 것이지 U 의 계산이 아니다."""
+        from itx.enforce.user_gate import B_ATTESTED, CHECK_BASIS
+        gate = (ROOT / "itx" / "enforce" / "user_gate.py").read_text(encoding="utf-8")
+        emitted = set(re.findall(r'put\("([a-z_]+)"', gate))
+        self.assertEqual(emitted - set(CHECK_BASIS), set(), "CHECK_BASIS 에 근거 종류가 없는 검사가 있다")
+        self.assertEqual(CHECK_BASIS["route_allowed"], B_ATTESTED)
+        self.assertEqual(CHECK_BASIS["model_hash_reference"], B_ATTESTED)
+        labels = _js_object(self.console_ts, "BASIS_LABEL")
+        self.assertEqual(set(CHECK_BASIS.values()) - set(labels), set(), "console.ts BASIS_LABEL 에 이름이 없는 근거 종류가 있다")
+        for required in ("estimate", "not_evaluable", "reconciled"):
+            self.assertIn(required, labels)
+        self.assertNotIn("1:1", self.flow_ts, "로컬 검사와 등식이 1:1 이라는 주장이 다시 들어왔다")
+        view = (DESKTOP / "features" / "request" / "view.ts").read_text(encoding="utf-8")
+        for text in (view, (ROOT / "desktop" / "index.html").read_text(encoding="utf-8"), self.report_js):
+            self.assertNotIn("실제 지연 비율", text, "추정인 홉 배분을 실측처럼 적었다")
 
 
 class ReportDocument(unittest.TestCase):

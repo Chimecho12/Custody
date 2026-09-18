@@ -57,18 +57,18 @@
 
 ## 3. 대상 파일별 구현 가이드
 
-1. **`desktop/src/console.ts`**:
+1. **`desktop/src/shared/console.ts`**:
    - `Playback` 클래스에 스크러버 마우스 이벤트(drag/click on `.timebox`) 추가
    - 홉 단위 이동 메서드 (`stepHop(forward: boolean)`) 구현
    - SVG 패킷 렌더링 시 잔상 꼬리(Gradient trail path 또는 추가 감속 보간) 추가
    - 노드 도착 시 SVG element 활성화 클래스 토글
 
-2. **`ui/tokens.css` · `ui/console.css`** (데스크톱·보고서 공통. 앱 셸 전용은 `desktop/src/style.css`):
+2. **`itx/ui/tokens.css` · `itx/ui/console.css`** (데스크톱·보고서 공통. 앱 셸 전용은 `desktop/src/styles/app.css`):
    - 노드 활성화 펄스 키프레임 (`@keyframes nodePulse`)
    - 증거 행(`evrow`) 상태 전이 트랜지션 (`transition: background 0.2s, border-color 0.2s`)
    - 타임라인 스크러버 커서 및 호버 스타일 (`cursor: ew-resize`)
    - 섀도우 및 서피스 레이어링 토큰 개선
 
-3. **`desktop/src/report.ts` 및 `runtime-view.ts`**:
+3. **`desktop/src/features/simulation/view.ts` 및 `desktop/src/features/request/view.ts`**:
    - 컨트롤러에 스텝 버튼(`이전 홉`, `다음 홉`) 및 배속 선택기 추가
    - 홉 지도 라벨 ↔ 등식 표 행 간 양방향 이벤트 리스너 연동

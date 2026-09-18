@@ -7,7 +7,7 @@ const {test} = require('node:test');
 const ts = require('../desktop/node_modules/typescript');
 // 보고서 콘솔의 스크립트. itx/report/html.py 가 이 파일을 그대로 인라인한다.
 const reportScript = readFileSync(path.join(__dirname, '../itx/report/assets/report.js'), 'utf8');
-const source = ts.transpileModule(readFileSync(path.join(__dirname, '../desktop/src/console.ts'), 'utf8'), {
+const source = ts.transpileModule(readFileSync(path.join(__dirname, '../desktop/src/shared/console.ts'), 'utf8'), {
   compilerOptions: {target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS},
 }).outputText;
 

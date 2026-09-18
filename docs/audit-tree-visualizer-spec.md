@@ -93,11 +93,11 @@
 
 1. **DOM 구조 개편 (`desktop/index.html`)**:
    - `#audit-content` 내부를 좌우 분할 그리드(`.audit-split-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 16px; }`)로 변경.
-2. **시각화 렌더러 (`desktop/src/audit-view.ts`)**:
+2. **시각화 렌더러 (`desktop/src/features/audit/view.ts`)**:
    - `renderMerkleBridge(anchorData, treeOk)`: SVG/HTML 기반 머클 헤드 및 앵커 핀 다이어그램 렌더링.
    - `renderVerdictDiff(checkedVerdicts, mismatches)`: 판정 대조 리스트 렌더링.
 3. **JSON 맵퍼 컴포넌트 (`renderMappedJson(auditJson)`)**:
    - 단순 `<pre>` 대신 키-값 단위로 `data-json-path="anchors.0.root"` 속성을 가진 구조화된 DOM 생성.
    - 이벤트 리스너를 통해 좌측 요소의 `data-ref-path`와 우측 요소 매핑.
-4. **스타일 정의 (`ui/console.css` — 데스크톱과 보고서가 함께 읽는다; 앱 전용 규칙만 `desktop/src/style.css`)**:
+4. **스타일 정의 (`itx/ui/console.css` — 데스크톱과 보고서가 함께 읽는다; 앱 전용 규칙만 `desktop/src/styles/app.css`)**:
    - 앵커 핀, 머클 노드 카드, 네온 하이라이트 애니메이션 추가.

@@ -37,6 +37,7 @@ class Scenario:
     ts_extra_delay_ms: int = 0
     ts_misjudge: bool = False
     ts_tamper_after_anchor: bool = False
+    ts_omit_request_before_anchor: bool = False  # T 가 첫 요청의 항목을 전부 빼고 재서명 (앵커·감사 이전)
     queue_capacity: int = 100
     model_collude: bool = False
     attack_attempts: tuple[int, ...] | None = None  # 공격이 실린 시도 인덱스. None 이면 ground_truth 를 모든 시도에 적용
@@ -54,16 +55,19 @@ class Scenario:
             "model_issue_receipts": self.model_issue_receipts, "model_pre_exec_enforce": self.model_pre_exec_enforce,
             "ts_down": self.ts_down, "ts_recover_before_close": self.ts_recover_before_close,
             "ts_extra_delay_ms": self.ts_extra_delay_ms, "ts_misjudge": self.ts_misjudge,
-            "ts_tamper_after_anchor": self.ts_tamper_after_anchor, "queue_capacity": self.queue_capacity,
+            "ts_tamper_after_anchor": self.ts_tamper_after_anchor,
+            "ts_omit_request_before_anchor": self.ts_omit_request_before_anchor, "queue_capacity": self.queue_capacity,
             "model_collude": self.model_collude,
             "attack_attempts": list(self.attack_attempts) if self.attack_attempts is not None else None,
             "expected_parties": list(self.expected_parties), "ground_truth": self.ground_truth, "expected": self.expected,
         }
 
 
-def _gt(attack: bool, kind: str, harm: bool, detectable: bool, note: str = "") -> dict[str, Any]:
+def _gt(attack: bool, kind: str, harm: bool, detectable: bool, note: str = "",
+        pressure: str | None = None) -> dict[str, Any]:
+    # pressure: 가용성 압박 조건. 정상 요청이 이 조건에서도 서비스되는지를 지표(availability_under_pressure)가 따로 센다.
     return {"attack_present": attack, "attack_kind": kind, "harm_if_consumed": harm,
-            "detectable_by_evidence": detectable, "note": note}
+            "detectable_by_evidence": detectable, "note": note, "availability_pressure": pressure}
 
 
 SCENARIOS: list[Scenario] = [
@@ -138,9 +142,10 @@ SCENARIOS: list[Scenario] = [
     Scenario(
         "S09", "중개 증거 누락 (R 비협조)",
         "중개자가 진술을 내지 않는다. U+M 증거만으로 종단 무결성(E10)은 확립되지만 완전성은 gap 이다. "
-        "결손은 위반이 아니라 관측 상태로 표시되고 가해자를 단정하지 않는다.",
+        "결손은 위반이 아니라 관측 상태로 표시되고 가해자를 단정하지 않는다. 가용성 축: R 이 진술을 보류하는 것만으로 "
+        "정상 응답이 격리되면 그것은 R 이 쥔 서비스 거부 스위치다 — protect 는 U+M 증거로 계속해야 한다.",
         "evidence", relay=RelayBehavior(omit_statement=True),
-        ground_truth=_gt(False, "none", False, True, "정직하지만 비협조적인 중개자"),
+        ground_truth=_gt(False, "none", False, True, "정직하지만 비협조적인 중개자", pressure="relay_withholds_statement"),
         expected={"verdict": "passed", "completeness": "gap", "codes": ["D-GAP"], "protect": "accept"},
     ),
     Scenario(
@@ -148,14 +153,14 @@ SCENARIOS: list[Scenario] = [
         "제3자가 전체 요청 동안 죽어 있다. observe/protect 는 로컬 증거로 업무를 계속하고 증거는 큐에 남는다. "
         "strict 는 기한 내 판정을 못 얻어 명시적으로 거부한다. 복구 후 큐가 재제출되어 사후 판정이 나온다.",
         "availability", ts_down=True,
-        ground_truth=_gt(False, "none", False, True),
+        ground_truth=_gt(False, "none", False, True, pressure="t_down"),
         expected={"verdict": "passed", "protect": "accept", "strict": "reject_timeout", "late": True},
     ),
     Scenario(
         "S11", "T 등록 지연",
         "등록 지연 900ms. protect 는 영향 없음. strict 는 판정을 기다린 뒤 수용한다 (가용성 비용 측정).",
         "availability", ts_extra_delay_ms=900,
-        ground_truth=_gt(False, "none", False, True),
+        ground_truth=_gt(False, "none", False, True, pressure="t_delay"),
         expected={"verdict": "passed", "protect": "accept", "strict": "accept"},
     ),
     Scenario(
@@ -163,7 +168,7 @@ SCENARIOS: list[Scenario] = [
         "T 정지 중 큐 용량 2 로 4 번 요청. 오래된 증거가 버려져 복구 후에도 일부 요청은 gap 으로 남는다. "
         "비동기라는 말만으로 비용이 사라지지 않는다.",
         "availability", ts_down=True, queue_capacity=2, attempts=4,
-        ground_truth=_gt(False, "none", False, True),
+        ground_truth=_gt(False, "none", False, True, pressure="queue_saturation"),
         expected={"gaps_after_recovery": True},
     ),
     Scenario(
@@ -207,6 +212,15 @@ SCENARIOS: list[Scenario] = [
         expected={"model_refused": True, "completeness": "not_observable", "verdict": "failed",
                   "codes": ["D-REQ-UNAPPROVED"], "protect": "quarantine",
                   "note": "M 의 거부 영수증(request_commit) 자체가 변조 증거가 된다"},
+    ),
+    Scenario(
+        "S18", "T 가 요청 기록을 누락하고 로그를 다시 서명 (앵커 이전)",
+        "T 가 첫 요청의 계약·중계·영수증·수신·판정 항목을 전부 빼고 남은 항목으로 트리를 다시 계산해 헤드를 서명한다. "
+        "트리·헤드·판정 재실행은 모두 자기 일관적이고 외부 앵커는 아직 없다. 사용자가 보관한 등록 영수증의 포함 검사만이 "
+        "누락을 드러낸다 — 영수증을 버리면 이 사건은 감사를 통과한다 ('보여 준 자료가 일관적인가' ≠ '보여 줘야 할 자료를 다 보여 줬는가').",
+        "third_party", ts_omit_request_before_anchor=True,
+        ground_truth=_gt(False, "none", False, True, "T 의 기록 누락. 사용자 피해 없음, T 의 책임 회피"),
+        expected={"audit_ok_without_receipts": True, "audit_ok_with_receipts": False, "protect": "accept"},
     ),
 ]
 

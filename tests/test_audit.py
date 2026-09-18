@@ -19,8 +19,12 @@ SEED = 42
 REF = reference_hashes(DEFAULT_MODELS)
 
 
+def _base_run():
+    return run_scenario(scenario_by_id("S01"), "protect", seed=SEED)
+
+
 def _base_export():
-    return run_scenario(scenario_by_id("S01"), "protect", seed=SEED)["log_export"]
+    return _base_run()["log_export"]
 
 
 def _reseal(export):
@@ -94,6 +98,72 @@ class VerdictSnapshotTest(unittest.TestCase):
         report = _audit(*_reseal(export))
         self.assertTrue(report["ok"], report["verdict_mismatches"])
         self.assertEqual(report["verdicts_checked"][0]["evidence_after_verdict"], 1)
+
+
+class HeldReceiptInclusionTest(unittest.TestCase):
+    """로그를 쥔 쪽이 항목을 빼고 트리·헤드·앵커를 전부 다시 맞춰 놓은 경우.
+    로그 안의 어떤 검사도 이를 보지 못한다. 제출자가 보관한 영수증만 본다."""
+
+    def _omit_request(self):
+        run = _base_run()
+        export = copy.deepcopy(run["log_export"])
+        sub = run["attempts"][0]["sub"]
+        kept = [e for e in export["entries"] if e["statement"]["sub"] != sub]
+        export["entries"] = [dict(e, index=i) for i, e in enumerate(kept)]
+        return _reseal(export), run["held_receipts"], sub
+
+    def test_forgetful_auditor_passes_the_omitted_log(self):
+        (export, anchors), _, _ = self._omit_request()
+        r = _audit(export, anchors)
+        self.assertTrue(r["ok"])
+        self.assertEqual(r["subs_checked"], 0)
+        self.assertEqual(r["held_receipts"]["scope"], "none")
+
+    def test_held_receipts_reveal_the_omission(self):
+        (export, anchors), receipts, sub = self._omit_request()
+        r = replay_audit(export, anchors, {}, {}, REF, held_receipts=receipts)
+        self.assertFalse(r["ok"])
+        self.assertTrue(r["tree_recomputed_matches_head"] and r["head_signature_valid"])
+        self.assertTrue(all(a["ok"] for a in r["anchors"]))
+        missing = r["held_receipts"]["missing"]
+        self.assertTrue(missing)
+        self.assertIn(sub, {m["sub"] for m in missing})
+        self.assertTrue(any("found_at" in m for m in missing))  # 매니페스트는 남았지만 자리가 바뀌었다
+
+    def test_forged_receipt_is_unverifiable_not_missing(self):
+        (export, anchors), receipts, _ = self._omit_request()
+        forged = copy.deepcopy(receipts[:1])
+        forged[0]["receipt"]["signature"] = "00" * 64
+        r = replay_audit(export, anchors, {}, {}, REF, held_receipts=forged)
+        self.assertEqual(r["held_receipts"]["missing"], [])
+        self.assertEqual(len(r["held_receipts"]["unverifiable"]), 1)
+        self.assertTrue(r["held_receipts"]["ok"])  # 검증 불가한 영수증은 누락의 증거가 아니다
+
+    def test_receipt_registered_after_the_snapshot_is_not_a_missing_entry(self):
+        """감사 헤드를 뜬 뒤에 등록된 영수증(예: M 의 백그라운드 제출)은 이 스냅샷의 대상이 아니다.
+        누락으로 세면 정상 배포가 매번 실패한다. 등록 시각이 헤드보다 앞서면서 잎이 없으면 그때가 꼬리 절단이다."""
+        run = _base_run()
+        export = copy.deepcopy(run["log_export"])
+        last = max(run["held_receipts"], key=lambda h: h["receipt"]["tree_size"])
+        export["entries"] = export["entries"][:last["receipt"]["leaf_index"]]  # 스냅샷이 그 항목 직전에 떠졌다고 가정
+        export["head"]["time"] = last["receipt"]["registered_at"] - 1  # 헤드 시각이 마지막 등록보다 앞
+        (export, anchors) = _reseal(export)
+        r = replay_audit(export, anchors, {}, {}, REF, held_receipts=[last])
+        self.assertEqual(r["held_receipts"]["missing"], [])
+        self.assertEqual(len(r["held_receipts"]["after_snapshot"]), 1)
+        self.assertTrue(r["held_receipts"]["ok"])
+        # 같은 영수증이라도 헤드 시각이 등록 시각 이후라면 꼬리 절단이다.
+        export["head"]["time"] = last["receipt"]["registered_at"] + 1
+        (export, anchors) = _reseal(export)
+        r = replay_audit(export, anchors, {}, {}, REF, held_receipts=[last])
+        self.assertEqual(len(r["held_receipts"]["missing"]), 1)
+        self.assertFalse(r["held_receipts"]["ok"])
+
+    def test_untouched_log_includes_every_held_receipt(self):
+        run = _base_run()
+        r = replay_audit(run["log_export"], [], {}, {}, REF, held_receipts=run["held_receipts"])
+        self.assertEqual(r["held_receipts"]["included"], len(run["held_receipts"]))
+        self.assertTrue(r["held_receipts"]["ok"])
 
 
 class VerdictProvenanceTest(unittest.TestCase):
