@@ -176,7 +176,7 @@ function mapWorldHtml(d: FlowData, g: Geo, sel: string | null, t = Infinity, pla
     return {id, d: smoothstep(p[0], p[1], q[0], q[1], ax), color: colOf(r), dash: 'none', marker: `url(#${key}-ar)`, res: r, mid: [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2] as Pt, ev: ''}; };
   const edges = [mkFlow('E2', 'U', 'R', .3), mkFlow('E3', 'R', 'M', .3), mkFlow('E6', 'M', 'R', .72), mkFlow('E7', 'R', 'U', .72)];
   { const [p, q] = clipLine(g, 'U', 'M'), r = res('E10'), my = Math.max(p[1], q[1]) + 190;
-    edges.push({id: 'E10', d: `M ${p[0]} ${p[1]} C ${p[0]} ${my} ${q[0]} ${my} ${q[0]} ${q[1]}`, color: colOf(r), dash: '7 4', marker: 'none', res: r, mid: [(p[0] + q[0]) / 2, my * 0.78], ev: ''}); }
+    edges.push({id: 'E10', d: `M ${p[0]} ${p[1]} C ${p[0]} ${my} ${q[0]} ${my} ${q[0]} ${q[1]}`, color: colOf(r), dash: '7 4', marker: 'none', res: r, mid: [(p[0] + q[0]) / 2, (p[1] + q[1] + 6 * my) / 8], ev: ''}); }
   const evPaths = (['U', 'R', 'M'] as const).map(k => {
     const reg = d.regs[k], registered = reg != null && t >= reg;
     const [p, q] = clipLine(g, k, 'T');

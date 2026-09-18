@@ -196,10 +196,10 @@ tr.eq-hi td{background:var(--accent-soft)}
 .fcnode .fccaret{flex:none;width:20px;height:20px;padding:0;border:1px solid var(--line);border-radius:5px;background:var(--card-solid);cursor:pointer;font:500 9px var(--mono);color:var(--muted);line-height:1;box-shadow:none}
 .fcnode .fcrows{padding:5px 4px 6px}
 .fcnode.closed .fcrows{display:none}
-.fcrow{display:flex;align-items:center;gap:6px;padding:3px 7px;border-radius:5px;cursor:pointer;transition:background var(--dur-1) var(--ease-out)}
+.fcrow{display:flex;align-items:center;gap:6px;height:24px;box-sizing:border-box;padding:0 7px;border-radius:5px;cursor:pointer;transition:background var(--dur-1) var(--ease-out)}
 .fcrow:hover,.fcrow.eq-hi,.fcrow.sel{background:var(--accent-soft)}
 .fcrow .g{font:600 10px var(--mono);width:12px;flex:none}
-.fcrow .i{font:500 10.5px var(--mono);width:30px;flex:none}
+.fcrow .i{font:500 10.5px var(--mono);width:48px;flex:none;white-space:nowrap}
 .fcrow .n{font:400 11px var(--sans);color:var(--fg);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fcrow .d{width:7px;height:7px;border-radius:50%;flex:none}
 .fcnode .handle{position:absolute;width:9px;height:9px;border-radius:50%;background:var(--card-solid);border:1.5px solid var(--line-strong);transform:translate(-2px,-2px);pointer-events:none}
