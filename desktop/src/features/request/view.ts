@@ -4,8 +4,8 @@ import type { Data } from '../../shared/types';
 //   2) 응답 본문 — 공개된 경우에만 원문. 격리·거부·대기는 점선 상자와 이유만.
 //   3) 경로 상세 — 홉 지도(flow.ts 그래프 캔버스) · 추적 3단 · 로컬 검사 · T 판정 · 시간선. 기본 화면은 결론이고 이것은 근거다.
 // U 가 실측한 것은 전송·수신·결정·공개 시각뿐이다. R·M 내부 구간은 비율 추정이며 그렇게 표기한다.
-import { esc, short, CV, makeSpan, PlayContext, timeBoxHtml, Mark, evidenceRowsHtml, stripGridHtml, checksTableHtml, equationTableHtml, codesHtml, gateColor, checkChipsHtml, st, playControlsHtml,  } from '../../shared/console';
-import { FlowData, CHECK_SLOT, CHECK_CODE, flowCanvasHtml, flowLegs, footHtml, eqFromChecks, eqFromEquations, actionTone, toneOf } from '../../shared/flow';
+import { esc, short, CV, makeSpan, PlayContext, timeBoxHtml, Mark, evidenceRowsHtml, stripGridHtml, checksTableHtml, equationTableHtml, codesHtml, gateColor, checkChipsHtml, st, playControlsHtml, NodeKey } from '../../shared/console';
+import { FlowData, NodeMenu, NodeState, CHECK_SLOT, CHECK_CODE, flowCanvasHtml, flowLegs, footHtml, eqFromChecks, eqFromEquations, actionTone, toneOf } from '../../shared/flow';
 import { TraceData, traceTopHtml, traceBottomHtml } from '../../shared/trace';
 
 export const STATE_NAMES: Record<string, string> = {accept: '검증 후 수용', accept_unverified: '미검증 수용', quarantine: '응답 격리', reject: '수용 거부', reject_timeout: 'T 판정 기한 초과', cancelled: '취소 · 미공개', interrupted: '종료로 중단 · 미공개', pending: '진행 중', error: '요청 오류'};
@@ -37,20 +37,49 @@ export const isAttack = (record: Data) => !!record.lab_scenario && record.lab_sc
 export type MapMode = 'checks' | 'equations';
 export interface RouteCard { html: string; ctx: PlayContext | null; flow: FlowData; trace: TraceData | null }
 
+/** 그림을 조작판으로 쓰기 위한 현재 상태. 그림은 이 값을 보여주고 이벤트로 알릴 뿐, 값을 바꾸는 것은 컨트롤러다. */
+export interface RouteControls { scenario: string; canInject: boolean; tRunning: boolean | null }
+// 실험 조건 select 의 값과 1:1 이다. 런타임에서 이 다섯 가지는 모두 R 이 전달 과정에서 하는 일이다 (영수증 제거도 R 이 뗀다).
+const R_ACTIONS: {value: string; label: string; flag: string | null; tone?: 'fail' | 'na'}[] = [
+  {value: 'normal', label: '정상적으로 전달한다', flag: null},
+  {value: 'response_tamper', label: '응답을 바꿔서 전달한다', flag: '응답 변조'},
+  {value: 'request_tamper', label: '요청을 바꿔서 전달한다', flag: '요청 변조'},
+  {value: 'missing_receipt', label: 'M 의 영수증을 떼고 전달한다', flag: '영수증 제거'},
+  {value: 'missing_relay', label: '자기 진술을 내지 않는다', flag: '진술 보류', tone: 'na'},
+];
+/** 노드 메뉴·표식. shown 은 그림이 보여주는 요청의 시나리오(기록이면 그 기록, 실행 전이면 지금 고른 값). */
+export function nodeControls(ctl: RouteControls | undefined, shown: string | null, shownIsRecord: boolean): {nodeMenu?: Partial<Record<NodeKey, NodeMenu>>; nodeState?: Partial<Record<NodeKey, NodeState>>} {
+  if (!ctl) return {};
+  const nodeMenu: Partial<Record<NodeKey, NodeMenu>> = {
+    R: {title: '다음 요청에서 중개자 R 이 할 일', current: ctl.scenario,
+        options: R_ACTIONS.map(a => ({value: a.value, label: a.label, hint: SCENARIO_NAMES[a.value] || a.value, disabled: !ctl.canInject && a.value !== 'normal'})),
+        note: ctl.canInject ? '실험실 배포에서만 주입된다. 여기서 고른 값은 위 「실험 조건」과 같은 값이다.' : '연결 모드에서는 공격을 주입할 수 없어 정상 경로만 선택된다.'},
+  };
+  if (ctl.tRunning !== null) nodeMenu.T = {title: '독립 제3자 T 의 상태', current: ctl.tRunning ? 'start' : 'stop',
+    options: [{value: 'start', label: '정상적으로 판정한다', hint: 'T 서비스 가동'}, {value: 'stop', label: '멈춘다 (실험)', hint: 'T 서비스를 중단해 protect 와 strict 의 차이를 본다'}],
+    note: '실제 프로세스를 종료·복구한다. 대기 증거는 큐에 보관되고 복구 뒤 재제출된다.'};
+  const nodeState: Partial<Record<NodeKey, NodeState>> = {};
+  const r = R_ACTIONS.find(a => a.value === (shown || 'normal'));
+  if (r?.flag) nodeState.R = {flag: (shownIsRecord ? '이 요청 · ' : '다음 요청 · ') + r.flag, tone: r.tone || 'fail'};
+  if (ctl.tRunning === false) nodeState.T = {flag: '지금 중단됨', tone: 'na', down: true};
+  return {nodeMenu, nodeState};
+}
+
 // 실행 전 상태: 모든 검사가 회색이다. 부재를 사건처럼 그리지 않는다.
-export function idleRouteHtml(status: Data | null): RouteCard {
+export function idleRouteHtml(status: Data | null, ctl?: RouteControls): RouteCard {
   const flow: FlowData = {key: 'req', eq: {}, rowTitle: Object.fromEntries(Object.entries(CHECK_NAMES).map(([k, v]) => [CHECK_SLOT[k] || k, v])),
     rowId: Object.fromEntries(Object.keys(CHECK_NAMES).map(k => [CHECK_SLOT[k] || k, CHECK_CODE[k] || k])),
     regs: {U: null, R: null, M: null}, sent: 0, received: 1, latency: 200, sm: null,
     info: {id: status ? esc(status.source) : '연결 전', title: '아직 실행한 요청이 없다', verdict: '대기', verdictTone: 'na', action: '—', actionTone: 'na', note: 'evaluation'},
-    foot: '<p class="small muted" style="margin:0">첫 요청 뒤 U 의 로컬 검사 결과가 이 지도에 표시된다.</p>'};
+    foot: `<p class="small muted" style="margin:0">첫 요청 뒤 U 의 로컬 검사 결과가 이 지도에 표시된다.${ctl ? ' R·T 상자의 머리를 누르면 다음 요청에서 그 역할이 할 일을 고를 수 있다.' : ''}</p>`,
+    ...nodeControls(ctl, ctl?.scenario ?? null, false)};
   const html = `<div class="card-head"><h3>경로 — 업무 데이터 경로(실선)와 T 의 증거·통제 경로(점선)</h3><div class="badges"><span>${status ? esc(status.source) : '연결 전'}</span><span>evaluation</span></div></div>
     ${flowCanvasHtml(flow)}`;
   return {html, ctx: null, flow, trace: null};
 }
 
 
-export function routeCard(record: Data, status: Data | null, mode: MapMode): RouteCard {
+export function routeCard(record: Data, status: Data | null, mode: MapMode, ctl?: RouteControls): RouteCard {
   const mm = moments(record);
   const checks: Data = record.checks || {};
   const v = record.t_verdict?.payload;
@@ -102,7 +131,8 @@ export function routeCard(record: Data, status: Data | null, mode: MapMode): Rou
       verdict: v ? v.verification_status : '사후 판정 대기', verdictTone: toneOf(v?.verification_status),
       action: g ? g.action : (STATE_NAMES[record.state] || record.state), actionTone: g ? actionTone(g.action) : 'na',
       note: `${record.mode} · ${record.elapsed_ms ?? '—'} ms 실측`},
-    foot: footHtml(timebox, evidence), controls: ctx ? playControlsHtml() : ''};
+    foot: footHtml(timebox, evidence), controls: ctx ? playControlsHtml() : '',
+    ...nodeControls(ctl, record.lab_scenario || 'normal', true)};
   // 추적 3단(배너·파이프라인·인스펙터)은 재생 구간이 있을 때만 한 시계로 묶인다.
   const trace: TraceData | null = legs && ctx ? {record, status, legs, sent, received, decided: decided ?? received, released, verdictAt, tEnd: ctx.tEnd} : null;
   const toggle = v ? `<div class="tabs" data-map-toggle><button type="button" class="pill${!useEq ? ' on' : ''}" data-map="checks" title="U 가 응답 공개 전에 직접 확인한 항목. T 의 등식과 다른 주장이다">U 로컬 검사 (L-)</button><button type="button" class="pill${useEq ? ' on' : ''}" data-map="equations" title="T 가 세 당사자의 서명 진술을 대조한 등식">T 대조 등식 (E1~E12)</button></div>` : '';

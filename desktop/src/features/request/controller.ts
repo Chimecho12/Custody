@@ -2,9 +2,9 @@ import type { Data } from '../../shared/types';
 import { call, native, setAgentOperations } from '../../services/agent';
 import { get, color, notice, fail } from '../../shared/dom';
 import { esc, Playback } from '../../shared/console';
-import { mountFlow } from '../../shared/flow';
+import { mountFlow, FlowCanvas } from '../../shared/flow';
 import { mountTrace } from '../../shared/trace';
-import { STATE_NAMES, SCENARIO_NAMES, MODES, MapMode, routeCard, idleRouteHtml, summaryHtml, bodyHtml, detailHtml, timelineHtml, releaseLabel } from './view';
+import { STATE_NAMES, SCENARIO_NAMES, MODES, MapMode, RouteControls, nodeControls, routeCard, idleRouteHtml, summaryHtml, bodyHtml, detailHtml, timelineHtml, releaseLabel } from './view';
 
 export function createRequest(onConnection: (data: Data) => void) {
   let connection: Data | null = null;
@@ -14,6 +14,7 @@ export function createRequest(onConnection: (data: Data) => void) {
   let busy = false;
   let mapMode: MapMode = 'checks';
   let fromLog: Data | null = null;   // 사건 기록에서 「조사」로 들어온 경우 — 돌아가기 버튼과 제목이 바뀐다
+  let requestFlow: FlowCanvas | null = null;   // 요청 화면의 홉 지도 캔버스 — 노드 메뉴·표식을 제자리에서 갱신할 때 쓴다
   function setBusy(value: boolean) {
     busy = value;
     get<HTMLButtonElement>('send').disabled = value || !connection;
@@ -30,11 +31,23 @@ export function createRequest(onConnection: (data: Data) => void) {
     if (!b) return;
     mapMode = b.dataset.map as MapMode; renderRoute();
   });
+  // 그림이 조작판이 되기 위한 현재 상태. select 와 서비스 상태가 진실이고, 그림은 그것을 보여주는 또 하나의 입력 장치다.
+  function controls(): RouteControls {
+    const sel = get<HTMLSelectElement>('scenario');
+    return {scenario: sel.value, canInject: !sel.disabled, tRunning: (connection?.services && native) ? !!connection.services.T?.running : null};
+  }
+  function syncRouteControls() {
+    if (!requestFlow) return;
+    const ctl = controls();
+    const nc = nodeControls(ctl, selected ? (selected.lab_scenario || 'normal') : ctl.scenario, !!selected);
+    requestFlow.setNodeMenu(nc.nodeMenu); requestFlow.setNodeState(nc.nodeState);
+  }
   function renderRoute() {
     const root = get('route-map');
-    const card = selected ? routeCard(selected, connection, mapMode) : idleRouteHtml(connection);
+    const ctl = controls();
+    const card = selected ? routeCard(selected, connection, mapMode, ctl) : idleRouteHtml(connection, ctl);
     root.innerHTML = card.html;
-    mountFlow(root, card.flow, requestPlay); // 캔버스(줌·팬·미니맵·상태 머신)를 붙인 뒤 재생 상태를 넣는다
+    requestFlow = mountFlow(root, card.flow, requestPlay); // 캔버스(줌·팬·미니맵·상태 머신)를 붙인 뒤 재생 상태를 넣는다
     if (card.trace) mountTrace(root, card.trace, requestPlay); // 배너·파이프라인·인스펙터가 같은 시계를 본다
     requestPlay.set(card.ctx);
   }
@@ -70,8 +83,27 @@ export function createRequest(onConnection: (data: Data) => void) {
     const sel = get<HTMLSelectElement>('scenario');
     get('scenario-pills').innerHTML = [...sel.options].map(o => `<button type="button" class="pill${sel.value === o.value ? ' on' : ''}" data-scenario="${esc(o.value)}" role="radio" aria-checked="${sel.value === o.value}" title="${esc(o.textContent || '')}"${sel.disabled ? ' disabled' : ''}>${esc(o.textContent || '')}</button>`).join('');
     get('scenario-help').hidden = !sel.disabled;
+    get('scenario-on-map').hidden = sel.disabled;
     renderModeCards();
+    syncRouteControls();
   }
+  // 홉 지도의 노드 메뉴에서 고른 값. R 은 실험 조건 select 로, T 는 기존 「실험: T 중단」 버튼으로 흘려보낸다 — 새 경로를 만들지 않는다.
+  get('route-map').addEventListener('flownode', e => {
+    const {node, value} = (e as CustomEvent<{node: string; value: string}>).detail;
+    if (node === 'R') {
+      const sel = get<HTMLSelectElement>('scenario'); if (sel.disabled) return;
+      sel.value = value; renderScenarioPills();
+    } else if (node === 'T') {
+      const b = get<HTMLButtonElement>('lab-t'); if (b.hidden || b.disabled) return;
+      const running = !!connection?.services?.T?.running;
+      if ((value === 'stop') === running) b.click();
+    }
+  });
+  get('scenario-on-map').onclick = () => {
+    setDetail(true);
+    get('route-map').scrollIntoView({behavior: 'smooth', block: 'start'});
+    requestFlow?.openNodeMenu('R');
+  };
   get('scenario-pills').addEventListener('click', e => {
     const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-scenario]'); if (!b || b.disabled) return;
     get<HTMLSelectElement>('scenario').value = b.dataset.scenario!; renderScenarioPills();

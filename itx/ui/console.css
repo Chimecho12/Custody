@@ -284,3 +284,22 @@ tr.eq-hi td{background:var(--accent-soft)}
 .fcvcell .g{display:block;font:400 9.5px var(--mono);color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 @media (prefers-reduced-motion: reduce){.packettrail{display:none}}
+
+/* --- 노드 행동 메뉴: 홉 지도의 노드 머리를 눌러 그 역할이 다음 요청에서 할 일을 고른다 ---
+   메뉴 패널은 기존 선택 패널(.flowc-sel)의 모양을 그대로 쓴다. 표식(.fcflag)은 판정 톤만 쓰고 정상은 아무것도 붙이지 않는다. */
+.fcnode .fchead[data-fc-node]{cursor:pointer}
+.fcnode .fchead[data-fc-node]:hover,.fcnode .fchead[data-fc-node]:focus-visible{background:var(--accent-soft);outline:none}
+.fcnode .fchead[data-fc-node] .fcbadge{box-shadow:inset 0 0 0 1.5px var(--accent);color:var(--accent)}
+.fcnode .fchead[data-fc-node]:hover .fcbadge,.fcnode.active .fcbadge{background:var(--accent);color:var(--on-accent)}
+.fcnode .fcflag{position:absolute;top:-9px;right:10px;z-index:1;font:600 9.5px var(--mono);color:var(--on-accent);background:var(--fail);border-radius:4px;padding:1px 6px;letter-spacing:.02em;white-space:nowrap;pointer-events:none}
+.fcnode .fcflag.warn{background:var(--warn)}
+.fcnode .fcflag.na{background:var(--na)}
+.fcnode.flagged .fccard{border-style:dashed;border-color:var(--fail)}
+.fcnode.flag-warn .fccard{border-color:var(--warn)}
+.fcnode.flag-na .fccard{border-color:var(--na)}
+.fcnode.down .fccard{opacity:.55}
+.flowc-nodemenu .opts{display:grid;gap:5px;margin-top:8px}
+.flowc-nodemenu .pill{display:block;width:100%;text-align:left;font:500 11.5px var(--sans);padding:6px 10px}
+.flowc-nodemenu .pill.on{font-weight:600}
+.flowc-nodemenu .pill:disabled{opacity:.45;cursor:default}
+.flowc-nodemenu[hidden]{display:none}

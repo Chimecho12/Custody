@@ -44,6 +44,11 @@ const eqGlyph = (r: string) => r === 'pass' ? '✓' : r === 'fail' ? '✗' : '�
 const colOf = (r: string) => CV(cls(r));
 
 export interface EqInfo { result: string; reason?: string; compared?: string[]; trust_grade?: string; title?: string; basis?: string }
+/** 노드 머리를 눌렀을 때 고를 수 있는 행동. 캔버스는 값을 보여주고 고른 것을 이벤트로 알릴 뿐, 무엇을 뜻하는지는 모른다. */
+export interface NodeMenuOption { value: string; label: string; hint?: string; disabled?: boolean }
+export interface NodeMenu { title: string; current: string; options: NodeMenuOption[]; note?: string }
+/** 노드에 붙는 표식 — 그림에서 보이는 사실(이 요청에서 R 이 한 일, T 가 지금 꺼져 있음). 색은 판정 톤만 쓴다. */
+export interface NodeState { flag?: string; tone?: 'fail' | 'warn' | 'na'; down?: boolean }
 export interface FlowData {
   key: string;
   eq: Record<string, EqInfo>;            // 행 id → 결과 (검사 모드면 CHECK_SLOT 자리에 검사 결과를 놓는다)
@@ -55,6 +60,8 @@ export interface FlowData {
   info: {id: string; title: string; verdict: string; verdictTone: string; action: string; actionTone: string; note: string};
   foot: string;                           // 하단 패널: 스크러버 + 증거 행 (컨트롤은 dock 에 들어간다)
   controls?: string;                      // 재생 컨트롤 마크업 (없으면 빈 dock — 정적 컨트롤을 옮겨 붙인다)
+  nodeMenu?: Partial<Record<NodeKey, NodeMenu>>;   // 있으면 그 노드 머리가 눌린다 (그림이 조작판이 되는 경로)
+  nodeState?: Partial<Record<NodeKey, NodeState>>; // 노드 표식. 없는 노드는 그대로 둔다 — 부재를 사건처럼 그리지 않는다
 }
 // 검사 결과(검사 이름 키)를 홉 지도의 행 자리에 놓는다. 행 id 는 L- 코드, 근거는 검사가 가진 basis 다.
 export function eqFromChecks(checks: Record<string, any>, names: Record<string, string>): {eq: Record<string, EqInfo>; rowTitle: Record<string, string>; rowId: Record<string, string>} {
@@ -163,6 +170,7 @@ export function flowCanvasHtml(d: FlowData, view: 'map' | 'sm' = 'map', layout =
       <div class="flowc-tip" data-fc-tip hidden></div>
       <div class="flowc-legend"><span class="pass">✓ pass</span><span class="fail">✗ fail</span><span class="na">– not_evaluable</span>${d.rowId ? '<span>L- = U 로컬 검사 (T 등식 아님) · 근거 종류는 행 선택 시 표시</span>' : '<span>E- = T 가 서명 진술을 대조한 등식</span>'}<span>휠 줌 · 드래그 팬 · 엣지 클릭 선택</span></div>
       <div class="flowc-mini" data-fc-minimap${showMinimap ? '' : ' hidden'}><svg data-fc-minisvg viewBox="0 0 ${W.w} ${W.h}" preserveAspectRatio="xMidYMid meet"><g data-fc-minishapes>${miniShapesHtml(d, g, view)}</g><rect class="mmview" data-fc-miniview x="0" y="0" width="${W.w}" height="${W.h}"/></svg><span class="mmtag">MINIMAP</span></div>
+      <div class="flowc-sel flowc-nodemenu" data-fc-nodemenu hidden></div>
       <div class="flowc-sel" data-fc-sel hidden><div class="h"><span class="id" data-fc-selid></span><span class="ti" data-fc-seltitle></span><button type="button" class="x" data-fc-clear>닫기</button></div><div class="reason" data-fc-selreason></div><div class="cmp" data-fc-selcmp></div></div>
     </div>
     <div class="flowc-foot"><div class="playdock" data-fc-dock>${d.controls ?? ''}</div>${d.foot}</div>
@@ -192,11 +200,15 @@ function mapWorldHtml(d: FlowData, g: Geo, sel: string | null, t = Infinity, pla
       return `<div class="fcrow${sel === eid ? ' sel' : ''}" data-eq="${eid}" data-fc-pick="${eid}"><span class="g" style="color:${colOf(r)}">${eqGlyph(r)}</span><span class="i" style="color:${colOf(r)}">${esc(idl(eid))}</span><span class="n">${esc(title(eid))}</span><span class="d" style="background:${colOf(r)}"></span></div>`; }).join('');
     const handles = (ax === 'h' ? ['left:-5px;top:30%', 'left:-5px;top:72%', 'right:-5px;top:30%', 'right:-5px;top:72%'] : ['top:-5px;left:30%', 'top:-5px;left:72%', 'bottom:-5px;left:30%', 'bottom:-5px;left:72%'])
       .map(s => `<span class="handle" style="${s}"></span>`).join('');
-    return `<div class="fcnode${isT ? ' t' : ''}${open ? '' : ' closed'}" data-node="${id}" style="left:${P[id][0].toFixed(1)}px;top:${P[id][1].toFixed(1)}px">
+    // 행동 메뉴가 있는 노드만 머리가 눌린다. 머리 안에 요소를 더하지 않는다 — 이름 칸이 줄어 잘린다. 표식은 카드 밖 오른쪽 위에 붙인다.
+    const ns = d.nodeState?.[id], menu = d.nodeMenu?.[id];
+    const nodeCls = `fcnode${isT ? ' t' : ''}${open ? '' : ' closed'}${ns?.flag ? ' flagged flag-' + (ns.tone || 'fail') : ''}${ns?.down ? ' down' : ''}`;
+    const headAttr = menu ? ` data-fc-node="${id}" role="button" tabindex="0" title="${esc(menu.title)}"` : '';
+    return `<div class="${nodeCls}" data-node="${id}" style="left:${P[id][0].toFixed(1)}px;top:${P[id][1].toFixed(1)}px">
       <div class="ring" data-ring="${id}" style="opacity:0"></div>
-      <div class="fccard"><div class="fchead"><span class="fcbadge">${n.label}</span><span style="min-width:0;flex:1"><span class="fcname">${esc(n.name)}</span><span class="fcsub">${esc(n.sub)}</span></span>
+      <div class="fccard"><div class="fchead"${headAttr}><span class="fcbadge">${n.label}</span><span style="min-width:0;flex:1"><span class="fcname">${esc(n.name)}</span><span class="fcsub">${esc(n.sub)}</span></span>
         <button type="button" class="fccaret" data-fc-toggle="${id}" title="포트 접기 · 펼치기">${open ? '▾' : '▸'}</button></div>
-        <div class="fcrows">${rows}</div></div>${handles}</div>`;
+        <div class="fcrows">${rows}</div></div>${ns?.flag ? `<span class="fcflag ${ns.tone || 'fail'}">${esc(ns.flag)}</span>` : ''}${handles}</div>`;
   }).join('');
   const start = flowShape(g)[0][0];
   return `<svg width="${WORLD.map.w}" height="${WORLD.map.h}" viewBox="0 0 ${WORLD.map.w} ${WORLD.map.h}" aria-hidden="true">
@@ -254,6 +266,7 @@ export class FlowCanvas {
   private vp = {x: 40, y: 20, k: .66}; private lraf = 0; private t: number; private playing = false;
   private pan: {x: number; y: number; vx: number; vy: number; id: number} | null = null; private mini: {r: DOMRect; id: number} | null = null;
   private canvas: HTMLElement; private world: HTMLElement;
+  private menuNode: NodeKey | null = null;   // 행동 메뉴가 열린 노드
   constructor(private el: HTMLElement, private d: FlowData, private pb: Playback | null) {
     this.canvas = el.querySelector('[data-fc-canvas]')!; this.world = el.querySelector('[data-fc-world]')!;
     this.t = Infinity;
@@ -306,10 +319,12 @@ export class FlowCanvas {
     if (svg) svg.setAttribute('viewBox', `0 0 ${W.w} ${W.h}`); if (mv) { mv.setAttribute('width', String(W.w)); mv.setAttribute('height', String(W.h)); }
     this.apply();
     this.pb?.setLegs(this.legs()); // 재생 엔진이 새 기하로 패킷·꼬리를 다시 그린다 (시점 유지)
+    if (this.menuNode) this.$(`.fcnode[data-node="${this.menuNode}"]`)?.classList.add('active'); // 다시 그려도 열린 메뉴의 노드 강조는 유지
   }
   private tip(text: string | null) { const el = this.$('[data-fc-tip]'); if (!el) return; if (!text) { el.hidden = true; return; } el.textContent = text; el.hidden = false; }
   private select(id: string | null) {
     this.sel = id;
+    if (id) this.openNodeMenu(null); // 선택 패널과 행동 메뉴는 같은 자리를 쓴다 — 하나만 연다
     this.el.querySelectorAll('.fclabel.sel, .fcrow.sel, .edge.on').forEach(n => n.classList.remove('sel', 'on'));
     const panel = this.$('[data-fc-sel]'); if (!panel) return;
     if (!id) { panel.hidden = true; return; }
@@ -342,7 +357,7 @@ export class FlowCanvas {
     this.view = v; this.sel = null;
     this.el.querySelectorAll<HTMLElement>('[data-fc-view]').forEach(b => b.classList.toggle('on', b.dataset.fcView === v));
     this.el.querySelectorAll<HTMLElement>('[data-fc-layout]').forEach(b => b.classList.toggle('off', v !== 'map'));
-    this.select(null); this.tip(null); this.renderWorld(); requestAnimationFrame(() => this.fit());
+    this.openNodeMenu(null); this.select(null); this.tip(null); this.renderWorld(); requestAnimationFrame(() => this.fit());
   }
   // 재생 프레임: 도달 링(원안 ringFor 감쇠) · 상태 머신 활성 상태 · 증거선 흐름 상태를 갱신한다.
   frame(t: number, legs: Leg[], playing: boolean) {
@@ -358,6 +373,44 @@ export class FlowCanvas {
       this.el.querySelectorAll<HTMLElement>('[data-sm-edge]').forEach(el => el.classList.toggle('done', idx > +el.dataset.smEdge!));
     }
   }
+  // ---------- 노드 행동 메뉴 ----------
+  // 노드 머리를 누르면 그 역할이 '다음 요청에서 할 일' 을 고르는 메뉴가 열린다. 고른 값은 'flownode' 이벤트로만 나간다.
+  // 캔버스는 시나리오·서비스 상태를 모르므로, 값을 실제로 바꾸고 표식을 갱신하는 것은 컨트롤러의 몫이다.
+  openNodeMenu(id: NodeKey | null) {
+    if (id && !this.d.nodeMenu?.[id]) id = null;
+    this.el.querySelectorAll('.fcnode.active').forEach(n => n.classList.remove('active'));
+    this.menuNode = id;
+    const panel = this.$('[data-fc-nodemenu]'); if (!panel) return;
+    if (!id) { panel.hidden = true; return; }
+    this.select(null); this.tip(null);
+    this.$(`.fcnode[data-node="${id}"]`)?.classList.add('active');
+    this.renderNodeMenu(); panel.hidden = false;
+  }
+  private renderNodeMenu() {
+    const id = this.menuNode, panel = this.$('[data-fc-nodemenu]'); if (!id || !panel) return;
+    const m = this.d.nodeMenu?.[id]; if (!m) { panel.hidden = true; this.menuNode = null; return; }
+    panel.innerHTML = `<div class="h"><span class="id">${esc(id)}</span><span class="ti">${esc(m.title)}</span><button type="button" class="x" data-fc-nodeclose>닫기</button></div>
+      <div class="opts" role="radiogroup" aria-label="${esc(m.title)}">${m.options.map(o => `<button type="button" class="pill${o.value === m.current ? ' on' : ''}" role="radio" aria-checked="${o.value === m.current}" data-fc-nodeopt="${esc(o.value)}" title="${esc(o.hint || '')}"${o.disabled ? ' disabled' : ''}>${esc(o.label)}</button>`).join('')}</div>
+      ${m.note ? `<div class="reason">${esc(m.note)}</div>` : ''}`;
+  }
+  /** 메뉴 내용을 바꾼다 (현재값·활성 여부). 열려 있으면 그 자리에서 다시 그린다. */
+  setNodeMenu(menu: FlowData['nodeMenu']) { this.d.nodeMenu = menu; if (this.menuNode) this.renderNodeMenu(); }
+  /** 노드 표식을 바꾼다. 전체를 다시 그리지 않고 클래스와 표식 요소만 손본다 — 줌·팬·재생 시점이 유지된다. */
+  setNodeState(state: FlowData['nodeState']) {
+    this.d.nodeState = state;
+    for (const id of Object.keys(NODE_DEF) as NodeKey[]) {
+      const n = this.$(`.fcnode[data-node="${id}"]`); if (!n) continue;
+      const s = state?.[id];
+      n.classList.toggle('down', !!s?.down);
+      n.classList.remove('flagged', 'flag-fail', 'flag-warn', 'flag-na');
+      let f = n.querySelector<HTMLElement>('.fcflag');
+      if (s?.flag) {
+        n.classList.add('flagged', 'flag-' + (s.tone || 'fail'));
+        if (!f) { f = document.createElement('span'); n.appendChild(f); }
+        f.className = 'fcflag ' + (s.tone || 'fail'); f.textContent = s.flag;
+      } else f?.remove();
+    }
+  }
   private bind() {
     const el = this.el;
     el.addEventListener('click', e => {
@@ -368,6 +421,11 @@ export class FlowCanvas {
       if (mb) { this.showMinimap = !this.showMinimap; const m = this.$('[data-fc-minimap]'); if (m) m.hidden = !this.showMinimap; mb.classList.toggle('on', this.showMinimap); return; }
       const tg = t.closest<HTMLElement>('[data-fc-toggle]');
       if (tg) { const id = tg.dataset.fcToggle as NodeKey; this.g.open[id] = !this.g.open[id]; this.renderWorld(); return; }
+      if (t.closest('[data-fc-nodeclose]')) { this.openNodeMenu(null); return; }
+      const no = t.closest<HTMLButtonElement>('[data-fc-nodeopt]');
+      if (no) { if (!no.disabled && this.menuNode) el.dispatchEvent(new CustomEvent('flownode', {bubbles: true, detail: {node: this.menuNode, value: no.dataset.fcNodeopt}})); return; }
+      const nh = t.closest<HTMLElement>('[data-fc-node]');
+      if (nh) { const id = nh.dataset.fcNode as NodeKey; this.openNodeMenu(this.menuNode === id ? null : id); return; }
       const vb = t.closest<HTMLElement>('[data-fc-view]'); if (vb) { this.setView(vb.dataset.fcView as 'map' | 'sm'); return; }
       const lb = t.closest<HTMLElement>('[data-fc-layout]'); if (lb) { this.setLayout(lb.dataset.fcLayout!); return; }
       if (t.closest('[data-fc-clear]')) { this.select(null); return; }
@@ -402,7 +460,12 @@ export class FlowCanvas {
       const px = e.clientX - r.left, py = e.clientY - r.top;
       this.vp = {k, x: px - (px - vp.x) * (k / vp.k), y: py - (py - vp.y) * (k / vp.k)}; this.apply();
     }, {passive: false});
-    el.addEventListener('keydown', e => { if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey) { e.preventDefault(); this.fit(); } });
+    el.addEventListener('keydown', e => {
+      if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey) { e.preventDefault(); this.fit(); return; }
+      if (e.key === 'Escape' && this.menuNode) { this.openNodeMenu(null); return; }
+      const nh = (e.target as HTMLElement).closest?.<HTMLElement>('[data-fc-node]');
+      if (nh && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); const id = nh.dataset.fcNode as NodeKey; this.openNodeMenu(this.menuNode === id ? null : id); }
+    });
     // console.Playback 이 프레임마다 보내는 이벤트 (재생 엔진은 이 모듈을 모른다).
     el.addEventListener('playbackframe', e => { const d = (e as CustomEvent<{t: number; legs: Leg[]; playing: boolean}>).detail; this.frame(d.t, d.legs, d.playing); });
   }
