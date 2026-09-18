@@ -188,11 +188,11 @@ tr.eq-hi td{background:var(--accent-soft)}
 .fcnode .fccard{border:1px solid var(--line);border-radius:11px;background:var(--card-solid);overflow:hidden;box-shadow:var(--shadow-md);
   transition:border-color var(--dur-2) var(--ease-out),box-shadow var(--dur-2) var(--ease-out)}
 .fcnode.t .fccard{border-color:var(--accent);border-style:dashed}
-.fcnode .fchead{display:flex;align-items:center;gap:9px;padding:9px 10px;border-bottom:1px solid var(--line-soft);background:var(--sunken)}
+.fcnode .fchead{display:flex;align-items:center;gap:9px;height:48px;box-sizing:border-box;padding:9px 10px;border-bottom:1px solid var(--line-soft);background:var(--sunken)}
 .fcnode .fcbadge{display:grid;place-items:center;flex:none;width:26px;height:26px;border-radius:7px;background:var(--chip);color:var(--fg);font:700 13px var(--mono)}
 .fcnode.t .fcbadge{background:var(--accent-soft);color:var(--accent)}
-.fcnode .fcname{display:block;font:600 12px var(--sans);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.fcnode .fcsub{display:block;font:400 10px var(--mono);color:var(--na);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fcnode .fcname{display:block;font:600 12px/16px var(--sans);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fcnode .fcsub{display:block;font:400 10px/13px var(--mono);color:var(--na);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fcnode .fccaret{flex:none;width:20px;height:20px;padding:0;border:1px solid var(--line);border-radius:5px;background:var(--card-solid);cursor:pointer;font:500 9px var(--mono);color:var(--muted);line-height:1;box-shadow:none}
 .fcnode .fcrows{padding:5px 4px 6px}
 .fcnode.closed .fcrows{display:none}
@@ -202,7 +202,7 @@ tr.eq-hi td{background:var(--accent-soft)}
 .fcrow .i{font:500 10.5px var(--mono);width:48px;flex:none;white-space:nowrap}
 .fcrow .n{font:400 11px var(--sans);color:var(--fg);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fcrow .d{width:7px;height:7px;border-radius:50%;flex:none}
-.fcnode .handle{position:absolute;width:9px;height:9px;border-radius:50%;background:var(--card-solid);border:1.5px solid var(--line-strong);transform:translate(-2px,-2px);pointer-events:none}
+.fcnode .handle{position:absolute;width:9px;height:9px;box-sizing:border-box;border-radius:50%;background:var(--card-solid);border:1.5px solid var(--line-strong);transform:translate(-50%,-50%);pointer-events:none}
 .fclabel{position:absolute;transform:translate(-50%,-50%);white-space:nowrap;font:500 11px var(--mono);background:var(--card-solid);border:1px solid var(--line);border-radius:5px;padding:2px 7px;box-shadow:var(--shadow-sm);cursor:pointer;
   transition:border-color var(--dur-1) var(--ease-out),background var(--dur-1) var(--ease-out)}
 .fclabel:hover,.fclabel.eq-hi{background:var(--accent-soft)}
