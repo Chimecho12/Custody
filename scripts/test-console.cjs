@@ -77,13 +77,15 @@ function fixture() {
   const lines = ['U', 'R', 'M'].map(key => new Element('line', {id: `test-ev${key}`, class: 'evline'}));
   const rows = ['U', 'R', 'M'].map(key => new Element('div', {class: `evrow${key === 'M' ? ' absent-row' : ''}`,
     'data-ev-key': key, ...(key === 'M' ? {} : {'data-ev-reg': '10'})}, [new Element('span', {class: 'evstate'})]));
-  const root = new Element('section', {}, [box, controls, trail, gradient, ...lines, ...rows,
-    new Element('circle', {id: 'test-packet'}), new Element('div', {'data-tlabel': ''})]);
+  const nodes = ['U', 'R', 'M'].map(key => new Element('div', {class: 'fcnode', 'data-node': key}));
+  const root = new Element('section', {}, [box, controls, trail, gradient, ...lines, ...rows, ...nodes,
+    new Element('circle', {id: 'test-ripple', class: 'packet-ripple'}), new Element('circle', {id: 'test-aura', class: 'packet-aura'}),
+    new Element('circle', {id: 'test-packet', class: 'packet'}), new Element('div', {'data-tlabel': ''})]);
   const playback = new api.Playback(root, 'test');
   const ctx = {legs: api.computeLegs(20, 314), tEnd: 600, span: api.makeSpan(420, 600),
     reqFail: false, respFail: false, consumedAt: null, verdictAt: null, harmExposed: false, detectable: true};
   playback.set(ctx);
-  return {api, root, box, tip, play, reset, back, next, speed, trail, gradient, lines, playback, ctx, frames,
+  return {api, root, box, tip, play, reset, back, next, speed, trail, gradient, lines, nodes, playback, ctx, frames,
     time: () => Number(box.getAttribute('aria-valuenow')),
     frame: ts => { const [id, callback] = frames.entries().next().value; frames.delete(id); callback(ts); },
     reduce: matches => motionChanged({matches})};
@@ -156,9 +158,68 @@ test('step/reset buttons and speed control affect playback', () => {
   for (const label of ['2×', '0.5×', '1×']) {
     f.root.emit('click', f.speed); assert.equal(f.speed.textContent, label);
   }
-  f.root.emit('click', f.speed); f.playback.seek(100); f.root.emit('click', f.play);
-  f.frame(16); assert.equal(f.time(), 106); // 16 ms × (600/3200) × 2배
+  // 속도는 벽시계 진행량을 곱한다: 같은 자리에서 한 프레임(16 ms) 간 t 의 전진이 2× 에서 두 배다.
+  const advance = (times) => { f.root.emit('click', f.reset); f.playback.seek(100); f.root.emit('click', f.play); f.frame(16); const d = f.time() - 100; f.root.emit('click', f.play); return d; };
+  const at1 = advance(); // 현재 배속 1×
+  f.root.emit('click', f.speed); assert.equal(f.speed.textContent, '2×');
+  const at2 = advance();
+  assert.ok(at1 > 0 && Math.abs(at2 - 2 * at1) <= 1, `2× 전진(${at2})은 1× 전진(${at1})의 두 배여야 한다`);
   f.root.emit('click', f.reset); assert.equal(f.time(), 0); assert.equal(f.frames.size, 0);
+});
+
+test('playback paces hops to a perceptual floor and caps long stays, while t stays real', () => {
+  const f = fixture();
+  const legs = f.ctx.legs, sched = f.api.paceSchedule(legs, f.ctx.tEnd);
+  // 배분표는 실측 t 를 그대로 잇는다 — 어떤 구간도 t 를 왜곡하지 않는다.
+  assert.equal(sched[0].t0, 0); assert.equal(sched[sched.length - 1].t1, f.ctx.tEnd);
+  for (let i = 1; i < sched.length; i++) assert.equal(sched[i].t0, sched[i - 1].t1);
+  const wallOf = (L) => { const s = sched.find(x => x.t0 === L.t0 && x.t1 === L.t1); return s.p1 - s.p0; };
+  for (const L of legs.filter(l => !l.work)) assert.ok(wallOf(L) >= 450, `홉 이동 구간은 최소 450 ms 의 벽시계를 받는다 (${wallOf(L)})`);
+  assert.ok(wallOf(legs[3]) <= 800, `추론 구간은 800 ms 를 넘지 않는다 (${wallOf(legs[3])})`);
+  // 실제 재생: 20 ms 짜리 첫 홉을 지나는 데 최소 28 프레임(≈450 ms)이 걸린다.
+  f.playback.seek(0); f.root.emit('click', f.play);
+  let frames = 0; while (f.time() < legs[0].t1 && frames < 200) { f.frame(16 * (frames + 1)); frames++; }
+  assert.ok(frames >= 28, `첫 홉을 지나는 프레임 수 ${frames}`);
+  assert.equal(f.frames.size, 1); // 여전히 재생 중
+  // 뒤로 스크러빙한 뒤 재생하면 그 자리의 벽시계에서 이어 간다 (t 가 튀지 않는다).
+  f.root.emit('click', f.play); f.playback.seek(legs[1].t0); f.root.emit('click', f.play); f.frame(9999);
+  assert.ok(f.time() > legs[1].t0 && f.time() < legs[1].t1 + 1, `이어 재생 뒤 t=${f.time()}`);
+  f.root.emit('click', f.play);
+});
+
+test('tamper ripple fires once on the colour change and the reached node absorbs the packet', () => {
+  const f = fixture(); f.ctx.reqFail = true; f.playback.set(f.ctx);
+  const packet = f.root.querySelector('#test-packet'), aura = f.root.querySelector('#test-aura'), ripple = f.root.querySelector('#test-ripple');
+  const legs = f.ctx.legs, R = f.nodes[1];
+  // 스크러빙(정지 상태)으로 변조 구간에 들어가면 색만 바뀌고 파문은 없다.
+  f.playback.seek(legs[1].t0 + 1);
+  assert.equal(packet.getAttribute('fill'), 'var(--fail)'); assert.equal(aura.getAttribute('fill'), 'var(--fail)');
+  assert.equal(ripple.classList.contains('go'), false); assert.equal(packet.classList.contains('hit'), false);
+  // 재생 중 색이 바뀌는 프레임에는 파문·흔들림이 한 번 붙고, 도달 상자는 흡수, 일하는 상자는 호흡한다.
+  f.playback.seek(legs[0].t0 + 1); f.root.emit('click', f.play);
+  let n = 0; while (!ripple.classList.contains('go') && n < 400) f.frame(16 * ++n);
+  assert.ok(n < 400, '재생 중 변조 구간에 들어서며 파문이 난다');
+  assert.equal(packet.classList.contains('hit'), true);
+  assert.equal(R.classList.contains('arrive'), true, '패킷이 닿은 R 상자가 흡수한다');
+  assert.equal(ripple.getAttribute('cx'), packet.getAttribute('cx'));
+  // 호흡(.working)은 캔버스(flow.ts · report fcRings)가 프레임마다 붙이므로 엔진 픽스처에서는 보지 않는다.
+  assert.equal(packet.classList.contains('docked'), true);
+  // 정지하면 호흡·흡수 클래스가 걷힌다. 파문은 CSS 가 스스로 끝낸다.
+  f.root.emit('click', f.play);
+  assert.equal(f.root.querySelectorAll('.fcnode.working, .fcnode.arrive').length, 0);
+  // 다시 처음부터 재생해도 파문은 색이 바뀌는 순간에만 다시 난다 (변조 구간 안에서는 반복되지 않는다).
+  f.playback.seek(legs[2].t0 + 1); ripple.classList.remove('go'); f.root.emit('click', f.play);
+  f.frame(16); f.frame(32); assert.equal(ripple.classList.contains('go'), false); f.root.emit('click', f.play);
+});
+
+test('packet paths round their corners with the same radius the drawn edges use', () => {
+  const f = fixture();
+  const sq = [[0, 0], [100, 0], [100, 100]];
+  const pts = f.api.filletPolyline(sq, 14);
+  assert.equal(JSON.stringify(pts[0]), '[0,0]'); assert.equal(JSON.stringify(pts[pts.length - 1]), '[100,100]');
+  assert.ok(pts.length > 3 && !pts.some(p => p[0] === 100 && p[1] === 0), '직각 꼭짓점 자체는 지나지 않는다');
+  assert.equal(JSON.stringify(f.api.filletPolyline([[0, 0], [10, 10]])), '[[0,0],[10,10]]');
+  assert.ok(f.ctx.legs[0].pts.length > 3, '이동 구간의 꺾은선이 둥글려졌다');
 });
 
 test('live reduced-motion changes finish playback and prevent another animation', () => {

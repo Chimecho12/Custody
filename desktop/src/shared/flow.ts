@@ -218,7 +218,9 @@ function mapWorldHtml(d: FlowData, g: Geo, sel: string | null, t = Infinity, pla
           <stop offset="0" stop-color="currentColor" stop-opacity="0"/><stop offset="1" stop-color="currentColor" stop-opacity=".65"/></linearGradient></defs>
       ${evPaths}${paths}
       <polyline id="${key}-trail" class="packettrail" points="" fill="none" stroke="url(#${key}-trail-gradient)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0"/>
-      <circle id="${key}-packet" class="packet" cx="${start[0]}" cy="${start[1]}" r="6" fill="${CV('accent')}"/>
+      <circle id="${key}-ripple" class="packet-ripple" cx="${start[0]}" cy="${start[1]}" r="8"/>
+      <circle id="${key}-aura" class="packet-aura" cx="${start[0]}" cy="${start[1]}" r="13" fill="${CV('accent')}"/>
+      <circle id="${key}-packet" class="packet" cx="${start[0]}" cy="${start[1]}" r="5" fill="${CV('accent')}"/>
     </svg><div>${labels}</div><div>${nodes}</div>`;
 }
 const smChain = (mode: string) => SM.base.concat(SM[mode] || SM.protect);
@@ -366,6 +368,10 @@ export class FlowCanvas {
     if (this.view === 'map') {
       const lat = legs[3].t1 - legs[3].t0;
       for (const k of ['U', 'R', 'M']) { const el = this.$(`[data-ring="${k}"]`); if (el) el.style.opacity = String(ringFor(legs, k, t)); }
+      // 노드 호흡: 패킷을 안고 일하는 노드(R 처리 · M 추론 · 서명)는 재생 중에만 숨 쉰다. 도달 흡수(arrive)는 Playback.pulse 가 1회성으로 낸다.
+      const cur = legs.find(L => t >= L.t0 && t < L.t1);
+      const working = playing && cur && cur.work ? cur.at : null;
+      for (const k of ['U', 'R', 'M'] as const) { const n = this.$(`.fcnode[data-node="${k}"]`); if (n) n.classList.toggle('working', working === k); }
       const tr = this.$('[data-ring="T"]');
       if (tr) tr.style.opacity = Math.max(0, ...['U', 'R', 'M'].map(k => { const reg = this.d.regs[k]; if (reg == null || t < reg) return 0; return Math.max(0, 1 - (t - reg) / Math.max(8, lat * 0.14)); })).toFixed(3);
     } else if (this.d.sm) {

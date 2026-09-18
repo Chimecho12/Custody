@@ -32,8 +32,20 @@
 .hopwrap svg line,.hopwrap svg path{transition:stroke var(--dur-2) var(--ease-out)}
 /* 패킷: 위치는 프레임마다 계산하고(전이 없음), 색과 글로우만 부드럽게 넘긴다. 변조 시점의 색 전이가 사건 그 자체다.
    글로우 색은 console.ts 가 fill 과 함께 바꾼다 (정상 accent-glow · 변조 fail-glow · 도착 후 없음). */
-.packet{transition:fill var(--dur-2) var(--ease-out),filter var(--dur-2) var(--ease-out)}
+/* 코어는 카드색 1.5px 테두리로 엣지 선과 분리한다 — 판정색 위에 더 얹는 색은 없다. */
+.packet{stroke:var(--card-solid);stroke-width:1.5;transition:fill var(--dur-2) var(--ease-out),filter var(--dur-2) var(--ease-out)}
 .packettrail{transition:opacity var(--dur-2) var(--ease-out),stroke var(--dur-2) var(--ease-out);pointer-events:none}
+/* 패킷은 두 겹이다: 선명한 코어(판정색 그대로)와 그 뒤의 넓은 발광(aura). 배경 선·글자와 겹쳐도 코어의 대비로 시선이 잡힌다.
+   도착해 멈추면(muted) 발광은 꺼지고, 노드 안에서 일하는 동안(docked)은 코어가 살짝 가라앉는다. */
+.packet-aura{opacity:.32;filter:blur(3.5px);pointer-events:none;transition:fill var(--dur-2) var(--ease-out),opacity var(--dur-2) var(--ease-out)}
+.packet-aura.off{opacity:0}
+.packet.docked{opacity:.78}
+/* 변조의 순간: 색 전이에 더해 붉은 파문 하나와 240 ms 의 흔들림을 딱 한 번 낸다. 이후에는 색만 남는다 — 계속 떠는 점은 인과가 아니라 소음이다. */
+.packet-ripple{fill:none;stroke:var(--fail);stroke-width:2;opacity:0;pointer-events:none;transform-box:fill-box;transform-origin:center}
+.packet-ripple.go{animation:itx-ripple 560ms var(--ease-apple)}
+@keyframes itx-ripple{0%{opacity:.85;transform:scale(.5)}100%{opacity:0;transform:scale(3.4)}}
+.packet.hit{animation:itx-packet-hit 240ms var(--ease-out);transform-box:fill-box;transform-origin:center}
+@keyframes itx-packet-hit{0%,100%{transform:translate(0,0)}20%{transform:translate(-1.5px,1px)}40%{transform:translate(1.5px,-1px)}60%{transform:translate(-1px,-1px)}80%{transform:translate(1px,1px)}}
 /* 노드 수신 반응: 상자 바깥 4px 링이 300ms 동안 잦아든다. 판정 색이 아니라 흐름 색(accent-glow)만 쓰고 잔상을 남기지 않는다. */
 .nodehalo{opacity:0;pointer-events:none;transform-box:fill-box;transform-origin:center}
 .nodehalo.pulse{animation:itx-node-pulse 300ms var(--ease-apple)}
@@ -251,6 +263,12 @@ tr.eq-hi td{background:var(--accent-soft)}
 .flowc-world.easing{transition:transform 260ms var(--ease-apple)}
 .fcnode .ring.pulse{animation:itx-ring 360ms var(--ease-apple)}
 @keyframes itx-ring{0%{opacity:1}100%{opacity:0}}
+/* 노드가 패킷을 안고 일하는 동안(R 처리 · M 추론 · 서명) 테두리가 숨 쉰다 — 멈춘 것이 아니라 연산 중이라는 뜻. 재생 중에만 붙는다. */
+.fcnode.working::after{content:'';position:absolute;inset:-3px;border-radius:12px;pointer-events:none;animation:itx-node-breathe 1.2s var(--ease-in-out) infinite}
+@keyframes itx-node-breathe{0%,100%{box-shadow:0 0 0 1px var(--accent-glow)}50%{box-shadow:0 0 0 3px var(--accent-glow),0 0 18px 2px var(--accent-glow)}}
+/* 도착의 흡수: 패킷이 닿는 순간 상자가 1.5% 부풀었다 돌아온다. 한 번뿐이고 잔상은 없다. */
+.fcnode.arrive .fccard{animation:itx-node-absorb 360ms var(--ease-apple);transform-origin:center}
+@keyframes itx-node-absorb{0%{transform:scale(1)}35%{transform:scale(1.015)}100%{transform:scale(1)}}
 .fcnode.active .fccard{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent),var(--shadow-md)}
 .flowc-tip[hidden]{display:none}
 .flowc-mini[hidden]{display:none}

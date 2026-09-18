@@ -89,7 +89,9 @@ export function hopMapHtml(key: string, labels: HopLabel[], edges: HopEdges, ari
     <line id="${key}-evR" class="evline" x1="430" y1="170" x2="410" y2="306" stroke="${CV('line')}" stroke-width="1.5" stroke-dasharray="4 6"/>
     <line id="${key}-evM" class="evline" x1="700" y1="170" x2="480" y2="306" stroke="${CV('line')}" stroke-width="1.5" stroke-dasharray="4 6"/>
     <polyline id="${key}-trail" class="packettrail" points="" fill="none" stroke="url(#${key}-trail-gradient)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0"/>
-    <circle id="${key}-packet" class="packet" cx="120" cy="118" r="6" fill="${CV('accent')}"/>
+    <circle id="${key}-ripple" class="packet-ripple" cx="120" cy="118" r="8"/>
+    <circle id="${key}-aura" class="packet-aura" cx="120" cy="118" r="13" fill="${CV('accent')}"/>
+    <circle id="${key}-packet" class="packet" cx="120" cy="118" r="5" fill="${CV('accent')}"/>
   </svg>`;
   return `<div class="hopwrap">${svg}${labelHtml}<div class="packetlabel" data-packetlabel hidden></div></div>`;
 }

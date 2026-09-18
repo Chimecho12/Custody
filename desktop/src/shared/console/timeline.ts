@@ -27,12 +27,33 @@ function atDist(pts: Pt[], c: number[], d: number): Pt {
   }
   return [pts[pts.length - 1][0], pts[pts.length - 1][1]];
 }
+// 꺾은선의 꼭짓점을 반지름 r 의 2차 베지에로 둥글린다. flow.ts 의 smoothstep(r=14) 과 같은 곡률이라
+// 패킷이 그려진 선 위를 그대로 탄다 — 직각에서 관성 없이 꺾이지 않는다. 짧은 변에서는 반지름을 그 절반으로 줄인다.
+export const FILLET_R = 14;
+export function filletPolyline(pts: Pt[], r = FILLET_R, samples = 6): Pt[] {
+  if (pts.length < 3) return pts;
+  const out: Pt[] = [pts[0]];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const a = pts[i - 1], v = pts[i], b = pts[i + 1], la = seg(a, v), lb = seg(v, b);
+    const d = Math.min(r, la / 2, lb / 2);
+    if (d < 0.5) { out.push(v); continue; }
+    const p1: Pt = [v[0] + (a[0] - v[0]) / la * d, v[1] + (a[1] - v[1]) / la * d];
+    const p2: Pt = [v[0] + (b[0] - v[0]) / lb * d, v[1] + (b[1] - v[1]) / lb * d];
+    for (let k = 0; k <= samples; k++) {
+      const u = k / samples, w = 1 - u;
+      out.push([w * w * p1[0] + 2 * w * u * v[0] + u * u * p2[0], w * w * p1[1] + 2 * w * u * v[1] + u * u * p2[1]]);
+    }
+  }
+  out.push(pts[pts.length - 1]);
+  return out;
+}
 // 이동 구간은 정지에서 출발해 정지로 끝나므로 가감속을 준다. 노드 안 구간은 앞부분에서 자리를 잡고 머문다.
 const easeInOut = (f: number) => f < .5 ? 2 * f * f : 1 - Math.pow(-2 * f + 2, 2) / 2;
 const settle = (f: number) => 1 - Math.pow(1 - Math.min(1, f / 0.28), 3);
 
 export function computeLegs(sentAt: number, receivedAt: number, latency = 200, shape: Pt[][] = DEFAULT_SHAPE): Leg[] {
   const raw: Leg[] = []; let t = 0;
+  shape = shape.map(p => filletPolyline(p));
   const push = (dt: number, pts: Pt[], label: string, work: boolean, arrive?: NodeKey, at?: NodeKey) => { raw.push({t0: t, t1: t + dt, pts, label, work, arrive, at}); t += dt; };
   push(HOP_MS, shape[0], '요청 전송 U→R', false, 'R');
   push(PROC_MS, shape[1], 'R 중개자 처리', true, undefined, 'R');

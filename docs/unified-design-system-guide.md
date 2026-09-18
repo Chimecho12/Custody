@@ -14,6 +14,7 @@
 3. **Google Antigravity Fluidity (물리 기반 동역학)**:
    - 기계적 선형 이동 대신 Apple 표준 이징(`cubic-bezier(0.16, 1, 0.3, 1)`)과 부드러운 감속을 적용.
    - 홉 지도(Hop Map) 이동 시 혜성 잔상(Comet trail)과 노드 수신 반응(Receptive pulse) 구현.
+   - 재생 벽시계는 구간마다 다르다(홉 이동 ≥ 480 ms, 추론 ≤ 750 ms). 표시되는 t·눈금·홉 경계는 실측 그대로이며 관찰 속도만 조절한다. 패킷은 코어 + 발광(aura) 두 겹, 꺾은선 꼭짓점은 엣지와 같은 r=14 필렛, 도달은 흡수(1.5% 부풂)·작업 중은 호흡, 변조 순간은 파문 1회. `prefers-reduced-motion` 이면 전부 생략한다.
 4. **ChatGPT High-Utility Ergonomics (사용성 및 조작 편의)**:
    - 드래그 가능한 시간선 스크러버(Timeline Scrubber).
    - 해시 및 토큰 1클릭 복사 & 툴팁 피드백.
