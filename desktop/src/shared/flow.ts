@@ -30,7 +30,8 @@ const LAYOUTS: Record<string, {label: string; axis: Axis; pos: PosMap}> = {
   elk: {label: '직교 · ELK', axis: 'v', pos: {U: [90, 70], R: [600, 330], M: [1060, 70], T: [600, 650]}},
 };
 const WORLD = {map: {w: 1340, h: 820}, sm: {w: 1280, h: 620}};
-const NW = 250, HEAD = 58, ROWH = 24;
+// CSS 가 정한 값과 같아야 한다: 머리 48 + 카드 위아래 테두리 2, 행 24, 행 영역 패딩 11 (.fchead/.fcrow 는 높이를 고정해 둔다)
+const NW = 250, HEAD = 50, ROWH = 24;
 const APPLE = (f: number) => 1 - Math.pow(1 - f, 4);
 const lerp = (a: number, b: number, f: number) => a + (b - a) * f;
 const EV_NAME: Record<string, string> = {U: 'U 요청 진술', R: 'R 중계 진술', M: 'M 응답 영수증'};
@@ -198,7 +199,7 @@ function mapWorldHtml(d: FlowData, g: Geo, sel: string | null, t = Infinity, pla
     const n = NODE_DEF[id], open = g.open[id], isT = id === 'T';
     const rows = n.rows.map(eid => { const r = res(eid);
       return `<div class="fcrow${sel === eid ? ' sel' : ''}" data-eq="${eid}" data-fc-pick="${eid}"><span class="g" style="color:${colOf(r)}">${eqGlyph(r)}</span><span class="i" style="color:${colOf(r)}">${esc(idl(eid))}</span><span class="n">${esc(title(eid))}</span><span class="d" style="background:${colOf(r)}"></span></div>`; }).join('');
-    const handles = (ax === 'h' ? ['left:-5px;top:30%', 'left:-5px;top:72%', 'right:-5px;top:30%', 'right:-5px;top:72%'] : ['top:-5px;left:30%', 'top:-5px;left:72%', 'bottom:-5px;left:30%', 'bottom:-5px;left:72%'])
+    const handles = (ax === 'h' ? ['left:0;top:30%', 'left:0;top:72%', 'left:100%;top:30%', 'left:100%;top:72%'] : ['top:0;left:30%', 'top:0;left:72%', 'top:100%;left:30%', 'top:100%;left:72%'])
       .map(s => `<span class="handle" style="${s}"></span>`).join('');
     // 행동 메뉴가 있는 노드만 머리가 눌린다. 머리 안에 요소를 더하지 않는다 — 이름 칸이 줄어 잘린다. 표식은 카드 밖 오른쪽 위에 붙인다.
     const ns = d.nodeState?.[id], menu = d.nodeMenu?.[id];
