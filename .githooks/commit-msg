@@ -1,0 +1,19 @@
+#!/bin/sh
+# AI 작업 흔적이 포함된 커밋 메시지를 차단한다.
+
+MSG_FILE="$1"
+PATTERN='(claude|codex|copilot|chatgpt|gemini|generated with|co-authored-by)'
+
+if grep -Eiq "$PATTERN" "$MSG_FILE"; then
+    echo "커밋 거부: 메시지에 AI 작업 흔적으로 판단되는 문구가 포함되어 있습니다." >&2
+    echo "해당 문구를 제거한 후 다시 커밋하십시오." >&2
+    exit 1
+fi
+
+SUBJECT=$(head -n 1 "$MSG_FILE")
+if [ ${#SUBJECT} -gt 72 ]; then
+    echo "커밋 거부: 제목이 72자를 초과했습니다. (현재 ${#SUBJECT}자)" >&2
+    exit 1
+fi
+
+exit 0
