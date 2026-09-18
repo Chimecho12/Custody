@@ -1,0 +1,22 @@
+#!/bin/sh
+# 정의된 접두어를 사용하지 않는 브랜치의 푸시를 차단한다.
+
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+PATTERN='^(feature|test|design|huge|tiny|new)/[a-z0-9][a-z0-9-]*(-#[0-9]+)?$'
+ARCHIVE_PATTERN='^archive/(feature|test|design|huge|tiny|new)/[a-z0-9][a-z0-9-]*(-#[0-9]+)?$'
+
+if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "master" ] || [ "$BRANCH" = "develop" ]; then
+    exit 0
+fi
+
+if echo "$BRANCH" | grep -Eq "$ARCHIVE_PATTERN"; then
+    exit 0
+fi
+
+if ! echo "$BRANCH" | grep -Eq "$PATTERN"; then
+    echo "푸시 거부: 브랜치 이름이 규칙에 맞지 않습니다. ($BRANCH)" >&2
+    echo "형식: <feature|test|design|huge|tiny|new>/<소문자-하이픈-이름> 또는 archive/<원래 이름>" >&2
+    exit 1
+fi
+
+exit 0
