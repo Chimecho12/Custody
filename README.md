@@ -75,6 +75,8 @@ python run.py test                       # 단위·시나리오·IPC·콘솔 동
 node --test scripts/test-console.cjs     # 재생/스크러버 상호작용 (데스크톱 + 보고서 스크립트)
 cd desktop; pnpm build                   # tsc --noEmit + vite build
 node scripts/check-ui.cjs                # 빌드된 미리보기의 레이아웃·콘솔 오류 (playwright 필요)
+node scripts/check-ui-deep.cjs           # 요청 실행 뒤 상세 탭·노드 메뉴·감사·어두운 테마 (playwright 필요)
+node scripts/check-playback.cjs          # 변조 사건 재생을 돌려 프레임 캡처·시간축 확인 (playwright 필요)
 ruff check .                             # 설정은 pyproject.toml
 python -m pip wheel . --no-deps -w .build/wheels
 python scripts/check-package.py .build/wheels/itx-0.1.0-py3-none-any.whl # 저장소 밖에서 import·보고서 자산 검사
