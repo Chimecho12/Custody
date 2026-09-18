@@ -14,7 +14,7 @@ if (Test-Path (Join-Path $localCargo 'bin\cargo.exe')) {
 if (-not $Pnpm) { $found = Get-Command pnpm -ErrorAction SilentlyContinue; if ($found) { $Pnpm = $found.Source } }
 Push-Location $projectRoot
 try {
-    if ($RebuildAgent) {
+    if ($RebuildAgent -and -not $UiOnly) {
         $transformSource = (Join-Path $projectRoot 'itx/reconcile/transforms.py') + ':itx/reconcile'
         & $Python -m PyInstaller --noconfirm --clean --onefile --name itx-agent --add-data $transformSource --distpath desktop/src-tauri/binaries --workpath .build/pyinstaller --specpath .build runtime.py
         if ($LASTEXITCODE -ne 0) { throw 'Agent packaging failed' }
