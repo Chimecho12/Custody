@@ -1,3 +1,6 @@
+// 모션 규칙: 인과(패킷의 이동·도달·증거 등록)를 보이는 데만 쓴다. 강조·장식에는 쓰지 않는다.
+// 결손·미실행은 움직이지 않는다. prefers-reduced-motion 이면 재생 없이 최종 상태로 즉시 간다.
+// 같은 규칙을 사용자에게도 참조 시나리오 화면(features/simulation/view.ts)에서 그대로 보여 준다.
 import { CV } from './format';
 import { reducedMotion } from './preferences';
 import { packetPos, packetLabel, trailLength, trailPoints, type Leg, type NodeKey, type Span } from './timeline';
