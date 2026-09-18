@@ -92,7 +92,7 @@ const MODEL_LATENCY_MS = {'model-A':200,'model-A-small':80,'model-B':150};
 function computeLegs(a, c, rl, m){
   const modelId = (m && m.model_id) || (rl && rl.upstream_model) || c.requested_model;
   const lat = MODEL_LATENCY_MS[modelId] ?? 200;
-  const S = fcShape();
+  const S = fcShape().map(p => filletPolyline(p));
   const raw = []; let t = 0;
   const push=(dt,pts,label,work,arrive,at)=>{ raw.push({t0:t,t1:t+dt,pts,label,work,arrive,at}); t+=dt; };
   push(HOP_MS,  S[0], '요청 전송 U→R', false, 'R');
@@ -121,6 +121,25 @@ function atDist(pts, c, d){
     }
   }
   return [pts[pts.length-1][0], pts[pts.length-1][1]];
+}
+// 꺾은선의 꼭짓점을 반지름 r 의 2차 베지에로 둥글린다. smoothstep(r=14) 과 같은 곡률이라 패킷이 그려진 선 위를 그대로 탄다.
+const FILLET_R = 14;
+function filletPolyline(pts, r = FILLET_R, samples = 6){
+  if (pts.length < 3) return pts;
+  const out = [pts[0]];
+  for (let i = 1; i < pts.length - 1; i++){
+    const a = pts[i-1], v = pts[i], b = pts[i+1], la = segLen(a, v), lb = segLen(v, b);
+    const d = Math.min(r, la/2, lb/2);
+    if (d < 0.5){ out.push(v); continue; }
+    const p1 = [v[0] + (a[0]-v[0])/la*d, v[1] + (a[1]-v[1])/la*d];
+    const p2 = [v[0] + (b[0]-v[0])/lb*d, v[1] + (b[1]-v[1])/lb*d];
+    for (let k = 0; k <= samples; k++){
+      const u = k/samples, w = 1-u;
+      out.push([w*w*p1[0] + 2*w*u*v[0] + u*u*p2[0], w*w*p1[1] + 2*w*u*v[1] + u*u*p2[1]]);
+    }
+  }
+  out.push(pts[pts.length-1]);
+  return out;
 }
 // 이동 구간은 정지에서 출발해 정지로 끝나므로 가감속을 준다. 노드 안 구간은 앞부분에서 자리를 잡고 머문다.
 const easeInOut = (f)=> f<.5 ? 2*f*f : 1-Math.pow(-2*f+2,2)/2;
@@ -174,9 +193,37 @@ try {
 
 const SPEEDS = [0.5, 1, 2];
 let speed = 1;
+// 인지 시간(재생 벽시계) ↔ 실측 시간(t). 화면의 t · 눈금 · 홉 경계는 전부 실측이고, 재생이 그 축을 지나는 속도만 구간마다 다르다:
+// 20 ms 홉은 눈이 궤적을 쫓도록 최소 480 ms, 200 ms 추론은 멈춘 것처럼 보이지 않도록 최대 750 ms. 표시되는 t 는 언제나 실측 그대로다.
+const PACE = {pre: 160, move: 480, sign: 220, workMin: 350, workMax: 750, postMin: 400, postMax: 1200};
+function paceSchedule(legs, tEnd){
+  const out = []; let p = 0;
+  const add = (t0, t1, wall)=>{ if (t1 <= t0 || wall <= 0) return; out.push({p0:p, p1:p+wall, t0, t1}); p += wall; };
+  add(0, legs[0].t0, PACE.pre);
+  for (const L of legs){
+    const real = L.t1 - L.t0;
+    add(L.t0, L.t1, !L.work ? PACE.move : real < 30 ? PACE.sign : Math.max(PACE.workMin, Math.min(PACE.workMax, real)));
+  }
+  const last = legs[legs.length-1].t1;
+  add(last, tEnd, Math.max(PACE.postMin, Math.min(PACE.postMax, tEnd-last)));
+  return out;
+}
+const paceLength = (s)=> s.length ? s[s.length-1].p1 : 0;
+function tFromPace(s, p){
+  if (!s.length) return 0;
+  if (p <= 0) return s[0].t0;
+  for (const seg of s) if (p <= seg.p1) return seg.t0 + (seg.t1-seg.t0)*((p-seg.p0)/(seg.p1-seg.p0));
+  return s[s.length-1].t1;
+}
+function paceFromT(s, t){
+  if (!s.length) return 0;
+  if (t <= s[0].t0) return 0;
+  for (const seg of s) if (t <= seg.t1) return seg.p0 + (seg.p1-seg.p0)*((t-seg.t0)/(seg.t1-seg.t0));
+  return paceLength(s);
+}
 function stopPlayback(){
   playing=false; if(rafId) cancelAnimationFrame(rafId); rafId=null; lastTs=null; if(PB) PB.prev=null;
-  document.querySelectorAll('.flowing, .pulse, .settling').forEach(el=>el.classList.remove('flowing','pulse','settling'));
+  document.querySelectorAll('.flowing, .pulse, .settling, .working, .arrive').forEach(el=>el.classList.remove('flowing','pulse','settling','working','arrive'));
   scrubTip(null); updatePlayBtn();
 }
 function updatePlayBtn(){
@@ -202,10 +249,11 @@ function stepPlayback(ts){
   if (!playing) return;
   if (reducedMotion){ stopPlayback(); setT(PB.tEnd); return; }
   const dt = lastTs!=null ? Math.min(64, ts-lastTs) : 16; lastTs = ts;
-  const base = Math.max(0.05, PB.tEnd/3600); // 원안: ×1 재생은 약 3.6초, 구간 비율은 실제 값 그대로
-  let nt = PB.t + dt*base*speed;
-  if (nt >= PB.tEnd) { nt = PB.tEnd; playing = false; }
-  setT(nt);
+  // 벽시계로 진행하고 실측 t 로 바꿔 그린다. ×1 재생은 구간 수에 따라 약 3.5~4초.
+  const total = paceLength(PB.pace);
+  let nw = PB.wall + dt*speed, nt = total ? tFromPace(PB.pace, nw) : PB.tEnd;
+  if (nw >= total || nt >= PB.tEnd) { nt = PB.tEnd; nw = total; playing = false; }
+  PB.wall = nw; setT(nt);
   if (playing) rafId = requestAnimationFrame(stepPlayback); else updatePlayBtn();
 }
 function togglePlay(){
@@ -213,6 +261,8 @@ function togglePlay(){
   if (reducedMotion){ stopPlayback(); setT(PB.tEnd); return; } // 축소 모션: 최종 상태로 즉시 점프, 재생하지 않는다
   if (playing) { stopPlayback(); return; }
   if (PB.t >= PB.tEnd) setT(0);
+  if (!PB.pace) PB.pace = paceSchedule(PB.legs, PB.tEnd);
+  PB.wall = paceFromT(PB.pace, PB.t); // 스크러버로 옮긴 자리에서 이어 간다
   playing = true; lastTs = null; updatePlayBtn();
   rafId = requestAnimationFrame(stepPlayback);
 }
@@ -418,7 +468,9 @@ function fcMapWorldHtml(){
           <stop offset="0" stop-color="currentColor" stop-opacity="0"/><stop offset="1" stop-color="currentColor" stop-opacity=".65"/></linearGradient></defs>
       <g id="itxEdges">${paths}</g>
       <polyline id="itxTrail" class="packettrail" points="" fill="none" stroke="url(#itxTrailGradient)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0"/>
-      <circle id="itxPacket" class="packet" cx="${start[0]}" cy="${start[1]}" r="6" fill="${CV('accent')}"/>
+      <circle id="itxRipple" class="packet-ripple" cx="${start[0]}" cy="${start[1]}" r="8"/>
+      <circle id="itxAura" class="packet-aura" cx="${start[0]}" cy="${start[1]}" r="13" fill="${CV('accent')}"/>
+      <circle id="itxPacket" class="packet" cx="${start[0]}" cy="${start[1]}" r="5" fill="${CV('accent')}"/>
     </svg><div id="itxEdgeLabels">${labels}</div><div id="itxNodes">${nodes}</div>`;
 }
 // ---- 상태 머신 뷰 (원안 체인·배치·활성 규칙). 결정 자리에는 이 요청의 실제 게이트 결정을 쓴다 ----
@@ -461,6 +513,10 @@ function fcRings(t){
   if (!PB || fc.view !== 'map') return;
   const legs = PB.legs, lat = legs[3].t1 - legs[3].t0;
   for (const k of ['U','R','M']){ const el = document.querySelector(`[data-ring="${k}"]`); if (el) el.style.opacity = String(ringFor(legs, k, t)); }
+  // 노드 호흡: 패킷을 안고 일하는 노드(R 처리 · M 추론 · 서명)는 재생 중에만 숨 쉰다. 도달 흡수(arrive)는 pulseNode 가 1회성으로 낸다.
+  const cur = legs.find(L => t >= L.t0 && t < L.t1);
+  const working = playing && cur && cur.work ? cur.at : null;
+  for (const k of ['U','R','M']){ const n = document.querySelector(`.fcnode[data-node="${k}"]`); if (n) n.classList.toggle('working', working === k); }
   const tr = document.querySelector('[data-ring="T"]');
   if (tr) tr.style.opacity = String(Math.max(0, ...['U','R','M'].map(k => { const reg = PB.regs[k]; if (reg == null || t < reg) return 0; return Math.max(0, 1 - (t - reg)/Math.max(8, lat*0.14)); })).toFixed(3));
 }
@@ -657,7 +713,7 @@ function renderDetail(){
   PB = { legs, tEnd, breakpoint, span, eq, consumedAt, verdictAt, harmExposed, detectable, attack,
          receivedAt:a.received_at, hasError: !!a.error, t: tEnd,
          fired: new Set(legs.map((_,i)=>i)), evFired: new Set(), primed: false, prev: null, fill: '',
-         legArgs:[a, c, rl, m], mode: g.mode, gateAction: g.action, decidedAt: g.decided_at,
+         pace: paceSchedule(legs, tEnd), wall: 0, legArgs:[a, c, rl, m], mode: g.mode, gateAction: g.action, decidedAt: g.decided_at,
          regs:{U: regContract ? regContract.registered_at : null, R: regRelay ? regRelay.registered_at : null, M: regReceipt ? regReceipt.registered_at : null} };
   $('#tLabel').textContent = `t = ${Math.round(tEnd)} ms`;
 
@@ -877,8 +933,13 @@ function renderDetail(){
 function pulseNode(node){
   // 캔버스의 도달 링은 fcRings 가 프레임마다 감쇠시킨다. 옛 SVG halo 가 있을 때만 1회성 펄스를 낸다.
   const el = $('#itxHalo'+node);
-  if (!el) return;
-  el.classList.remove('pulse'); void el.getBoundingClientRect(); el.classList.add('pulse');
+  if (el){ el.classList.remove('pulse'); void el.getBoundingClientRect(); el.classList.add('pulse'); }
+  // 그래프 캔버스 상자(.fcnode)는 흡수로 반응한다: 1.5% 부풀었다 돌아오고, 애니메이션이 끝나면 클래스를 걷는다.
+  const card = document.querySelector(`.fcnode[data-node="${node}"]`);
+  if (card){
+    card.classList.remove('arrive'); void card.getBoundingClientRect(); card.classList.add('arrive');
+    card.addEventListener('animationend', ()=>card.classList.remove('arrive'), {once:true});
+  }
 }
 function updatePacket(){
   if (!PB) return;
@@ -901,13 +962,27 @@ function updatePacket(){
       dot.style.filter = fill==='muted' ? 'none' : `drop-shadow(0 0 6px ${CV(fill+'-glow')})`;
     }
   }
-
   const moving = t > PB.legs[0].t0 && t < lastLeg.t1;
+  // 노드 안에서 일하는 동안은 코어를 살짝 가라앉힌다 — 연산 중임은 노드의 호흡(fcRings .working)이 말한다.
+  if (dot) dot.classList.toggle('docked', moving && !!pos.leg.work);
+  // 두 겹 패킷: 코어 뒤의 넓은 발광. 색은 코어와 같고, 도착해 멈추면 꺼진다.
+  const aura = $('#itxAura');
+  if (aura){
+    aura.setAttribute('cx', pos.x.toFixed(1)); aura.setAttribute('cy', pos.y.toFixed(1));
+    if (changed){ aura.setAttribute('fill', CV(fill)); aura.classList.toggle('off', fill==='muted'); }
+  }
+  // 변조의 순간: 색이 바뀌는 그 프레임에 붉은 파문 하나와 짧은 흔들림을 딱 한 번 낸다. 재생 중에만.
+  if (changed && fill==='fail' && playing && !reducedMotion){
+    const ripple = $('#itxRipple');
+    if (ripple){ ripple.setAttribute('cx', pos.x.toFixed(1)); ripple.setAttribute('cy', pos.y.toFixed(1)); ripple.classList.remove('go'); void ripple.getBoundingClientRect(); ripple.classList.add('go'); }
+    if (dot){ dot.classList.remove('hit'); void dot.getBoundingClientRect(); dot.classList.add('hit'); }
+  }
+
   // 홉 구간은 추론 구간보다 10배 짧아 한 프레임에 크게 건너뛴다. 재생 중에는 그 간격만큼 꼬리를 늘려
   // 이동이 끊겨 보이지 않게 한다 — 속도를 그대로 드러내는 것이고 판정과는 무관하다.
   const jump = PB.prev ? Math.hypot(pos.x-PB.prev.x, pos.y-PB.prev.y) : 0;
   PB.prev = {x:pos.x, y:pos.y};
-  const base = playing ? Math.max(22, Math.min(46, jump*1.6)) : 22; // 원안 값
+  const base = playing ? Math.max(30, Math.min(46, jump*1.6)) : 22; // 재생 중 최소 30px — 홉이 느려진 만큼 꼬리로 방향을 남긴다
   const full = (moving && !reducedMotion) ? trailLength(t, PB.legs, base) : 0;
   // 실제 SVG 그라데이션을 꼬리→패킷 방향으로 정렬하고 경로의 꺾임은 유지한다.
   const layer = $('#itxTrail'), gradient = $('#itxTrailGradient');
