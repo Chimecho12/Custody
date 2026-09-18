@@ -4,6 +4,8 @@ const path = require('node:path');
 const vm = require('node:vm');
 const ts = require('../../desktop/node_modules/typescript');
 
+// context 를 넘기면 그 컨텍스트에서, 넘기지 않으면 현재 realm 에서 실행한다. 반환한 객체를
+// deepEqual 로 비교하는 테스트는 넘기지 않아야 한다 — 별도 컨텍스트는 프로토타입이 달라 비교가 어긋난다.
 function loadTypeScript(entry, context) {
   const cache = new Map();
   function load(filename) {
