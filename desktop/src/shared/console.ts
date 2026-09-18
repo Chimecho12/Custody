@@ -431,7 +431,8 @@ export class Playback {
     const card = this.root.querySelector<HTMLElement>(`.fcnode[data-node="${node}"]`);
     if (card) {
       card.classList.remove('arrive'); void card.getBoundingClientRect(); card.classList.add('arrive');
-      card.addEventListener('animationend', () => card.classList.remove('arrive'), {once: true});
+      // 끝 감지는 .fccard 자신의 animationend 로 한정한다 — 형제 .ring 의 펄스 종료가 흡수를 먼저 끊지 않게.
+      (card.querySelector('.fccard') || card).addEventListener('animationend', () => card.classList.remove('arrive'), {once: true});
     }
   }
   // 패킷 위치·잔상·색, 증거 도달선, 재생 헤드, 피해 막대만 갱신한다. 나머지는 정적이다.

@@ -938,7 +938,8 @@ function pulseNode(node){
   const card = document.querySelector(`.fcnode[data-node="${node}"]`);
   if (card){
     card.classList.remove('arrive'); void card.getBoundingClientRect(); card.classList.add('arrive');
-    card.addEventListener('animationend', ()=>card.classList.remove('arrive'), {once:true});
+    // 끝 감지는 .fccard 자신의 animationend 로 한정한다 — 형제 .ring 의 펄스 종료가 흡수를 먼저 끊지 않게.
+    (card.querySelector('.fccard') || card).addEventListener('animationend', ()=>card.classList.remove('arrive'), {once:true});
   }
 }
 function updatePacket(){
