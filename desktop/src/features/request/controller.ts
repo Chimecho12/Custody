@@ -47,6 +47,15 @@ export function createRequest(onConnection: (data: Data) => void) {
     get('detail-label').textContent = open ? '접기 ▴' : '펼치기 ▾';
   }
   get('detail-toggle').onclick = () => setDetail(get('detail-body').hidden);
+  // 경로 상세 안의 세 깊이(지도·재생 / 실행 시간선 / 검사·증거)는 뷰 전환이 아니라 같은 뷰 안의 탭이다.
+  // 세 칸 모두 DOM 에 남아 있고 hidden 만 바뀐다 — 컨트롤러는 여전히 #route-map · #timeline · #result-details 에 그린다.
+  function showDetailTab(name: string) {
+    for (const b of document.querySelectorAll<HTMLButtonElement>('#detail-tabs [data-detail-tab]')) b.setAttribute('aria-selected', String(b.dataset.detailTab === name));
+    for (const p of document.querySelectorAll<HTMLElement>('#detail-body [data-detail-pane]')) p.hidden = p.dataset.detailPane !== name;
+  }
+  get('detail-tabs').addEventListener('click', e => {
+    const b = (e.target as HTMLElement).closest<HTMLElement>('[data-detail-tab]'); if (b) showDetailTab(b.dataset.detailTab!);
+  });
   get('summary').addEventListener('click', e => {
     if (!(e.target as HTMLElement).closest('[data-open-detail]')) return;
     setDetail(true);
@@ -56,9 +65,10 @@ export function createRequest(onConnection: (data: Data) => void) {
   // 집행 정책은 select 값이 진실이고, 카드는 그 값을 고르는 입력 장치다. 기존 코드와 점검 스크립트가 select 를 읽는다.
   function renderModeCards() {
     const sel = get<HTMLSelectElement>('mode');
-    get('mode-cards').innerHTML = MODES.map(m => `<button type="button" class="v3-mode-card${sel.value === m.code ? ' on' : ''}" data-mode="${m.code}" role="radio" aria-checked="${sel.value === m.code}">
-        <span class="h"><b>${m.title}</b><span class="mono muted">${m.code}</span></span><span class="b">${m.body}</span></button>`).join('');
-    get('mode-help').textContent = MODES.find(m => m.code === sel.value)?.body || '';
+    // 세 정책은 서로 배타적이므로 카드 세 장이 아니라 세그먼트 하나다. 설명은 아래 mode-help 한 줄이 선택된 값만 말한다.
+    get('mode-cards').innerHTML = MODES.map(m => `<button type="button" class="${sel.value === m.code ? 'on' : ''}" data-mode="${m.code}" role="radio" aria-checked="${sel.value === m.code}" aria-pressed="${sel.value === m.code}" title="${esc(m.code + ' · ' + m.body)}">${m.title}</button>`).join('');
+    const cur = MODES.find(m => m.code === sel.value);
+    get('mode-help').textContent = cur ? `${cur.code} · ${cur.body}` : '';
     get('run-note').textContent = `사건 ${SCENARIO_NAMES[get<HTMLSelectElement>('scenario').value] || '정상 경로'} · 정책 ${sel.value}`;
   }
   get('mode-cards').addEventListener('click', e => {
@@ -86,7 +96,7 @@ export function createRequest(onConnection: (data: Data) => void) {
   }
   get<HTMLSelectElement>('scenario').onchange = renderScenarioPills;
   get('scenario-on-map').onclick = () => {
-    setDetail(true);
+    setDetail(true); showDetailTab('map');
     get('route-map').scrollIntoView({behavior: 'smooth', block: 'start'});
     route.openRelayMenu();
   };
@@ -162,7 +172,7 @@ export function createRequest(onConnection: (data: Data) => void) {
     fromLog = null; get('back-to-log').hidden = true; get('request-title').textContent = '요청'; get('request-meta').textContent = '';
     setBusy(true); get('notice').hidden = true; liveEvents = []; renderTimeline(null);
     get('summary').innerHTML = summaryHtml(null, true);
-    get('result').innerHTML = `<div class="busybar"></div><div class="empty"><div class="empty-glyph">◇</div><h3>응답을 보류하고 검증합니다</h3><p>서명·요청·응답 결합을 확인하기 전에는 원문을 공개하지 않습니다.</p></div>`;
+    get('result').innerHTML = `<div class="itx-empty"><div class="busybar"></div><span class="itx-empty-mark">◇</span><span class="itx-empty-title">응답을 보류하고 검증합니다</span><span class="itx-empty-note">서명·요청·응답 결합을 확인하기 전에는 원문을 공개하지 않습니다.</span></div>`;
     get('result-details').innerHTML = '';
     get('request-state').textContent = '진행 중'; get('request-state').className = 'badge amber'; get('body-meta').textContent = '대기';
     try {
@@ -171,7 +181,7 @@ export function createRequest(onConnection: (data: Data) => void) {
       if (record.state !== 'error' && record.state !== 'cancelled' && !record.t_verdict) {
         setTimeout(async () => { try { const fresh = await call('refresh', {sub: record.sub}); if (!busy && selected?.sub === record.sub) renderResult(fresh); } catch { /* T 장애는 명시적 대기 상태로 남긴다 */ } }, 900);
       }
-    } catch (e) { fail(e); get('result').innerHTML = '<div class="v3-body absent">요청을 완료하지 못했습니다. Agent 상태를 확인하세요.</div>'; get('summary').innerHTML = summaryHtml(null); }
+    } catch (e) { fail(e); get('result').innerHTML = '<div class="itx-body absent">요청을 완료하지 못했습니다. Agent 상태를 확인하세요.</div>'; get('summary').innerHTML = summaryHtml(null); }
     finally { activeToken = ''; setBusy(false); await updateStatus(); }
   };
   // 요청 내용은 여러 줄이므로 Enter 는 줄바꿈으로 두고, 실행은 Ctrl/⌘+Enter 로 받는다.

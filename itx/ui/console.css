@@ -168,14 +168,14 @@ tr.eq-hi td{background:var(--accent-soft)}
 .animstatus.planned{color:var(--na)}
 
 /* ---------- 그래프 캔버스 (flow.ts · Claude Design Hopmap Console v2 원안) ---------- */
-.fcinfo{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:0 0 10px;padding:9px 12px;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;background:var(--card);box-shadow:var(--shadow-sm)}
+.fcinfo{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:0 0 10px;padding:9px 12px;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;background:var(--card-solid)}
 .fcinfo .id{font:600 11.5px var(--mono);color:var(--accent)}
 .fcinfo .ti{font-size:12.5px}
 .fcinfo .sp{width:1px;height:14px;background:var(--line)}
 .fcinfo .kv{font-size:12px;color:var(--muted)}
 .fcinfo .note{font:400 11.5px var(--mono);color:var(--na);margin-left:auto}
-.flowc{border:1px solid var(--line);border-radius:12px;background:var(--card-solid);box-shadow:var(--shadow-md);overflow:hidden;outline:none}
-.flowc:focus-visible{box-shadow:0 0 0 2px var(--accent-glow),var(--shadow-md)}
+.flowc{border:1px solid var(--line);border-radius:8px;background:var(--card-solid);overflow:hidden;outline:none}
+.flowc:focus-visible{box-shadow:0 0 0 2px var(--accent-glow)}
 .flowc-bar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:9px 12px;border-bottom:1px solid var(--line);background:var(--sunken)}
 .flowc-bar .sp{width:1px;height:16px;background:var(--line);margin:0 4px}
 .flowc-bar .zoom{font:500 11px var(--mono);color:var(--muted);width:46px;text-align:center;font-variant-numeric:tabular-nums}
@@ -197,7 +197,7 @@ tr.eq-hi td{background:var(--accent-soft)}
 .flowc-world .evline.flowing{animation:itx-evflow 1.6s linear infinite}
 .fcnode{position:absolute;width:250px}
 .fcnode .ring{position:absolute;left:-7px;top:-7px;right:-7px;bottom:-7px;border:2px solid var(--accent);border-radius:16px;pointer-events:none;opacity:0}
-.fcnode .fccard{border:1px solid var(--line);border-radius:11px;background:var(--card-solid);overflow:hidden;box-shadow:var(--shadow-md);
+.fcnode .fccard{border:1px solid var(--line);border-radius:8px;background:var(--card-solid);overflow:hidden;box-shadow:var(--shadow-sm);
   transition:border-color var(--dur-2) var(--ease-out),box-shadow var(--dur-2) var(--ease-out)}
 .fcnode.t .fccard{border-color:var(--accent);border-style:dashed}
 .fcnode .fchead{display:flex;align-items:center;gap:9px;height:48px;box-sizing:border-box;padding:9px 10px;border-bottom:1px solid var(--line-soft);background:var(--sunken)}
@@ -227,14 +227,14 @@ tr.eq-hi td{background:var(--accent-soft)}
 .flowc-mini .mmnode{fill:var(--chip);stroke:var(--line-strong);stroke-width:3}
 .flowc-mini .mmnode.t{stroke:var(--accent)}
 .flowc-mini .mmview{fill:var(--accent-soft);stroke:var(--accent);stroke-width:6}
-.flowc-sel{position:absolute;left:12px;top:12px;width:268px;padding:10px 11px;border:1px solid var(--line);border-radius:9px;background:var(--card);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:var(--shadow-lg);z-index:4}
+.flowc-sel{position:absolute;left:12px;top:12px;width:268px;padding:10px 11px;border:1px solid var(--line);border-radius:8px;background:var(--card);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:var(--shadow-lg);z-index:4}
 .flowc-sel .h{display:flex;align-items:baseline;gap:7px}
 .flowc-sel .id{font:600 12px var(--mono)}
 .flowc-sel .ti{font:600 11.5px var(--sans);flex:1;min-width:0}
 .flowc-sel .x{border:0;background:none;cursor:pointer;color:var(--na);font:500 11px var(--mono);padding:0;box-shadow:none}
 .flowc-sel .reason{margin-top:6px;font:400 11px/1.6 var(--sans);color:var(--muted)}
 .flowc-sel .cmp{margin-top:7px;padding-top:7px;border-top:1px solid var(--line-soft);font:400 10px/1.7 var(--mono);color:var(--na);word-break:break-all}
-.fcsm{position:absolute;width:244px;padding:12px 13px;border-radius:11px;background:var(--card-solid);border:1.5px solid var(--line);color:var(--fg);box-shadow:var(--shadow-md);transition:border-color 200ms var(--ease-apple),box-shadow 200ms var(--ease-apple)}
+.fcsm{position:absolute;width:244px;padding:12px 13px;border-radius:8px;background:var(--card-solid);border:1.5px solid var(--line);color:var(--fg);box-shadow:var(--shadow-md);transition:border-color 200ms var(--ease-apple),box-shadow 200ms var(--ease-apple)}
 .fcsm .n{display:block;font:600 12px var(--sans)}
 .fcsm .s{display:block;font:400 10px var(--mono);color:var(--na);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fcsm.on{border-color:var(--accent);box-shadow:0 0 0 6px var(--accent-glow),var(--shadow-md)}

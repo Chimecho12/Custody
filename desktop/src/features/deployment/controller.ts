@@ -10,9 +10,9 @@ export function initializeDeployment(action: ActionBinder) {
     const i = STEPS.findIndex(s => s.key === stepKey);
     get('deploy-tabs').innerHTML = STEPS.map((s, n) => {
       const done = !!stepDone[s.key], on = s.key === stepKey;
-      return `<div class="v3-step-wrap"><button type="button" class="v3-step${on ? ' on' : ''}${done ? ' done' : ''}" data-step-tab="${s.key}">
-        <span class="hd"><span class="num">${done ? '✓' : n + 1}</span><span class="mono muted">0${n + 1}</span></span><span class="ti">${s.title}</span><span class="st ${done ? 'pass' : on ? 'accent' : 'muted'}">${done ? '완료 · ' + stepDone[s.key] : on ? '진행 중' : '대기'}</span></button>
-        ${n < STEPS.length - 1 ? `<span class="v3-step-conn${done ? ' done' : ''}"></span>` : ''}</div>`;
+      return `<div class="itx-step-wrap"><button type="button" class="itx-step${on ? ' on' : ''}${done ? ' done' : ''}" data-step-tab="${s.key}"${on ? ' aria-current="step"' : ''}${done ? ' data-done="true"' : ''}>
+        <span class="hd"><span class="itx-step-num mono-meta">${done ? '✓' : n + 1}</span><span class="mono-meta muted">0${n + 1}</span></span><span class="ti">${s.title}</span><span class="st ${done ? 'pass' : on ? 'accent' : 'muted'}">${done ? '완료 · ' + stepDone[s.key] : on ? '진행 중' : '대기'}</span></button>
+        ${n < STEPS.length - 1 ? `<span class="itx-step-conn${done ? ' done' : ''}"${done ? ' data-done="true"' : ''}></span>` : ''}</div>`;
     }).join('');
     document.querySelectorAll<HTMLElement>('#view-deployment [data-step]').forEach(s => { s.hidden = s.dataset.step !== stepKey; });
     get<HTMLButtonElement>('deploy-prev').disabled = i <= 0;

@@ -213,6 +213,9 @@ Pproject/
 를 거부하고, 기본 앵커는 파일 모사다. "구현했다" 가 아니라 "모듈은 있고 경로 연결은 남았다" 다 (`docs/limits.md` 9).
 
 모듈 책임과 의존 방향, 변경 전후 경로, 검증 방법은 [docs/architecture.md](docs/architecture.md)에 있다.
+런타임 공통 기반은 `itx/runtime/common/`, 공용 시각화는 `desktop/src/shared/console/`에
+책임별로 나뉘며 기존 import 경로는 유지한다. 화면에 적용하지 않은 디자인 개선 제안은
+[디자인 검토 문서](docs/design-review-2026-09-18.ko.md)에 정리했다.
 기존 `python run.py`, `python runtime.py`, `itx.sim.parties`, `itx.runtime.desktop` 진입점은 유지한다.
 
 ## 주장 상태 표기

@@ -57,7 +57,8 @@ class ConsoleParity(unittest.TestCase):
 
     def setUp(self):
         self.report_js = (ASSETS / "report.js").read_text(encoding="utf-8")
-        self.console_ts = (DESKTOP / "shared" / "console.ts").read_text(encoding="utf-8")
+        console = DESKTOP / "shared" / "console"
+        self.console_ts = "\n".join(path.read_text(encoding="utf-8") for path in sorted(console.glob("*.ts")))
         self.flow_ts = (DESKTOP / "shared" / "flow.ts").read_text(encoding="utf-8")
 
     def test_timing_constants_match(self):

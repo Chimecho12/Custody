@@ -7,13 +7,15 @@ export function initializeShell() {
   // 등식 ↔ 표 연동 하이라이트와 해시 복사는 문서 전역에서 한 번만 건다.
   installConsoleInteractions();
   // ---------- 화면 설명(ⓘ): 모든 화면이 같은 방식으로 연다 ----------
-  for (const b of document.querySelectorAll<HTMLButtonElement>('[data-guide]')) b.onclick = () => {
+  document.addEventListener('click', e => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-guide]');
+    if (!b) return;
     const text = document.querySelector<HTMLElement>(`[data-guide-text="${b.dataset.guide}"]`);
     if (!text) return;
     text.hidden = !text.hidden;
     b.setAttribute('aria-expanded', String(!text.hidden));
     b.classList.toggle('on', !text.hidden);
-  };
+  });
 
   // ---------- 테마: 시스템 → 밝게 → 어둡게 ----------
   const THEME_LABEL: Record<string, string> = {auto: '◐ 시스템', light: '○ 밝게', dark: '● 어둡게'};

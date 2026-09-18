@@ -6,6 +6,7 @@ import type { Data } from '../../shared/types';
 //    있어야 주장 범위가 정확해진다.
 //  - 미구현 항목은 지우지 않고 **회색 결손 행**으로 남긴다. 표준 대비 어디까지
 //    왔는지가 이 화면의 본문이다.
+// 배치는 워크벤치다: 왼쪽 문서 목록(고정 폭), 오른쪽 문서 · 교차 검증 · 벡터 · 내보내기.
 import { esc } from '../../shared/console';
 
 type State = {doc: string; view: 'hex' | 'diag'; open: Record<string, boolean>; showAbsent: boolean};
@@ -43,48 +44,43 @@ export class StandardsView {
   private render() {
     if (!this.data) return;
     const cur = this.current();
-    this.root.innerHTML = this.headHtml() + `<div class="std-split">
+    // 설명(ⓘ)은 다시 그려도 접힘 상태를 잃지 않는다 — 열려 있었으면 열린 채 둔다.
+    const guideOpen = this.root.querySelector<HTMLElement>('[data-guide-text]')?.hidden === false;
+    this.root.innerHTML = this.headHtml(guideOpen) + `<div class="itx-workbench">
       ${this.asideHtml()}
-      <div class="std-main">${cur ? this.docHtml(cur) + this.toolsHtml() + this.vectorsHtml(cur) + this.exportHtml(cur) : ''}</div>
+      <div class="itx-stack">${cur ? this.docHtml(cur) + this.toolsHtml() + this.vectorsHtml(cur) + this.exportHtml(cur) : ''}</div>
     </div>`;
     this.wire();
   }
 
-  private headHtml(): string {
+  private headHtml(guideOpen: boolean): string {
     const t = this.data!.totals as Data;
-    const cell = (label: string, value: string, tone = '') =>
-      `<div class="std-stat"><div class="k">${label}</div><div class="v ${tone}">${value}</div></div>`;
-    return `<div class="std-head">
-      <div class="std-head-text">
-        <div class="v3-meta">검증 · 감사</div>
-        <h1>이 증거는 남의 도구로도 검증되는가</h1>
-        <p>같은 문서를 자체 JSON 프로파일과 COSE_Sign1 바이너리로 나란히 놓고, 벡터를 실제로 실행해 통과한 수를 셉니다. 미구현 항목은 지우지 않고 결손 행으로 남깁니다.</p>
-      </div>
-      <div class="std-stats">
-        ${cell('통과 벡터', `${t.pass}<span class="of">/${t.total}</span>`)}
-        ${cell('부분 적합', String(t.partial), 'warn')}
-        ${cell('미실행', String(t.absent), 'na')}
-        ${Number(t.fail) ? cell('불일치', String(t.fail), 'fail') : ''}
-      </div>
-    </div>`;
+    return `<div class="itx-view-head"><h1 class="ui-title">표준 적합성</h1>
+      <span class="itx-view-meta mono-meta">통과 벡터 ${t.pass} / ${t.total} · 부분 ${t.partial} · 미실행 ${t.absent}${Number(t.fail) ? ` · 불일치 ${t.fail}` : ''}</span>
+      <button class="itx-guide-btn${guideOpen ? ' on' : ''}" type="button" data-guide="standards" title="이 화면 설명" aria-expanded="${guideOpen}">ⓘ</button></div>
+      <p class="itx-guide-panel itx-prose" data-guide-text="standards"${guideOpen ? '' : ' hidden'}>이 증거는 남의 도구로도 검증되는가 — 같은 문서를 자체 JSON 프로파일과 COSE_Sign1 바이너리로 나란히 놓고, 벡터를 실제로 실행해 통과한 수를 셉니다. 미구현 항목은 지우지 않고 결손 행으로 남깁니다. 적합성은 통과·실패가 아니라 벡터 개수이므로 판정 색이 아니라 미터로 말합니다.</p>`;
   }
 
   private asideHtml(): string {
     const docs = (this.data!.documents ?? []) as Data[];
+    const t = this.data!.totals as Data;
     const claim = String(this.data!.claim_status ?? 'planned');
     const items = docs.map(d => {
       const c = d.counts as Data;
       const tone = c.fail ? 'fail' : (c.absent || c.partial) ? 'partial' : 'pass';
-      return `<button type="button" class="std-doc${d.role === this.state.doc ? ' on' : ''}" data-doc="${esc(d.role)}">
-        <span class="row"><span class="role-badge">${esc(d.role)}</span>
+      return `<button type="button" class="std-doc${d.role === this.state.doc ? ' on' : ''}" data-doc="${esc(d.role)}"${d.role === this.state.doc ? ' aria-current="true"' : ''}>
+        <span class="row"><span class="itx-role">${esc(d.role)}</span>
           <span class="name">${esc(d.name)}</span>
           <span class="score ${TONE[tone]}">${c.pass}/${d.total}</span></span>
         <span class="sub">${esc(d.subtitle)}</span>
         <span class="meter"><span style="width:${pct(Number(c.pass), Number(d.total))}%;background:var(--${TONE[tone]})"></span></span>
       </button>`;
     }).join('');
-    return `<aside class="std-aside">
-      <div class="std-label">증거 문서</div>${items}
+    // 통계 4칸은 패널 머리의 칩 네 개로 접는다 — 지표는 그대로다.
+    const stats = `<span class="itx-chip" title="통과 벡터">${t.pass}<span class="muted">/${t.total}</span></span><span class="itx-chip" data-tone="warn" title="부분 적합">! ${t.partial}</span><span class="itx-chip" data-tone="na" title="미실행">– ${t.absent}</span>${Number(t.fail) ? `<span class="itx-chip" data-tone="fail" title="불일치">✗ ${t.fail}</span>` : ''}`;
+    return `<section class="itx-panel itx-inspector">
+      <div class="itx-panel-head mono-label">Documents<span class="itx-spacer"></span>${stats}</div>
+      <div class="itx-panel-body itx-form">${items}
       <div class="std-claim">
         <div class="std-label">주장 상태</div>
         <p class="mono ${TONE[claim === 'verified_external' ? 'pass' : claim === 'mock_result' ? 'fail' : 'absent']}">${esc(claim)}</p>
@@ -93,15 +89,15 @@ export class StandardsView {
           : claim === 'mock_result'
             ? '제3자 구현이 우리 출력을 거부했습니다. 회귀이므로 먼저 고쳐야 합니다.'
             : '교차 검증 도구가 없어 순환을 벗어나지 못했습니다. 우리 벡터만으로는 표준 준수를 주장할 수 없습니다.'}</p>
-      </div>
-    </aside>`;
+      </div></div>
+    </section>`;
   }
 
   private docHtml(d: Data): string {
     const tabs = (['hex', 'diag'] as const).map(v =>
-      `<button type="button" class="pill${this.state.view === v ? ' on' : ''}" data-view="${v}">${v === 'hex' ? 'CBOR hex' : 'CBOR diagnostic'}</button>`).join('');
-    if (!d.available) return `<section class="card std-card"><div class="std-card-head">
-        <span class="role-badge">${esc(d.role)}</span><b>${esc(d.name)}</b></div>
+      `<button type="button" class="pill${this.state.view === v ? ' on' : ''}" aria-pressed="${this.state.view === v}" data-view="${v}">${v === 'hex' ? 'CBOR hex' : 'CBOR diagnostic'}</button>`).join('');
+    if (!d.available) return `<section class="itx-panel"><div class="itx-panel-head">
+        <span class="itx-role">${esc(d.role)}</span><span class="itx-panel-title ui-subtitle">${esc(d.name)}</span></div>
       <div class="std-absent">${esc(d.reason)}</div></section>`;
 
     const right = d.reissuable
@@ -113,11 +109,11 @@ export class StandardsView {
         <span class="v">${esc(r.value)}</span>
         <span class="n ${TONE[String(r.state)]}">${esc(r.note)}</span>
       </div>`).join('');
-    return `<section class="card std-card">
-      <div class="std-card-head">
-        <span class="role-badge">${esc(d.role)}</span><b>${esc(d.name)}</b>
-        <span class="mono muted">${esc(d.file)}</span>
-        <span class="std-tabs">${tabs}</span>
+    return `<section class="itx-panel">
+      <div class="itx-panel-head">
+        <span class="itx-role">${esc(d.role)}</span><span class="itx-panel-title ui-subtitle">${esc(d.name)}</span>
+        <span class="itx-panel-meta mono-meta">${esc(d.file)}</span><span class="itx-spacer"></span>
+        <div class="itx-seg" role="group" aria-label="COSE 표시">${tabs}</div>
       </div>
       <div class="std-encodings">
         <div class="std-enc legacy">
@@ -151,9 +147,9 @@ export class StandardsView {
     }).join('');
     const tone = TONE[String(cross.claim_status) === 'verified_external' ? 'pass'
       : String(cross.claim_status) === 'mock_result' ? 'fail' : 'absent'];
-    return `<section class="card std-card">
-      <div class="std-card-head"><b>제3자 구현 교차 검증</b>
-        <span class="small muted">itx 코드가 아니라 남이 만든 구현이 같은 바이트를 읽는지를 봅니다</span>
+    return `<section class="itx-panel">
+      <div class="itx-panel-head"><span class="itx-panel-title ui-subtitle">제3자 구현 교차 검증</span>
+        <span class="itx-panel-meta mono-meta">itx 코드가 아니라 남이 만든 구현이 같은 바이트를 읽는지를 봅니다</span><span class="itx-spacer"></span>
         <button type="button" class="itx-btn" id="std-copy">재현 명령 복사</button></div>
       <div class="std-cross ${tone}">${esc(cross.summary)}</div>
       <div class="std-tools">${rows || '<div class="std-absent">교차 검증 도구가 없습니다.</div>'}</div>
@@ -175,7 +171,7 @@ export class StandardsView {
           <span class="note mono na">${esc(v.note)}</span>
         </div>`).join('');
       return `<div class="std-group">
-        <button type="button" class="std-ghead" data-group="${esc(g.key)}">
+        <button type="button" class="std-ghead" data-group="${esc(g.key)}" aria-expanded="${open}">
           <span class="g ${TONE[tone]}">${GLYPH[tone]}</span>
           <span class="t"><b>${esc(g.title)}</b><span class="mono na">${esc(g.spec)} · 벡터 ${g.total}종</span></span>
           <span class="meter"><span style="width:${pct(Number(c.pass), Number(g.total))}%;background:var(--${TONE[tone]})"></span></span>
@@ -185,21 +181,21 @@ export class StandardsView {
         ${open ? `<div class="std-vecs">${items}</div>` : ''}
       </div>`;
     }).join('');
-    return `<section class="card std-card">
-      <div class="std-card-head"><b>적합성 벡터</b>
-        <span class="small muted">행을 누르면 개별 벡터가 펼쳐집니다</span>
-        <button type="button" class="itx-btn${this.state.showAbsent ? ' on' : ''}" id="std-absent">${this.state.showAbsent ? '미실행 숨기기' : '미실행 표시'}</button></div>
+    return `<section class="itx-panel">
+      <div class="itx-panel-head"><span class="itx-panel-title ui-subtitle">적합성 벡터</span>
+        <span class="itx-panel-meta mono-meta">행을 누르면 개별 벡터가 펼쳐집니다</span><span class="itx-spacer"></span>
+        <button type="button" class="itx-btn${this.state.showAbsent ? ' on' : ''}" id="std-absent" aria-pressed="${this.state.showAbsent}">${this.state.showAbsent ? '미실행 숨기기' : '미실행 표시'}</button></div>
       ${groups}
     </section>`;
   }
 
   private exportHtml(d: Data): string {
-    return `<div class="card std-export">
-      <div><b>내보내기</b>
-        <div class="small muted">${esc(d.name)} 를 COSE_Sign1 바이너리로 내보냅니다. 검증 명령은 README 로 함께 나갑니다.
+    return `<section class="itx-panel"><div class="itx-panel-body std-export">
+      <div><b class="ui-body-strong">내보내기</b>
+        <div class="itx-help">${esc(d.name)} 를 COSE_Sign1 바이너리로 내보냅니다. 검증 명령은 README 로 함께 나갑니다.
         ${d.reissuable ? '' : ' 이 문서는 발행자만 재발행할 수 있어 제외됩니다.'}</div></div>
-      <button type="button" class="itx-btn itx-btn-accent" id="std-export">.cose 내보내기</button>
-    </div>`;
+      <button type="button" class="itx-btn itx-btn--primary" id="std-export">.cose 내보내기 ↗</button>
+    </div></section>`;
   }
 
   private wire() {
@@ -234,10 +230,10 @@ export class StandardsView {
         exportBtn.textContent = written.length
           ? `${written.length}건 저장${skipped.length ? ` · ${skipped.join('·')} 제외` : ''}`
           : '내보낼 문서 없음';
-      } catch (e) { this.fail(e); exportBtn.textContent = '.cose 내보내기'; }
+      } catch (e) { this.fail(e); exportBtn.textContent = '.cose 내보내기 ↗'; }
       finally {
         exportBtn.disabled = false;
-        setTimeout(() => { exportBtn.textContent = '.cose 내보내기'; }, 2600);
+        setTimeout(() => { exportBtn.textContent = '.cose 내보내기 ↗'; }, 2600);
       }
     };
   }

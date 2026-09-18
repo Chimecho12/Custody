@@ -40,7 +40,7 @@ export function idleRouteHtml(status: Data | null, ctl?: RouteControls): RouteCa
     info: {id: status ? esc(status.source) : '연결 전', title: '아직 실행한 요청이 없다', verdict: '대기', verdictTone: 'na', action: '—', actionTone: 'na', note: 'evaluation'},
     foot: `<p class="small muted" style="margin:0">첫 요청 뒤 U 의 로컬 검사 결과가 이 지도에 표시된다.${ctl ? ' R·T 상자의 머리를 누르면 다음 요청에서 그 역할이 할 일을 고를 수 있다.' : ''}</p>`,
     ...nodeControls(ctl, ctl?.scenario ?? null, false)};
-  const html = `<div class="card-head"><h3>경로 — 업무 데이터 경로(실선)와 T 의 증거·통제 경로(점선)</h3><div class="badges"><span>${status ? esc(status.source) : '연결 전'}</span><span>evaluation</span></div></div>
+  const html = `<div class="itx-section-head"><span class="itx-section-title ui-subtitle">경로 — 업무 데이터 경로(실선)와 T 의 증거·통제 경로(점선)</span><span class="itx-spacer"></span><div class="badges"><span>${status ? esc(status.source) : '연결 전'}</span><span>evaluation</span></div></div>
     ${flowCanvasHtml(flow)}`;
   return {html, ctx: null, flow, trace: null};
 }
@@ -102,14 +102,14 @@ export function routeCard(record: Data, status: Data | null, mode: MapMode, ctl?
     ...nodeControls(ctl, record.lab_scenario || 'normal', true)};
   // 추적 3단(배너·파이프라인·인스펙터)은 재생 구간이 있을 때만 한 시계로 묶인다.
   const trace: TraceData | null = legs && ctx ? {record, status, legs, sent, received, decided: decided ?? received, released, verdictAt, tEnd: ctx.tEnd} : null;
-  const toggle = v ? `<div class="tabs" data-map-toggle><button type="button" class="pill${!useEq ? ' on' : ''}" data-map="checks" title="U 가 응답 공개 전에 직접 확인한 항목. T 의 등식과 다른 주장이다">U 로컬 검사 (L-)</button><button type="button" class="pill${useEq ? ' on' : ''}" data-map="equations" title="T 가 세 당사자의 서명 진술을 대조한 등식">T 대조 등식 (E1~E12)</button></div>` : '';
-  const html = `<div class="card-head"><h3>경로 — 업무 데이터 경로(실선)와 T 의 증거·통제 경로(점선)</h3>
+  const toggle = v ? `<div class="itx-seg" data-map-toggle role="group" aria-label="지도 기준"><button type="button" class="pill${!useEq ? ' on' : ''}" data-map="checks" title="U 가 응답 공개 전에 직접 확인한 항목. T 의 등식과 다른 주장이다">U 로컬 검사 (L-)</button><button type="button" class="pill${useEq ? ' on' : ''}" data-map="equations" title="T 가 세 당사자의 서명 진술을 대조한 등식">T 대조 등식 (E1~E12)</button></div>` : '';
+  const html = `<div class="itx-section-head"><span class="itx-section-title ui-subtitle">경로 — 업무 데이터 경로(실선)와 T 의 증거·통제 경로(점선)</span><span class="itx-spacer"></span>
       <div class="badges"><span>${esc(record.source)}</span><span>evaluation</span><span>${record.lab_scenario ? '실험 조건 · ' + esc(SCENARIO_NAMES[record.lab_scenario] || record.lab_scenario) : '연결 모드 · 공격 주입 없음'}</span></div></div>
     ${trace ? traceTopHtml(trace) : ''}
     <div class="wf-sec"><h3>2단 — 홉 지도 · 패킷 트래커</h3><span class="wf-hint">실측은 전송·수신·결정·공개 시각뿐 — 홉 사이 배분은 시뮬레이션 상수(홉 20ms · 중개 처리 5ms · 서명 2ms · 추론 200ms) 비율의 추정이며 패킷 캡처가 아니다</span></div>
     ${toggle ? `<div style="margin:0 0 10px">${toggle}</div>` : ''}
     ${flowCanvasHtml(flow)}
-    <p class="small muted" style="margin:10px 0 0">${timeNote(record, mm, g, decided, released, verdictAt, attack)} 등록 시각은 T 의 원장에만 있다. 제출 대기 ${status ? status.pending_evidence : '—'}건 · 사후 판정은 '제3자 검증'에서 갱신한다.</p>
+    <p class="itx-help itx-prose" style="margin:10px 0 0">${timeNote(record, mm, g, decided, released, verdictAt, attack)} 등록 시각은 T 의 원장에만 있다. 제출 대기 ${status ? status.pending_evidence : '—'}건 · 사후 판정은 '제3자 검증'에서 갱신한다.</p>
     ${trace ? traceBottomHtml(trace) : ''}
     <div style="margin-top:12px">${stripGridHtml([
       {k: '정책 해시', v: status ? short(status.policy_hash) : '—'}, {k: '모델', v: esc(record.model_kind || '—')},
@@ -199,25 +199,26 @@ export function summaryHtml(record: Data | null, busy = false): string {
   const rGlyph = rt === 'open' ? '◆' : rt === 'blocked' ? '⛔' : '…';
   const vAt = vt === 'wait' ? '' : decided != null ? `t = ${Math.round(decided)} ms` : '';
   const rAt = rt === 'open' && mm?.released != null ? `t = ${Math.round(mm.released)} ms` : rt === 'blocked' ? '공개 없음' : '';
-  return `<div class="v3-sum-row tone-${vTone}"><span class="v3-sum-icon${dashedV ? ' dashed' : ''}">${vGlyph}</span>
-      <span class="v3-sum-text"><span class="v3-sum-k">검증 결과</span><span class="v3-sum-t ${vTone === 'na' ? 'na' : vTone}">${vTitle}</span><span class="v3-sum-b">${vBody}</span></span>
-      <span class="v3-sum-at mono">${vAt}</span></div>
-    <div class="v3-sum-row tone-neutral"><span class="v3-sum-icon${rt !== 'open' ? ' dashed' : ''}">${rGlyph}</span>
-      <span class="v3-sum-text"><span class="v3-sum-k">응답 공개 여부</span><span class="v3-sum-t">${rTitle}</span><span class="v3-sum-b">${rBody}</span></span>
-      <span class="v3-sum-at mono">${rAt}</span></div>
-    <div class="v3-sum-next"><b>다음 행동</b><span>${next}</span>${record ? '<button type="button" class="v3-btn outline" data-open-detail>경로 상세 열기</button>' : ''}</div>`;
+  // 판정 배너: 검증 결과는 색을 쓰는 유일한 축이고, 응답 공개 여부는 게이트의 동작이지 판정이 아니므로 언제나 중립(na)이다.
+  return `<div class="itx-verdict-row" data-tone="${vTone}"><span class="itx-verdict-mark mono-data${dashedV ? ' dashed' : ''}" aria-hidden="true">${vGlyph}</span>
+      <span class="itx-verdict-text"><span class="itx-verdict-k mono-label">검증 결과</span><span class="itx-verdict-t ui-body-strong">${vTitle}</span><span class="itx-verdict-b ui-caption">${vBody}</span></span>
+      <span class="itx-verdict-at mono-meta">${vAt}</span></div>
+    <div class="itx-verdict-row" data-tone="na"><span class="itx-verdict-mark mono-data${rt !== 'open' ? ' dashed' : ''}" aria-hidden="true">${rGlyph}</span>
+      <span class="itx-verdict-text"><span class="itx-verdict-k mono-label">응답 공개 여부</span><span class="itx-verdict-t ui-body-strong">${rTitle}</span><span class="itx-verdict-b ui-caption">${rBody}</span></span>
+      <span class="itx-verdict-at mono-meta">${rAt}</span></div>
+    <div class="itx-verdict-next"><b class="ui-body-strong">다음 행동</b><span class="ui-caption">${next}</span>${record ? '<button type="button" class="itx-btn itx-btn--outline" data-open-detail>경로 상세 열기</button>' : ''}</div>`;
 }
 
 // ---------- 응답 본문 ----------
 export function bodyHtml(record: Data): string {
   let body: string;
-  if (record.content_pruned_at) body = `<div class="v3-body absent">보관 정책에 따라 본문이 삭제됐습니다. 당시의 집행 결과와 서명 증거는 유지됩니다.</div>`;
-  else if (record.response != null) body = `<div class="v3-body open">${esc(record.response)}</div>`;
-  else if (record.state === 'pending') body = `<div class="v3-body absent">응답이 아직 도착하지 않았습니다. 집행 판단 전에는 본문을 표시하지 않습니다.</div>`;
-  else body = `<div class="v3-body absent">${esc(record.error || (record.gate?.action === 'quarantine' ? '격리된 본문은 표시하지 않습니다. 해시와 영수증만 증거로 남습니다.' : '응답이 공개되지 않았습니다. 원문을 화면·업무 소비자에 전달하지 않습니다.'))}</div>`;
+  if (record.content_pruned_at) body = `<div class="itx-body absent">보관 정책에 따라 본문이 삭제됐습니다. 당시의 집행 결과와 서명 증거는 유지됩니다.</div>`;
+  else if (record.response != null) body = `<div class="itx-body open">${esc(record.response)}</div>`;
+  else if (record.state === 'pending') body = `<div class="itx-body absent">응답이 아직 도착하지 않았습니다. 집행 판단 전에는 본문을 표시하지 않습니다.</div>`;
+  else body = `<div class="itx-body absent">${esc(record.error || (record.gate?.action === 'quarantine' ? '격리된 본문은 표시하지 않습니다. 해시와 영수증만 증거로 남습니다.' : '응답이 공개되지 않았습니다. 원문을 화면·업무 소비자에 전달하지 않습니다.'))}</div>`;
   const v = record.t_verdict?.payload;
   return `${body}
-    <div class="v3-body-foot mono">
+    <div class="itx-body-foot mono-meta">
       <span>요청 ID</span><span class="hashchip" data-copy="${esc(record.sub || '')}" role="button" tabindex="0" title="클릭하면 전체 값을 복사합니다">${esc(String(record.sub || '').slice(-18))}</span>
       <span class="muted">시도 ID</span><span class="chipv">${esc(String(record.attempt_id || '—').slice(-14))}</span>
       <span class="muted">소요</span><span class="chipv">${record.elapsed_ms ?? '—'} ms · 실측</span>
@@ -229,17 +230,17 @@ export function bodyHtml(record: Data): string {
 export function detailHtml(record: Data): string {
   const v = record.t_verdict?.payload;
   const g = record.gate;
-  return `<div class="v3-sub"><div class="v3-sub-head"><span class="v3-card-title">집행 · 로컬 검사</span><span class="v3-meta">응답 공개 전 U 가 확인한 항목 · 근거 종류(실측·계산 / 서명된 자기보고 / 평가 불가)를 함께 표시 · T 등식이 아님</span></div>
+  return `<div class="itx-section"><div class="itx-section-head"><span class="itx-section-title ui-subtitle">집행 · 로컬 검사</span><span class="itx-section-meta mono-meta">응답 공개 전 U 가 확인한 항목 · 근거 종류(실측·계산 / 서명된 자기보고 / 평가 불가)를 함께 표시 · T 등식이 아님</span></div>
     ${g ? `<div class="small" style="margin-bottom:8px"><span class="mono" style="font-weight:700;color:${CV(gateColor(g.action))}">${esc(g.action)}</span> · ${(g.reasons || []).map(esc).join(' · ')}</div>${checkChipsHtml(g.local_checks || {})}` : ''}
     ${checksTableHtml(record.checks || {}, CHECK_NAMES)}
-    <div class="result-actions"><button type="button" class="v3-btn" data-refresh>T 사후 판정 갱신</button><span class="badge ${v ? (v.verification_status === 'passed' ? 'green' : 'red') : 'amber'}">${v ? 'T: ' + esc(v.verification_status) : 'T: 사후 판정 대기'}</span></div></div>
-    ${v ? `<div class="v3-sub"><div class="v3-sub-head"><span class="v3-card-title">T 판정 — 등식 E1~E12 와 증거 범위</span><span class="v3-meta">세션 종료 후 T 가 서명·등록한 판정</span></div>
+    <div class="result-actions"><button type="button" class="itx-btn" data-refresh>T 사후 판정 갱신</button><span class="badge ${v ? (v.verification_status === 'passed' ? 'green' : 'red') : 'amber'}">${v ? 'T: ' + esc(v.verification_status) : 'T: 사후 판정 대기'}</span></div></div>
+    ${v ? `<div class="itx-section"><div class="itx-section-head"><span class="itx-section-title ui-subtitle">T 판정 — 등식 E1~E12 와 증거 범위</span><span class="itx-section-meta mono-meta">세션 종료 후 T 가 서명·등록한 판정</span></div>
       <p class="small" style="margin:0 0 6px"><span class="mono" style="font-weight:700;color:${CV(st(v.verification_status))}">${esc(v.verification_status)}</span><span class="small muted" style="margin-left:10px">완전성 <b>${esc(v.completeness)}</b></span><span class="small muted" style="margin-left:10px">협조 ${esc(v.cooperation_set)}</span><span class="small muted" style="margin-left:10px">보증 <b>${esc(v.established_assurance)}</b></span></p>
       ${codesHtml(v.discrepancies || [])}
       ${equationTableHtml(v.equations || {})}
       <ul class="tight small muted">${(v.notes || []).map((n: string) => `<li>${esc(n)}</li>`).join('')}</ul></div>` : ''}
-    ${record.t_error && !v ? `<p class="field-help">T 판정 미확인: ${esc(record.t_error)}</p>` : ''}
-    <details><summary>집행 기록 · 수용된 응답 포함</summary><pre>${esc(JSON.stringify(record, null, 2))}</pre></details>`;
+    ${record.t_error && !v ? `<p class="itx-help">T 판정 미확인: ${esc(record.t_error)}</p>` : ''}
+    <div class="itx-section"><details><summary>집행 기록 · 수용된 응답 포함</summary><pre>${esc(JSON.stringify(record, null, 2))}</pre></details></div>`;
 }
 
 /** 이전 화면 호환: 본문과 근거를 한 덩어리로. */
@@ -248,11 +249,11 @@ export function resultHtml(record: Data): string { return bodyHtml(record) + det
 // 실행 시간선: U 의 단조 시계. 붉은 행 = 응답 공개, 녹색 행 = 격리·중단 결정.
 export function timelineHtml(record: Data | null): string {
   const rows = record?.timeline || [];
-  if (!rows.length) return `<p class="small muted" style="margin:0">아직 실행한 요청이 없습니다.</p>`;
+  if (!rows.length) return `<p class="itx-help" style="margin:0">아직 실행한 요청이 없습니다.</p>`;
   const body = rows.map((e: Data, i: number) => {
     const k: string = e.kind;
     const mark = (k.includes('공개') && !k.includes('미공개') && !k.includes('않음')) ? 'mark' : (k.includes('격리') || k.includes('중단')) ? 'decide' : '';
     return `<tr><td class="muted">${i + 1}</td><td class="mono">${e.t_ms}</td><td><b>${esc(e.actor)}</b></td><td class="${mark}">${esc(k)}</td></tr>`;
   }).join('');
-  return `<div class="tablewrap"><table class="lanes" style="font-size:12px"><thead><tr><th>#</th><th>t ms</th><th>주체</th><th>사건</th></tr></thead><tbody>${body}</tbody></table></div>`;
+  return `<div class="tablewrap"><table class="itx-table lanes"><thead><tr><th>#</th><th>t ms</th><th>주체</th><th>사건</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }

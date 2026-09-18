@@ -1,0 +1,284 @@
+/* itx 워크벤치 컴포넌트 — 데스크톱 콘솔의 컨테이너·컨트롤·표·상태 표시 한 벌.
+   tokens.css 뒤에 읽는다. 리터럴 색·크기·글꼴이 없다: 값은 전부 토큰에서 온다.
+   .v3-* · .wf-card · .std-card 같은 화면별 컨테이너 문법을 이 한 벌로 줄인다.
+   원본은 디자인 시스템 「itx Console」 bundle.css 이며, 이 저장소의 공용 컴포넌트(console.css 의
+   재생·홉 지도)와 충돌하는 .itx-btn / .pill 은 아래 9절에서 맞춘다. */
+
+/* ─────────────────────────────────────────────────────────────
+   1. 기본기 — 한국어 줄바꿈과 숫자 정렬. :where() 로 특이도 0 에 둔다.
+   ───────────────────────────────────────────────────────────── */
+:where(p, span, div, li, td, th, label, button, a, summary, h1, h2, h3, h4){word-break:keep-all;overflow-wrap:break-word}
+:where(h1, h2, h3, .ui-title, .ui-subtitle){text-wrap:balance}
+:where(.itx-prose, .itx-prose p){text-wrap:pretty;max-width:72ch}
+.mono-data,.mono-meta,.mono-code,.itx-num{font-variant-numeric:tabular-nums;word-break:normal;overflow-wrap:anywhere}
+
+/* ─────────────────────────────────────────────────────────────
+   2. 타이포그래피 — 사람이 읽는 다섯, 기계 값 넷. 이 아홉 밖의 크기를 만들지 않는다.
+   ───────────────────────────────────────────────────────────── */
+.ui-title{font-family:var(--font-sans);font-size:18px;line-height:24px;font-weight:700;letter-spacing:-.02em}
+.ui-subtitle{font-family:var(--font-sans);font-size:14px;line-height:20px;font-weight:600;letter-spacing:-.01em}
+.ui-body{font-family:var(--font-sans);font-size:13px;line-height:20px;font-weight:400}
+.ui-body-strong{font-family:var(--font-sans);font-size:13px;line-height:20px;font-weight:600}
+.ui-caption{font-family:var(--font-sans);font-size:12px;line-height:18px;font-weight:400}
+.mono-data{font-family:var(--font-mono);font-size:13px;line-height:18px;font-weight:500}
+.mono-meta{font-family:var(--font-mono);font-size:11px;line-height:16px;font-weight:500;letter-spacing:.02em}
+.mono-label{font-family:var(--font-mono);font-size:11px;line-height:14px;font-weight:600;letter-spacing:.08em}
+.mono-code{font-family:var(--font-mono);font-size:12px;line-height:20px;font-weight:400}
+
+/* ─────────────────────────────────────────────────────────────
+   3. 워크벤치 — 세로로 쌓인 카드 더미 대신 고정된 두 영역. 왼쪽 제어, 오른쪽 판정과 증거.
+   ───────────────────────────────────────────────────────────── */
+.itx-workbench{display:grid;grid-template-columns:var(--inspector-w) minmax(0,1fr);gap:var(--space-4);align-items:start;min-width:0}
+.itx-workbench>*{min-width:0}
+.itx-workbench--even{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.itx-workbench--wide{grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr)}
+.itx-stack{display:flex;flex-direction:column;gap:var(--space-4);min-width:0}
+.itx-spacer{flex:1;min-width:0}
+@media (max-width:1100px){.itx-workbench,.itx-workbench--even,.itx-workbench--wide{grid-template-columns:minmax(0,1fr)}}
+
+/* ─────────────────────────────────────────────────────────────
+   4. 패널 — 시스템의 유일한 컨테이너. 경계는 그림자가 아니라 선이 만든다.
+   ───────────────────────────────────────────────────────────── */
+.itx-panel{display:flex;flex-direction:column;min-width:0;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--card-solid);overflow:hidden}
+.itx-panel-head{display:flex;align-items:center;gap:var(--space-2);flex:none;min-height:var(--panel-head-h);padding:0 var(--space-3);border-bottom:1px solid var(--line);background:var(--sunken);color:var(--muted)}
+.itx-panel-head.mono-label{text-transform:uppercase}
+.itx-panel-head .itx-panel-title{color:var(--fg);text-transform:none}
+.itx-panel-head .itx-panel-meta{color:var(--muted);text-transform:none;letter-spacing:.02em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.itx-panel-head>.itx-spacer{flex:1;min-width:0}
+.itx-panel-body{padding:var(--space-4);min-width:0}
+.itx-panel-body--flush{padding:0}
+.itx-panel-body--tight{padding:var(--space-2) var(--space-3)}
+.itx-panel-foot{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;padding:var(--space-2) var(--space-3);border-top:1px solid var(--line);background:var(--sunken);color:var(--muted)}
+.itx-section{padding:var(--space-3) var(--space-4)}
+.itx-section+.itx-section{border-top:1px solid var(--line)}
+.itx-section-head{display:flex;align-items:baseline;gap:var(--space-2);flex-wrap:wrap;margin-bottom:var(--space-2)}
+.itx-section-head .itx-section-title{color:var(--fg)}
+.itx-section-head .itx-section-meta{color:var(--muted);min-width:0}
+
+/* ─────────────────────────────────────────────────────────────
+   5. 판정 배너 — 검증 결과(색을 쓰는 유일한 축)와 공개 여부(중립)를 두 줄로
+   ───────────────────────────────────────────────────────────── */
+.itx-verdict{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--card-solid);overflow:hidden}
+.itx-verdict-row{display:flex;align-items:flex-start;gap:var(--space-3);padding:var(--space-3);border-left:3px solid var(--na);background:var(--card-solid)}
+.itx-verdict-row+.itx-verdict-row{border-top:1px solid var(--line)}
+.itx-verdict-row[data-tone="pass"]{border-left-color:var(--pass);background:var(--pass-soft)}
+.itx-verdict-row[data-tone="fail"]{border-left-color:var(--fail);background:var(--fail-soft)}
+.itx-verdict-row[data-tone="warn"]{border-left-color:var(--warn);background:var(--warn-soft)}
+.itx-verdict-mark{display:grid;place-items:center;flex:none;width:22px;height:22px;border:1px solid currentColor;border-radius:var(--radius-sm);color:var(--na)}
+.itx-verdict-row[data-tone="pass"] .itx-verdict-mark{color:var(--pass)}
+.itx-verdict-row[data-tone="fail"] .itx-verdict-mark{color:var(--fail)}
+.itx-verdict-row[data-tone="warn"] .itx-verdict-mark{color:var(--warn)}
+.itx-verdict-row[data-tone="na"] .itx-verdict-mark,.itx-verdict-mark.dashed{border-style:dashed}
+.itx-verdict-text{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.itx-verdict-k{color:var(--muted);text-transform:uppercase}
+.itx-verdict-t{color:var(--fg)}
+.itx-verdict-b{color:var(--body)}
+.itx-verdict-at{flex:none;color:var(--muted);white-space:nowrap}
+/* 다음 행동은 판정이 아니다 — 판정 줄 아래 중립 띠로 붙인다. 안의 버튼은 화면 안 다른 곳으로 가는 길이다. */
+.itx-verdict-next{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;padding:var(--space-2) var(--space-3);border-top:1px solid var(--line);background:var(--sunken);color:var(--body)}
+.itx-verdict-next>span{flex:1 1 260px;min-width:0}
+
+/* ─────────────────────────────────────────────────────────────
+   6. 탭 — 같은 대상의 다른 깊이를 한 자리에서 갈아 끼운다
+   ───────────────────────────────────────────────────────────── */
+.itx-tabs{display:flex;align-items:stretch;gap:var(--space-1);flex:none;min-height:var(--panel-head-h);padding:0 var(--space-2);border-bottom:1px solid var(--line);background:var(--sunken);overflow-x:auto}
+.itx-tab{flex:none;height:auto;padding:0 var(--space-3);border:0;border-bottom:2px solid transparent;border-radius:0;background:none;color:var(--muted);cursor:pointer;white-space:nowrap;box-shadow:none;font:500 13px/1 var(--font-sans);transition:color var(--dur-1) var(--ease-standard),border-color var(--dur-1) var(--ease-standard)}
+.itx-tab:hover:not(:disabled){color:var(--fg);background:none;border-color:transparent;border-bottom-color:var(--line-strong)}
+.itx-tab[aria-selected="true"],.itx-tab[aria-selected="true"]:hover{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.itx-tab:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.itx-tab:active:not(:disabled){transform:none}
+
+/* ─────────────────────────────────────────────────────────────
+   7. 증거 인스펙터 — 필드명 / 값 / 판정. 값이 길어져도 열이 움직이지 않는다.
+   ───────────────────────────────────────────────────────────── */
+.itx-kv{display:flex;flex-direction:column;min-width:0}
+.itx-kv-row{display:grid;grid-template-columns:140px minmax(0,1fr) auto;align-items:baseline;gap:var(--space-3);min-height:var(--row-h);padding:var(--space-2) var(--space-3);border-bottom:1px solid var(--line-soft)}
+.itx-kv-row:last-child{border-bottom:0}
+.itx-kv-row:hover{background:var(--sunken)}
+.itx-kv-row[data-absent]{background:var(--bg)}
+.itx-kv-k{color:var(--muted);min-width:0}
+.itx-kv-v{color:var(--fg);min-width:0}
+.itx-kv-row[data-absent] .itx-kv-v{color:var(--na);font-style:italic}
+.itx-kv-note{grid-column:2 / -1;color:var(--muted)}
+.itx-kv--wide .itx-kv-row{grid-template-columns:180px minmax(0,1fr) auto}
+.itx-kv--narrow .itx-kv-row{grid-template-columns:96px minmax(0,1fr) auto}
+/* 1클릭 복사: 값 자체가 조작 대상이다. 점선 밑줄 하나로만 알린다. */
+.itx-copy{border:0;height:auto;padding:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;border-bottom:1px dotted var(--line-strong);border-radius:0;box-shadow:none;transition:border-color var(--dur-1) var(--ease-standard)}
+.itx-copy:hover:not(:disabled){border-bottom-color:var(--accent);background:none;border-color:transparent;border-bottom-color:var(--accent)}
+.itx-copy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* ─────────────────────────────────────────────────────────────
+   8. 데이터 표 — 세로선 없음, 행 구분선만, 숫자는 고정폭
+   ───────────────────────────────────────────────────────────── */
+.itx-table{width:100%;border-collapse:collapse;background:transparent;font-size:13px}
+.itx-table th,.itx-table td{padding:var(--space-2) var(--space-3);border:0;border-bottom:1px solid var(--line-soft);text-align:left;vertical-align:middle;height:var(--row-h)}
+.itx-table th{position:sticky;top:0;z-index:1;background:var(--sunken);border-bottom:1px solid var(--line);color:var(--muted);text-transform:uppercase;white-space:nowrap;font:600 11px/14px var(--font-mono);letter-spacing:.08em}
+.itx-table td.itx-num,.itx-table th.itx-num{text-align:right}
+.itx-table tbody tr:hover td{background:var(--sunken)}
+.itx-table tbody tr[aria-selected="true"] td,.itx-table tbody tr.sel td{background:var(--accent-soft)}
+.itx-table tbody tr[aria-selected="true"] td:first-child,.itx-table tbody tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+.itx-scroll{max-height:420px;overflow:auto}
+
+/* ─────────────────────────────────────────────────────────────
+   9. 컨트롤 — 버튼 · 세그먼트 · 입력. console.css 의 .itx-btn(재생 컨트롤)과 .pill(pills()) 은
+      같은 이름을 쓰므로 여기서 한 모양으로 맞춘다: 강조 변형은 그대로 살린다.
+   ───────────────────────────────────────────────────────────── */
+.itx-btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--space-1);height:var(--control-h);padding:0 var(--space-3);border:1px solid var(--line-strong);border-radius:var(--radius-md);background:var(--card-solid);color:var(--fg);white-space:nowrap;cursor:pointer;box-shadow:none;font:500 13px/1 var(--font-sans);transition:background var(--dur-1) var(--ease-standard),border-color var(--dur-1) var(--ease-standard),opacity var(--dur-1) var(--ease-standard)}
+.itx-btn:hover:not(:disabled){border-color:var(--accent);background:var(--accent-soft)}
+.itx-btn:active:not(:disabled){transform:none;box-shadow:none}
+.itx-btn:disabled{opacity:.45;cursor:default}
+.itx-btn:focus-visible{outline:2px solid var(--accent);outline-offset:1px;box-shadow:var(--focus-ring)}
+.itx-btn--primary,.itx-btn-accent{height:var(--control-h-lg);border-color:var(--accent);background:var(--accent);color:var(--on-accent);font-weight:600}
+.itx-btn--primary:hover:not(:disabled),.itx-btn-accent:hover:not(:disabled){background:var(--accent);border-color:var(--accent);color:var(--on-accent);opacity:.92}
+.itx-btn--ghost{border-color:transparent;background:none;color:var(--muted)}
+.itx-btn--ghost:hover:not(:disabled){background:var(--chip);border-color:transparent;color:var(--fg)}
+.itx-btn--outline{border-color:var(--accent);color:var(--accent);font-weight:600}
+.itx-btn-step{padding:0 var(--space-2)}
+.itx-btn-speed{font-family:var(--font-mono);min-width:44px;padding:0 var(--space-2);font-variant-numeric:tabular-nums}
+.itx-btn.sq{width:28px;padding:0}
+.itx-btn.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+
+/* 세그먼티드 컨트롤 — 서로 배타적인 정책·모드·필터. 라디오 카드 더미와 알약 나열을 대체한다.
+   안의 버튼은 pills() 가 만드는 .pill 이거나 컨트롤러가 만드는 [aria-pressed] 버튼이다. 둘 다 같은 모양이다. */
+.itx-seg{display:inline-flex;align-items:stretch;padding:2px;border:1px solid var(--line-strong);border-radius:var(--radius-md);background:var(--chip);min-width:0;max-width:100%}
+.itx-seg--wrap{flex-wrap:wrap;gap:2px}
+.itx-seg--block{display:flex;flex-wrap:wrap}
+.itx-seg>button{flex:1 0 auto;min-width:0;height:calc(var(--control-h) - 4px);padding:0 var(--space-3);border:0;border-radius:var(--radius-sm);background:none;color:var(--muted);white-space:nowrap;cursor:pointer;box-shadow:none;font:500 12px/1 var(--font-sans);letter-spacing:0;transition:background var(--dur-1) var(--ease-standard),color var(--dur-1) var(--ease-standard)}
+.itx-seg>button:hover:not(:disabled){color:var(--fg);background:none;border-color:transparent}
+.itx-seg>button[aria-pressed="true"],.itx-seg>button.on,.itx-seg>button.on:hover:not(:disabled),.itx-seg>button[aria-checked="true"]{background:var(--card-solid);color:var(--accent);font-weight:600;box-shadow:var(--shadow-raise);border-color:transparent}
+.itx-seg>button:disabled{opacity:.45;cursor:default}
+.itx-seg>button:focus-visible{outline:2px solid var(--accent);outline-offset:-1px}
+.itx-seg>button:active:not(:disabled){transform:none}
+
+/* 입력 */
+.itx-field{display:flex;flex-direction:column;gap:var(--space-1);min-width:0}
+.itx-field>label{color:var(--fg);margin:0;font:600 13px/20px var(--font-sans)}
+.itx-field>.itx-help,.itx-help{color:var(--muted);margin:0;font:400 12px/18px var(--font-sans)}
+.itx-input,.itx-textarea{width:100%;padding:0 var(--space-2);height:var(--control-h-lg);border:1px solid var(--line-strong);border-radius:var(--radius-md);background:var(--card-solid);color:var(--fg);font:400 13px/20px var(--font-sans);transition:border-color var(--dur-1) var(--ease-standard)}
+.itx-input.mono-data{font:500 13px/18px var(--font-mono)}
+.itx-textarea{height:auto;min-height:96px;padding:var(--space-2);background:var(--sunken);resize:vertical}
+.itx-input:hover,.itx-textarea:hover{border-color:var(--muted)}
+.itx-input:focus-visible,.itx-textarea:focus-visible{outline:2px solid var(--accent);outline-offset:-1px;box-shadow:var(--focus-ring)}
+.itx-input--static{display:flex;align-items:center;background:var(--sunken);color:var(--fg);cursor:default}
+.itx-field-row{display:flex;gap:var(--space-2);align-items:flex-end;flex-wrap:wrap}
+.itx-field-row>.itx-field{flex:1 1 200px}
+.itx-field-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:var(--space-3) var(--space-4)}
+.itx-actions{display:flex;gap:var(--space-2);flex-wrap:wrap;align-items:center}
+.itx-check{display:flex;align-items:center;gap:var(--space-2);color:var(--fg);font:500 13px/20px var(--font-sans);margin:0}
+.itx-check input{width:auto;margin:0}
+
+/* ─────────────────────────────────────────────────────────────
+   10. 상태 표시 — 판정 칩과 근거 종류 꼬리표. 칩은 알약이 아니다.
+   ───────────────────────────────────────────────────────────── */
+.itx-chip{display:inline-flex;align-items:center;gap:var(--space-1);padding:1px var(--space-2);border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--chip);color:var(--muted);white-space:nowrap;font:500 11px/16px var(--font-mono);letter-spacing:.02em;font-variant-numeric:tabular-nums}
+.itx-chip[data-tone="pass"]{border-color:var(--pass);background:var(--pass-soft);color:var(--pass)}
+.itx-chip[data-tone="fail"]{border-color:var(--fail);background:var(--fail-soft);color:var(--fail)}
+.itx-chip[data-tone="warn"]{border-color:var(--warn);background:var(--warn-soft);color:var(--warn)}
+.itx-chip[data-tone="na"]{border-style:dashed;border-color:var(--na);background:none;color:var(--na)}
+.itx-chip[data-tone="accent"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+/* 근거 종류는 판정이 아니다 — 색을 쓰지 않고 결로만 구분한다. */
+.itx-basis{display:inline-flex;align-items:center;padding:0 var(--space-1);border:1px solid transparent;border-radius:var(--radius-sm);background:var(--chip);color:var(--muted);white-space:nowrap;font:500 11px/16px var(--font-mono);letter-spacing:.02em}
+.itx-basis[data-basis="estimate"]{border:1px dashed var(--line-strong);background:none}
+.itx-basis[data-basis="not_evaluable"]{border:1px dashed var(--na);background:none;color:var(--na)}
+.itx-dot{display:inline-block;width:7px;height:7px;border-radius:var(--radius-pill);background:var(--na);flex:none}
+.itx-dot[data-tone="pass"]{background:var(--pass)}
+.itx-dot[data-tone="fail"]{background:var(--fail)}
+.itx-dot[data-tone="warn"]{background:var(--warn)}
+.itx-dot[data-tone="live"]{background:var(--accent)}
+.itx-role{display:grid;place-items:center;flex:none;width:22px;height:22px;border-radius:var(--radius-sm);background:var(--chip);color:var(--fg);font:700 11px/1 var(--font-mono);border:1px solid var(--line-strong)}
+.itx-role.t{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+
+/* ─────────────────────────────────────────────────────────────
+   11. 빈 상태 · 진행 — 없음은 실패가 아니다. 점선으로 남기고 색을 쓰지 않는다.
+   ───────────────────────────────────────────────────────────── */
+.itx-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--space-2);min-height:120px;box-sizing:border-box;margin:var(--space-3);padding:var(--space-5);border:1px dashed var(--na);border-radius:var(--radius-lg);background:var(--bg);text-align:center;color:var(--muted)}
+.itx-empty-mark{color:var(--na);font:400 20px/1 var(--font-mono)}
+.itx-empty-title{color:var(--fg);font:600 13px/20px var(--font-sans)}
+.itx-empty-note{color:var(--muted);max-width:46ch;font:400 12px/18px var(--font-sans)}
+.itx-empty-facts{display:flex;gap:var(--space-4);flex-wrap:wrap;justify-content:center;margin-top:var(--space-2);padding-top:var(--space-3);border-top:1px solid var(--line-soft);color:var(--muted)}
+.itx-empty-actions{display:flex;gap:var(--space-2);margin-top:var(--space-2)}
+.itx-busy{height:2px;border-radius:var(--radius-pill);background:var(--chip);overflow:hidden}
+.itx-busy::before{content:"";display:block;height:100%;width:34%;border-radius:var(--radius-pill);background:var(--accent);animation:itx-busy 1.15s var(--ease-inout) infinite}
+@keyframes itx-busy{from{transform:translateX(-110%)}to{transform:translateX(330%)}}
+.itx-offline{opacity:.55;pointer-events:none}
+
+/* ─────────────────────────────────────────────────────────────
+   12. 홉 워터폴 — 실측 구간은 실선 막대, 추정 구간은 해칭
+   ───────────────────────────────────────────────────────────── */
+.itx-wf{display:flex;flex-direction:column}
+.itx-wf-row{display:grid;grid-template-columns:96px minmax(0,1fr) 72px;align-items:center;gap:var(--space-3);min-height:var(--row-h);padding:var(--space-1) var(--space-3);border-bottom:1px solid var(--line-soft)}
+.itx-wf-row:last-child{border-bottom:0}
+.itx-wf-row:hover{background:var(--sunken)}
+.itx-wf-hop{color:var(--fg);white-space:nowrap}
+.itx-wf-track{position:relative;height:10px;border-radius:var(--radius-sm);background:var(--chip)}
+.itx-wf-bar{position:absolute;top:0;height:10px;border-radius:var(--radius-sm);background:var(--accent)}
+.itx-wf-bar[data-basis="estimate"]{background:repeating-linear-gradient(135deg,var(--line-strong) 0 3px,transparent 3px 6px);border:1px solid var(--line-strong)}
+.itx-wf-bar[data-basis="not_evaluable"]{background:none;border:1px dashed var(--na)}
+.itx-wf-ms{color:var(--muted);text-align:right;white-space:nowrap}
+.itx-wf-axis{display:flex;justify-content:space-between;gap:var(--space-3);padding:var(--space-1) var(--space-3) var(--space-2);color:var(--na)}
+
+/* ─────────────────────────────────────────────────────────────
+   13. 설명 토글 — 설명을 지우는 것과 접는 것은 다르다. 접되 지우지 않는다.
+   ───────────────────────────────────────────────────────────── */
+.itx-guide-btn{display:grid;place-items:center;flex:none;width:22px;height:22px;padding:0;border:1px solid var(--line-strong);border-radius:var(--radius-sm);background:var(--card-solid);color:var(--muted);cursor:pointer;box-shadow:none;font:600 12px/1 var(--font-mono)}
+.itx-guide-btn:hover:not(:disabled){border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.itx-guide-btn[aria-expanded="true"],.itx-guide-btn.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.itx-guide-panel{margin:0 0 var(--space-4);padding:var(--space-3);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:var(--radius-lg);background:var(--card-solid);color:var(--body);max-width:78ch;font:400 13px/20px var(--font-sans)}
+.itx-guide-panel[hidden]{display:none}
+
+/* ─────────────────────────────────────────────────────────────
+   14. 필터 바 — 걸린 조건은 언제나 보인다. 숨은 select 는 장식이 아니다.
+   ───────────────────────────────────────────────────────────── */
+.itx-filterbar{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;min-width:0}
+.itx-filterbar>label,.itx-filter-label{color:var(--muted);margin:0;font:600 11px/14px var(--font-mono);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+.itx-filterbar .itx-input{width:auto;height:var(--control-h)}
+.itx-filter-chips{display:flex;gap:var(--space-1);flex-wrap:wrap;padding:var(--space-2) var(--space-3);border-bottom:1px solid var(--line-soft)}
+.itx-filter-count{color:var(--muted);font-variant-numeric:tabular-nums}
+/* 시각적으로만 숨긴 폼 요소 — 점검 스크립트와 보조 기술이 값을 읽는다. 절대 display:none 으로 바꾸지 않는다. */
+.itx-sr,.v3-sr{position:absolute;left:0;top:0;width:1px;height:1px;padding:0;margin:-1px;border:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ─────────────────────────────────────────────────────────────
+   15. 위저드 — 단계는 자유롭게 오간다. 완료는 이 PC 에서 실행한 것만이다.
+   ───────────────────────────────────────────────────────────── */
+.itx-wizard{display:flex;align-items:stretch;gap:0;flex-wrap:wrap}
+.itx-step-wrap{display:flex;align-items:stretch;flex:1 1 148px;min-width:0}
+.itx-step{flex:1;min-width:0;height:auto;display:flex;flex-direction:column;align-items:flex-start;gap:var(--space-1);padding:var(--space-2) var(--space-3);border:1px solid var(--line);border-radius:var(--radius-md);background:var(--card-solid);text-align:left;cursor:pointer;box-shadow:none;font:inherit}
+.itx-step:hover:not(:disabled){border-color:var(--accent);background:var(--card-solid)}
+.itx-step[aria-current="step"],.itx-step.on,.itx-step.on:hover:not(:disabled){border-color:var(--accent);box-shadow:var(--focus-ring);background:var(--card-solid)}
+.itx-step .hd{display:flex;align-items:center;gap:var(--space-2);width:100%}
+.itx-step .ti{display:block;color:var(--fg);font:600 13px/20px var(--font-sans)}
+.itx-step .st{display:block;color:var(--muted);font:500 11px/16px var(--font-mono)}
+.itx-step .st.accent{color:var(--accent)}
+.itx-step .st.pass{color:var(--accent)}
+.itx-step-num{display:grid;place-items:center;flex:none;width:20px;height:20px;border:1px solid var(--line-strong);border-radius:var(--radius-pill);background:var(--chip);color:var(--body);font:700 11px/1 var(--font-mono)}
+.itx-step[data-done="true"] .itx-step-num,.itx-step.done .itx-step-num{border-color:var(--accent);background:var(--accent);color:var(--on-accent)}
+.itx-step-conn{flex:none;width:var(--space-4);align-self:center;height:2px;background:var(--line-strong)}
+.itx-step-conn[data-done="true"],.itx-step-conn.done{background:var(--accent)}
+
+/* ─────────────────────────────────────────────────────────────
+   16. 원장 리본 · 키 경계 · 미터 — 잠긴 구간은 해칭, 추가된 구간은 accent-soft
+   ───────────────────────────────────────────────────────────── */
+.itx-ribbon{position:relative;height:20px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--chip)}
+.itx-ribbon-seg{position:absolute;top:0;bottom:0}
+.itx-ribbon-seg[data-kind="locked"]{background:repeating-linear-gradient(135deg,var(--chip) 0 6px,var(--line-strong) 6px 7px);border-right:1px solid var(--line-strong)}
+.itx-ribbon-seg[data-kind="appended"]{background:var(--accent-soft)}
+.itx-ribbon-tick{position:absolute;top:3px;bottom:3px;width:3px;margin-left:-1px;border-radius:var(--radius-pill);background:var(--muted)}
+.itx-ribbon-tick[data-tone="pass"]{background:var(--pass)}
+.itx-ribbon-tick[data-tone="fail"]{background:var(--fail);width:5px}
+.itx-ribbon-tick[data-tone="policy"]{background:var(--accent)}
+.itx-leafcells{display:grid;gap:2px;margin-top:var(--space-1)}
+.itx-leaf{height:10px;border-radius:2px;background:var(--line)}
+.itx-leaf[data-kind="locked"]{background:var(--line-strong)}
+.itx-leaf[data-kind="appended"]{background:var(--accent-soft);border:1px solid var(--line)}
+.itx-leaf[data-tone="pass"]{background:var(--pass)}
+.itx-leaf[data-tone="fail"]{background:var(--fail)}
+.itx-chain{display:flex;align-items:stretch;gap:var(--space-1);flex-wrap:wrap}
+.itx-chain-box{flex:1 1 148px;min-width:0;display:flex;flex-direction:column;gap:2px;padding:var(--space-2) var(--space-3);border:1px solid var(--line);border-radius:var(--radius-md);background:var(--card-solid)}
+.itx-chain-box[data-inside="true"]{border:2px solid var(--fg)}
+.itx-chain-arrow{display:grid;place-items:center;flex:none;width:20px;color:var(--na)}
+.itx-store{display:inline-block;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--chip);padding:1px var(--space-2);color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;font:500 11px/16px var(--font-mono)}
+.itx-store[data-weak="true"]{border:1px dashed var(--warn);background:none;color:var(--warn)}
+.itx-meter{display:block;height:3px;border-radius:var(--radius-pill);background:var(--chip);overflow:hidden}
+.itx-meter>span{display:block;height:3px;border-radius:var(--radius-pill);background:var(--accent)}
+
+@media (prefers-reduced-motion:reduce){.itx-busy::before{animation:none}}
